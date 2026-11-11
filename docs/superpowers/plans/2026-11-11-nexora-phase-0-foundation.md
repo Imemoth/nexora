@@ -10,6 +10,14 @@
 
 **Spec:** [docs/superpowers/specs/2026-11-11-nexora-v1-design.md](../specs/2026-11-11-nexora-v1-design.md)
 
+## Execution Amendments (owner-approved, 2026-11-11)
+The owner approved this plan with the following amendments. Where they conflict with the task steps below, the amendment applies.
+- **SDK location:** Flutter 3.47.9 stable / Dart 3.13.7 is used on CI only. Task 1 Step 1 `flutter doctor -v` on the owner's machine is replaced by the CI job's `flutter --version` output and a Windows toolchain check on the runner.
+- **Scaffold generation:** `flutter create` runs in a temporary CI workflow (`scaffold-once`) and its output is committed. No SDK is installed locally.
+- **Supabase gate (Task 5):** access is verified and recorded as PASS. The earlier BLOCKED statements are superseded. See `docs/operations/supabase-access.md`.
+- **Action pinning:** third-party GitHub Actions are pinned to commit SHAs.
+- **TDD:** where a task's red and green steps were not separately committed, the deviation is noted in that task's commit message.
+
 ## Global Constraints
 - V1: private single-user, Windows portable ZIP, later Android and iOS.
 - UI: modern dark three-pane shell with smart views and nested task details.
@@ -101,7 +109,7 @@
 
 - [ ] **Step 1: Write ADR checks**: document Flutter Windows/Android/iOS target; repository boundary; local write-first behavior; future Supabase server authority; no secret key in client.
 - [ ] **Step 2: Document failure cases**: offline restart, duplicate operation replay, both devices edit same field, one device deletes a parent, client clock drift, expired token and out-of-order pagination. Define expected no-loss behavior and test owner for Phases 2/3.
-- [ ] **Step 3: Document Supabase read-only prerequisite**: confirm project ID `uicccaawtjvqggeufbez` via authorized connector, confirm identity/org and project status, inspect existing schemas and RLS policies without writes, reject access to other projects as substitute; require explicit owner go-ahead for migrations/secrets/deploy. Current connector access is denied/absent.
+- [ ] **Step 3: Document Supabase read-only prerequisite**: confirm project ID `uicccaawtjvqggeufbez` via authorized connector, confirm identity/org and project status, inspect existing schemas and RLS policies without writes, reject access to other projects as substitute; require explicit owner go-ahead for migrations/secrets/deploy. Verified on 2026-11-11 (read-only): project URL matches the target; migration list empty; `public` schema has zero tables and zero policies.
 - [ ] **Step 4: Document access-check acceptance**: `PASS` only on read-only get_project + safe schema inspection for exact ID; `BLOCKED` if not listed or permission denied; zero mutations.
 - [ ] **Step 5: Run doc/link and repository cleanliness check**; `git diff --check`, `flutter analyze`, `flutter test`, exact-HEAD CI PASS.
 - [ ] **Step 6: Commit** `docs: define offline sync contract and Supabase authorization gate`.
@@ -110,7 +118,7 @@
 - [ ] PR contains all expected project files; no secrets or credential material.
 - [ ] GitHub CI green on final commit HEAD and Windows portable ZIP attached.
 - [ ] Owner reviews UI placeholder and runnable ZIP; no production changes.
-- [ ] Supabase accessibility recorded as `BLOCKED` until access to the exact project is verified.
+- [x] Supabase accessibility recorded as `PASS` (read-only verification, 2026-11-11). Re-verify before any hosted change.
 - [ ] Document precise follow-on plan per phase before implementing it.
 
 ## Subsequent Plans (separate, reviewable phases)

@@ -48,7 +48,7 @@ workspaces(id, owner_user_id, name, created_at), workspace_members(workspace_id,
 - All mandatory CI tests and exact-HEAD manual acceptance pass before owner merge/release.
 
 ## Open constraints / external dependencies
-- Supabase project `uicccaawtjvqggeufbez` is not accessible with current connector permissions (as of 2026-11-11); access must be resolved and verified read-only before any hosted migration.
+- Supabase project `uicccaawtjvqggeufbez`: access verified read-only on 2026-11-11 (project URL matches the target, migration list and schema inspection succeeded, zero writes). Hosted migrations and secrets still require separate explicit owner approval. Evidence: `docs/operations/supabase-access.md`.
 - Confirm Windows minimum support/version based on Flutter stable and native integrations during Phase 0.
 - Lock exact Flutter/Dart, SQLite, routing, state-management and editor package versions after toolchain verification; no broad unpinned dependencies.
 - Company-sensitive content must be subject to organizational data security policy before using external cloud.
