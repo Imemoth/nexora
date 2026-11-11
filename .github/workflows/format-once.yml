@@ -1,0 +1,45 @@
+# Temporary one-shot workflow: runs the pinned Dart formatter on the one file
+# that failed the formatting gate and uploads the result. Removed after the fix
+# has been committed.
+name: format-once
+
+on:
+  push:
+    branches: [feature/phase-0-foundation]
+    paths: [".github/workflows/format-once.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Flutter 3.47.9 (stable)
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: "3.47.9"
+
+      - name: Record versions
+        shell: bash
+        run: |
+          flutter --version
+          dart --version
+
+      - name: Format the failing file and show the result
+        shell: bash
+        run: |
+          dart format --output=show test/app/nexora_app_test.dart
+          dart format test/app/nexora_app_test.dart
+          dart format --output=none --set-exit-if-changed test/app/nexora_app_test.dart && echo "formatted: stable"
+
+      - name: Upload formatted file
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: formatted-nexora-app-test
+          path: test/app/nexora_app_test.dart
+          if-no-files-found: error
