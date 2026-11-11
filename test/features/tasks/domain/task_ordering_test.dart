@@ -40,8 +40,8 @@ void main() {
     test('due date sort puts undated tasks last', () {
       final tasks = [
         makeTask(id: 'none'),
-        makeTask(id: 'late', dueDate: CalendarDate(2026, 11, 20)),
-        makeTask(id: 'early', dueDate: CalendarDate(2026, 11, 12)),
+        makeTask(id: 'late', dueDate: const CalendarDate(2026, 11, 20)),
+        makeTask(id: 'early', dueDate: const CalendarDate(2026, 11, 12)),
       ];
 
       expect(_sortedIds(tasks, TaskSort.dueDate), ['early', 'late', 'none']);

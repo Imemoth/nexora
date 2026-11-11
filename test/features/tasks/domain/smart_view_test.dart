@@ -5,7 +5,7 @@ import 'package:nexora/features/tasks/domain/task_status.dart';
 
 import '../../../support/task_fixtures.dart';
 
-final _today = CalendarDate(2026, 11, 11);
+const _today = CalendarDate(2026, 11, 11);
 
 CalendarDate _offset(int days) => _today.addDays(days);
 

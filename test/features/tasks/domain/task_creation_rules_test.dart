@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nexora/core/result.dart';
 import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_creation_rules.dart';
@@ -12,7 +11,7 @@ import '../../../support/task_fixtures.dart';
 
 const _p1 = Project(id: 'p1', name: 'Home', position: 0);
 const _p2 = Project(id: 'p2', name: 'Work', position: 1);
-final _projects = {'p1': _p1, 'p2': _p2};
+const _projects = {'p1': _p1, 'p2': _p2};
 
 Task _createRoot(
   String title, {
