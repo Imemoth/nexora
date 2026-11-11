@@ -3,8 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/app/nexora_app.dart';
 
 void main() {
-  testWidgets('app boots without network and shows the offline-ready shell',
-      (tester) async {
+  testWidgets('app boots without network and shows the offline-ready shell', (
+    tester,
+  ) async {
     final errors = <FlutterErrorDetails>[];
     final previous = FlutterError.onError;
     FlutterError.onError = errors.add;
