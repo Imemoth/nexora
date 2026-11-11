@@ -7,10 +7,7 @@ import '../../../support/task_fixtures.dart';
 void main() {
   group('validateParentChange', () {
     test('accepts moving a task under a sibling in the same project', () {
-      final tasks = byId([
-        makeTask(id: 'a'),
-        makeTask(id: 'b'),
-      ]);
+      final tasks = byId([makeTask(id: 'a'), makeTask(id: 'b')]);
 
       final result = validateParentChange(
         tasks: tasks,
@@ -22,10 +19,7 @@ void main() {
     });
 
     test('accepts moving a task to the root', () {
-      final tasks = byId([
-        makeTask(id: 'a', parentId: 'b'),
-        makeTask(id: 'b'),
-      ]);
+      final tasks = byId([makeTask(id: 'a', parentId: 'b'), makeTask(id: 'b')]);
 
       final result = validateParentChange(
         tasks: tasks,

@@ -64,11 +64,7 @@ void main() {
     });
 
     test('done tasks are excluded from every view except All', () {
-      final task = makeTask(
-        id: 't',
-        dueDate: _today,
-        status: TaskStatus.done,
-      );
+      final task = makeTask(id: 't', dueDate: _today, status: TaskStatus.done);
 
       expect(matchesSmartView(task, SmartView.today, _today), isFalse);
       expect(matchesSmartView(task, SmartView.all, _today), isTrue);

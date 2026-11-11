@@ -54,8 +54,11 @@ void main() {
     for (final dir in [..._pureLayerDirs, 'lib/features/tasks/application']) {
       for (final file in _dartFiles(dir)) {
         for (final uri in _importsOf(file)) {
-          expect(uri.startsWith('package:flutter'), isFalse,
-              reason: '${file.path} imports $uri');
+          expect(
+            uri.startsWith('package:flutter'),
+            isFalse,
+            reason: '${file.path} imports $uri',
+          );
         }
       }
     }
@@ -65,8 +68,11 @@ void main() {
     for (final file in _dartFiles('lib')) {
       for (final uri in _importsOf(file)) {
         for (final forbidden in _forbiddenEverywhere) {
-          expect(uri.startsWith(forbidden), isFalse,
-              reason: '${file.path} imports $uri');
+          expect(
+            uri.startsWith(forbidden),
+            isFalse,
+            reason: '${file.path} imports $uri',
+          );
         }
       }
     }

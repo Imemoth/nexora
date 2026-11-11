@@ -55,10 +55,12 @@ void main() {
         makeTask(id: 'medium', priority: TaskPriority.medium),
       ];
 
-      expect(
-        _sortedIds(tasks, TaskSort.priority),
-        ['high', 'medium', 'low', 'none'],
-      );
+      expect(_sortedIds(tasks, TaskSort.priority), [
+        'high',
+        'medium',
+        'low',
+        'none',
+      ]);
     });
 
     test('title sort is case-insensitive', () {
