@@ -1,6 +1,8 @@
-# Temporary one-shot workflow: applies the pinned Dart formatter to the repo
-# and uploads lib/ and test/ so the formatting-only diff can be reviewed and
-# committed. Removed after the fix lands.
+# Temporary one-shot workflow: applies the pinned Dart formatter and reports the
+# formatting-only change through the job log (artifact transport was failing).
+# Prints: changed file list, a bounded unified diff, and per-file Base64 of the
+# formatted blob in chunks of at most 2048 characters, with SHA-256 hashes.
+# Removed after the fix lands.
 name: format-once
 
 on:
@@ -24,23 +26,29 @@ jobs:
           channel: stable
           flutter-version: "3.47.9"
 
-      - name: Record versions
+      - name: Format and emit formatting-only changes to the log
         shell: bash
         run: |
-          flutter --version
-          dart --version
-
-      - name: Format and report
-        shell: bash
-        run: |
-          dart format .
-          dart format --output=none --set-exit-if-changed . && echo "formatted: stable"
-
-      - name: Upload formatted sources
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: formatted-sources
-          path: |
-            lib
-            test
-          if-no-files-found: error
+          set -uo pipefail
+          echo "===REPORT-BEGIN==="
+          flutter --version | head -n 1
+          dart --version 2>&1 | head -n 1
+          dart format . 2>&1 | tail -n 1
+          git add -- '*.dart'
+          mapfile -t changed < <(git diff --cached --name-only -- '*.dart')
+          echo "CHANGED_COUNT=${#changed[@]}"
+          for f in "${changed[@]}"; do echo "CHANGED_FILE=$f"; done
+          echo "===DIFF-BEGIN==="
+          git diff --cached -U2 -- '*.dart' | head -c 90000
+          echo "===DIFF-END==="
+          for f in "${changed[@]}"; do
+            orig_sha=$(git show "HEAD:$f" | sha256sum | cut -d' ' -f1)
+            fmt_sha=$(git show ":$f" | sha256sum | cut -d' ' -f1)
+            b64=$(git show ":$f" | base64 -w0)
+            n=$(printf '%s' "$b64" | fold -w 2048 | wc -l)
+            echo "===FILE-BEGIN path=$f orig_sha256=$orig_sha fmt_sha256=$fmt_sha chunks=$n==="
+            printf '%s' "$b64" | fold -w 2048 | awk '{printf "CHUNK %03d %s\n", NR, $0}'
+            echo "===FILE-END path=$f==="
+          done
+          dart format --output=none --set-exit-if-changed . >/dev/null 2>&1 && echo "POST_FORMAT_CHECK=clean" || echo "POST_FORMAT_CHECK=changes_remain"
+          echo "===REPORT-END==="
