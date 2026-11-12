@@ -313,8 +313,7 @@ final class FakeSyncServer implements SyncTransport {
         if (r[e.key] == e.value) continue;
         if (((fv[e.key] as int?) ?? 0) > base) {
           conflicting.add(e.key);
-        }
-        else {
+        } else {
           changed.add(e.key);
         }
       }
