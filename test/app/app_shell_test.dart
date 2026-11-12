@@ -1,3 +1,6 @@
+import 'dart:ui' show Size;
+
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/features/tasks/application/demo_data.dart';
