@@ -466,6 +466,38 @@ void main() {
       expect(b.rows('SELECT deleted_at FROM tasks WHERE id = ?', [t2]).single['deleted_at'], isNotNull);
     }, skip: _skip, timeout: const Timeout(Duration(minutes: 3)));
 
+    test('a tree-delete manifest over the size limit is refused and nothing is deleted', () async {
+      final u = await stack().signUp('treelimit');
+      final d = await Device.open(stack(), dir, u.email, u.password);
+      addTearDown(d.close);
+      final p = _id(), root = _id();
+      await d.repo.saveProject(Project(id: p, name: 'P', position: 0));
+      await d.repo.saveTask(makeTask(id: root, projectId: p, title: 'root'));
+      expect((await d.engine.syncNow()).phase, SyncPhase.idle);
+
+      final results = await d.transport.push(d.deviceId, [
+        {
+          'operation_id': _id(),
+          'entity_type': 'task',
+          'entity_id': root,
+          'op_type': 'delete',
+          'base_version': 1,
+          'patch': {
+            'tree': [
+              for (var i = 0; i < 1001; i++) {'id': _id(), 'base_version': 1},
+            ],
+          },
+          'client_created_at': '2026-11-12T10:00:00.000Z',
+        },
+      ]);
+
+      final result = Map<String, Object?>.from(results.single! as Map);
+      expect(result['status'], 'rejected');
+      expect(result['error'], 'invalid_patch');
+      final rows = await stack().adminRows('tasks', 'id=eq.$root');
+      expect(rows.single['deleted_at'], isNull);
+    }, skip: _skip);
+
     test('an invalid cursor is recovered without losing local data', () async {
       final u = await stack().signUp('cursor');
       final d = await Device.open(stack(), dir, u.email, u.password);

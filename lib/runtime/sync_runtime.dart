@@ -91,9 +91,12 @@ final class SyncRuntime {
     this.schedulerInterval = const Duration(seconds: 60),
     SyncEngineConfig engineConfig = const SyncEngineConfig(),
     Future<void> Function(Duration)? sleep,
+    SyncHook? hook,
+    this.autoSyncOnSignIn = true,
   }) : _transportFactory = transportFactory ?? _httpTransport,
        _engineConfig = engineConfig,
-       _sleep = sleep;
+       _sleep = sleep,
+       _hook = hook;
 
   final SessionManager sessions;
   final AccountPaths paths;
@@ -105,9 +108,14 @@ final class SyncRuntime {
   final IdGenerator ids;
   final Clock clock;
   final Duration schedulerInterval;
+
+  /// Start a cycle right after a successful sign-in (tests turn it off to
+  /// control timing).
+  final bool autoSyncOnSignIn;
   final TransportFactory _transportFactory;
   final SyncEngineConfig _engineConfig;
   final Future<void> Function(Duration)? _sleep;
+  final SyncHook? _hook;
 
   ActiveWorkspace? _active;
   StreamSubscription<AuthState>? _authWatch;
@@ -184,7 +192,9 @@ final class SyncRuntime {
   Future<SignInOutcome> signIn(String email, String password) async {
     try {
       await sessions.signIn(email, password);
-      unawaited(syncNow());
+      if (autoSyncOnSignIn) {
+        unawaited(syncNow().then<void>((_) {}, onError: (Object _) {}));
+      }
       return SignInOutcome.success;
     } on AuthInvalidCredentials {
       return SignInOutcome.invalidCredentials;
@@ -323,6 +333,7 @@ final class SyncRuntime {
       enabled: true,
       config: _engineConfig,
       sleep: _sleep,
+      hook: _hook,
     );
     current.engine = engine;
     current.state = state;

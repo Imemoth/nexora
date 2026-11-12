@@ -47,6 +47,7 @@ void main() {
       ids: RandomIdGenerator(),
       clock: _FixedClock(),
       schedulerInterval: const Duration(hours: 1),
+      autoSyncOnSignIn: false,
       sleep: (d) async {},
       transportFactory: (c, token) {
         factoryCalls++;
@@ -226,6 +227,7 @@ void main() {
       ids: RandomIdGenerator(),
       clock: _FixedClock(),
       schedulerInterval: const Duration(hours: 1),
+      autoSyncOnSignIn: false,
       sleep: (d) async {},
       transportFactory: (c, t) => FaultyTransport(FakeSyncServer())
         ..pushFaults.addAll(

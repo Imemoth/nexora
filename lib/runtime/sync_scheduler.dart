@@ -12,25 +12,26 @@ final class SyncScheduler {
   final Future<void> Function() run;
   final Duration interval;
   Timer? _timer;
-  bool _busy = false;
+  Future<void>? _inflight;
 
   bool get running => _timer != null;
 
   void start() {
-    _timer ??= Timer.periodic(interval, (_) => kick());
+    _timer ??= Timer.periodic(
+      interval,
+      (_) => unawaited(kick().then<void>((_) {}, onError: (Object _) {})),
+    );
   }
 
-  /// Runs a cycle now unless one is already running.
-  Future<void> kick() async {
-    if (_busy) {
-      return;
+  /// Runs a cycle now, or joins the one that is already running.
+  Future<void> kick() {
+    final running = _inflight;
+    if (running != null) {
+      return running;
     }
-    _busy = true;
-    try {
-      await run();
-    } finally {
-      _busy = false;
-    }
+    final future = run().whenComplete(() => _inflight = null);
+    _inflight = future;
+    return future;
   }
 
   void stop() {
