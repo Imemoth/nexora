@@ -75,7 +75,7 @@ begin
     not exists (select 1 from information_schema.columns c
        where c.table_schema='public' and c.column_name='change_seq'
          and not exists (select 1 from pg_trigger g where g.tgrelid=(quote_ident(c.table_schema)||'.'||quote_ident(c.table_name))::regclass
-              and g.tgfoid='nexora_private.guard_row()'::regprocedure and g.tgenabled='A')));
+              and g.tgfoid in (select oid from pg_proc where pronamespace = 'nexora_private'::regnamespace and proname in ('guard_row', 'guard_conflict_seq')) and g.tgenabled='A')));
 
   -- conflicts: kind and audit columns
   insert into public.devices(id,user_id) values (dev, c);

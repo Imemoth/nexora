@@ -84,11 +84,21 @@ begin
           ('nexora_private.apply_operation(uuid,uuid,jsonb)','postgres'),('nexora_private.apply_core(uuid,uuid,uuid,text,uuid,text,jsonb,text)','postgres'),
           ('nexora_private.sync_user()','postgres'),('nexora_private.patch_spec(text,boolean)','postgres'),('nexora_private.check_parent(uuid,uuid,uuid,uuid)','postgres'),
           ('nexora_private.guard_row()','postgres'),('nexora_private.guard_task_cycle()','postgres'),('nexora_private.guard_sync_log()','postgres'),
-          ('nexora_private.guard_device()','postgres'),('nexora_private.lock_user(uuid)','postgres'),('nexora_private.user_lock_key(uuid)','postgres')) v(fn, g))));
+          ('nexora_private.guard_device()','postgres'),('nexora_private.lock_user(uuid)','postgres'),('nexora_private.user_lock_key(uuid)','postgres'),
+          -- S3
+          ('nexora_resolve_conflict(uuid,uuid,uuid,text,jsonb)','postgres'),('nexora_resolve_conflict(uuid,uuid,uuid,text,jsonb)','authenticated'),
+          ('nexora_revoke_device(uuid,uuid)','postgres'),('nexora_revoke_device(uuid,uuid)','authenticated'),
+          ('nexora_private.resolve_conflict(uuid,uuid,uuid,text,jsonb)','postgres'),('nexora_private.resolve_conflict(uuid,uuid,uuid,text,jsonb)','authenticated'),
+          ('nexora_private.revoke_device(uuid,uuid)','postgres'),('nexora_private.revoke_device(uuid,uuid)','authenticated'),
+          ('nexora_private.resolve_core(uuid,uuid,uuid,sync_conflicts,text,jsonb,text)','postgres'),
+          -- S4
+          ('nexora_sync_pull(uuid,bigint,integer)','postgres'),('nexora_sync_pull(uuid,bigint,integer)','authenticated'),
+          ('nexora_private.pull(uuid,bigint,integer)','postgres'),('nexora_private.pull(uuid,bigint,integer)','authenticated'),
+          ('nexora_private.guard_conflict_seq()','postgres')) v(fn, g))));
   perform pg_temp.assert('every_expected_execute_grant_exists',
     (select count(*) from pg_proc p, lateral aclexplode(p.proacl) a2
       where p.pronamespace in ('public'::regnamespace,'nexora_private'::regnamespace) and a2.privilege_type='EXECUTE'
-        and a2.grantee = 'authenticated'::regrole) = 4);
+        and a2.grantee = 'authenticated'::regrole) = 10);
   perform pg_temp.assert('no_function_has_a_null_acl',
     not exists (select 1 from pg_proc where pronamespace in ('public'::regnamespace,'nexora_private'::regnamespace) and proacl is null));
   perform pg_temp.assert('schema_usage_only_for_authenticated',
@@ -96,10 +106,10 @@ begin
     and not has_schema_privilege('service_role','nexora_private','usage'));
   perform pg_temp.assert('no_new_public_definer_functions',
     (select array_agg(proname::text order by proname) from pg_proc where pronamespace='public'::regnamespace and prosecdef) = array['rls_auto_enable']);
-  perform pg_temp.assert('public_function_set_is_exactly_the_reviewed_four',
+  perform pg_temp.assert('public_function_set_is_exactly_the_reviewed_seven',
     (select array_agg(proname::text order by proname) from pg_proc where pronamespace='public'::regnamespace)
-      = array['nexora_register_device','nexora_set_updated_at','nexora_sync_push','rls_auto_enable']);
-  perform pg_temp.assert('direct_table_grants_unchanged_by_s2',
+      = array['nexora_register_device','nexora_resolve_conflict','nexora_revoke_device','nexora_set_updated_at','nexora_sync_pull','nexora_sync_push','rls_auto_enable']);
+  perform pg_temp.assert('direct_table_grants_unchanged_by_s2_s3_s4',
     (select string_agg(table_name || ':' || privilege_type, ',' order by table_name, privilege_type)
        from information_schema.role_table_grants where table_schema='public' and grantee='authenticated')
     = 'devices:SELECT,profiles:INSERT,profiles:SELECT,profiles:UPDATE,projects:INSERT,projects:SELECT,projects:UPDATE,sync_conflicts:SELECT,sync_operations:SELECT,tasks:INSERT,tasks:SELECT,tasks:UPDATE');

@@ -44,3 +44,7 @@ jobs:
         run: supabase/tests/concurrency/s2_duplicate_push.sh nx_ci
       - name: S2 mutation checks (every deliberate break must be caught)
         run: supabase/tests/mutation_checks.sh nx_mut
+      - name: S3/S4 multi-session tests (pull never skips, concurrent resolutions, revoke vs push)
+        run: supabase/tests/concurrency/s3_s4_concurrency.sh nx_ci
+      - name: S3 and S4 rollbacks restore the catalog exactly
+        run: supabase/tests/verify_rollbacks.sh nx_rb

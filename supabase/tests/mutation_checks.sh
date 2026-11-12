@@ -5,9 +5,12 @@ set -uo pipefail
 case "${PGHOST:-}" in /*|localhost|127.0.0.1) ;; *) echo "refusing: local server only" >&2; exit 2;; esac
 cd "$(dirname "$0")/.."
 PFX="${1:-nx_mut}"; PS="psql -q -tA -v ON_ERROR_STOP=0"
+rm -f /tmp/_mut_*.sql
 python3 - <<'PY'
 import re,json
-src=open('migrations/20261112160000_nexora_sync_push.sql').read()
+import glob
+def read(key): return open(glob.glob(f'migrations/*_nexora_{key}.sql')[0]).read()
+srcs={k: read(k) for k in ('sync_push','sync_resolve_revoke','sync_pull')}
 muts=[
  ("anonymous identities accepted", "'is_anonymous', 'false')) = 'true'", "'is_anonymous', 'false')) = 'never'"),
  ("update ignores the owner filter", "where t.id = $1 and t.owner_id = $2 for update", "where t.id = $1 and $2 is not null for update"),
@@ -29,14 +32,37 @@ muts=[
  ("conflict detail object dropped", "  if v_cid is not null then\n    -- S5 local conflict mirror", "  if false then\n    -- S5 local conflict mirror"),
  ("authenticated may execute sync_user directly", "grant usage on schema nexora_private to authenticated;", "grant execute on function nexora_private.sync_user() to authenticated;\ngrant usage on schema nexora_private to authenticated;"),
  ("authenticated may create objects in nexora_private", "grant usage on schema nexora_private to authenticated;", "grant usage, create on schema nexora_private to authenticated;"),
+ # ---- S3 (resolve, revoke, tree delete) and S4 (pull)
+ ("resolve ignores conflict ownership", "select * into v_c from public.sync_conflicts where id = p_conflict_id and user_id = v_user;", "select * into v_c from public.sync_conflicts where id = p_conflict_id;", "sync_resolve_revoke"),
+ ("resolve allows client strategy on a deleted entity", "elsif p_c.kind in ('field', 'exists') and not v_deleted then", "elsif p_c.kind in ('field', 'exists', 'edit_deleted') then", "sync_resolve_revoke"),
+ ("resolution never closes the conflict", "update public.sync_conflicts set status = v_cstatus, resolved_at = now(), resolution_source = 'user',\n         resolution_operation_id = p_opid where id = p_c.id;", "null;", "sync_resolve_revoke"),
+ ("resolve replay skipped", "if v_ex.op_type = 'resolve' and v_ex.request_hash = v_hash then", "if false then", "sync_resolve_revoke"),
+ ("recreate copy accepts a live entity", "if not (v_deleted and p_c.kind in ('edit_deleted', 'exists')) or p_c.client_value ? 'tree' then", "if p_c.client_value ? 'tree' then", "sync_resolve_revoke"),
+ ("tree delete ignores live descendants missing from the manifest", "if cardinality(v_missing) > 0 then", "if false then", "sync_resolve_revoke"),
+ ("tree delete ignores edited descendants", "if v_edited is not null then", "if false then", "sync_resolve_revoke"),
+ ("tree manifest may list entities outside the subtree", "if exists (select 1 from unnest(v_ids) x where not (x = any(v_all))) then", "if false then", "sync_resolve_revoke"),
+ ("revoke does not check the calling device", "if not found then raise exception 'device_invalid' using errcode = 'NX001'; end if;\n  select * into v_dev", "if false then raise exception 'device_invalid' using errcode = 'NX001'; end if;\n  select * into v_dev", "sync_resolve_revoke"),
+ ("revoke accepts another user's device", "select * into v_dev from public.devices where id = p_target_device_id and user_id = v_user;", "select * into v_dev from public.devices where id = p_target_device_id;", "sync_resolve_revoke"),
+ ("pull returns other users' tasks", "where t.owner_id = v_user and t.change_seq > p_cursor", "where t.change_seq > p_cursor", "sync_pull"),
+ ("pull accepts a cursor ahead of the server", "if p_cursor > v_high then raise exception 'invalid_cursor' using errcode = 'NX006'; end if;", "null;", "sync_pull"),
+ ("pull serves revoked devices", "revoked_at is null;\n  if not found then raise exception 'device_invalid' using errcode = 'NX001'; end if;\n  -- A cursor ahead", "true;\n  if not found then raise exception 'device_invalid' using errcode = 'NX001'; end if;\n  -- A cursor ahead", "sync_pull"),
+ ("pull page has no byte bound", "(s.rn = 1 or s.prior + s.sz <= 1048576)", "true", "sync_pull"),
+ ("conflicts are not stamped into the change stream", "new.change_seq := nextval('nexora_private.change_seq');", "new.change_seq := 0;", "sync_pull"),
+ ("pull skips the limit", "(s.rn <= v_limit and", "(true and", "sync_pull"),
  ("batch size limit removed", "if n > 100 then raise exception 'batch_too_large' using errcode = 'NX003'; end if;", "null;"),
 ]
 out=[]
-for i,(name,old,new) in enumerate(muts):
-    assert src.count(old)==1,(name,src.count(old))
-    open(f'/tmp/_mut_{i}.sql','w').write(src.replace(old,new))
-    out.append(name)
+files=[]
+for i,m in enumerate(muts):
+    name,old,new=m[0],m[1],m[2]
+    # a mutation applies to every migration that contains the text exactly once (apply_core lives in S2 and, replaced, in S3)
+    keys=[m[3]] if len(m)>3 else [k for k in srcs if srcs[k].count(old)>=1]
+    assert keys and (len(m)>3 or all(srcs['sync_push'].count(old)==1 or k!='sync_push' for k in keys)),(name,[(k,srcs[k].count(old)) for k in srcs])
+    assert all(srcs[k].count(old)>=1 for k in keys),(name,)
+    for k in keys: open(f'/tmp/_mut_{i}_{k}.sql','w').write(srcs[k].replace(old,new))   # every occurrence
+    out.append(name); files.append(keys)
 open('/tmp/_mut_names.json','w').write(json.dumps(out))
+open('/tmp/_mut_files.json','w').write(json.dumps(files))
 PY
 n=$(python3 -c "import json;print(len(json.load(open('/tmp/_mut_names.json'))))")
 caught=0; missed=0
@@ -47,10 +73,11 @@ for ((i=0;i<n;i++)); do
   $PS -d postgres -c "drop database if exists $db" -c "create database $db" >/dev/null 2>&1
   $PS -d "$db" -f /tmp/_boot_mut.sql >/dev/null 2>&1
   for f in migrations/*.sql; do
-    if [[ "$f" == *_nexora_sync_push.sql ]]; then $PS -d "$db" -f /tmp/_mut_$i.sql >/dev/null 2>&1; else $PS -d "$db" -f "$f" >/dev/null 2>&1; fi
+    key=$(basename "$f" .sql | sed 's/^[0-9]*_nexora_//')
+    if [[ -f /tmp/_mut_${i}_${key}.sql ]]; then $PS -d "$db" -f /tmp/_mut_${i}_${key}.sql >/dev/null 2>&1; else $PS -d "$db" -f "$f" >/dev/null 2>&1; fi
   done
   failed=""
-  for t in s2_auth_grants_test s2_device_test s2_apply_test s2_push_test s2_contract_test s2_security_direct_test; do
+  for t in s2_auth_grants_test s2_device_test s2_apply_test s2_push_test s2_contract_test s2_security_direct_test s3_resolve_test s3_tree_delete_test s3_revoke_test s4_pull_test; do
     if psql -q -v ON_ERROR_STOP=1 -d "$db" -f tests/$t.sql >/dev/null 2>/tmp/_mut_err; then :; else failed="$failed $t"; fi
   done
   $PS -d postgres -c "drop database if exists $db" >/dev/null 2>&1
