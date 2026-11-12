@@ -63,15 +63,20 @@ abstract final class AppStrings {
   static const syncNowAction = 'Sync now';
   static const syncDisabled = 'Synchronization is off';
   static const syncing = 'Synchronizing…';
-  static const syncRetrying = 'Offline or server unavailable. Retrying; nothing is lost';
-  static const syncSignInNeeded = 'Sign in to synchronize. Your changes are kept';
-  static const syncDeviceRevoked = 'This device was removed. Your data stays here';
+  static const syncRetrying =
+      'Offline or server unavailable. Retrying; nothing is lost';
+  static const syncSignInNeeded =
+      'Sign in to synchronize. Your changes are kept';
+  static const syncDeviceRevoked =
+      'This device was removed. Your data stays here';
   static const syncError = 'Synchronization stopped. Your changes are kept';
   static const syncUpToDate = 'Up to date';
-  static String syncConflicts(int n) =>
-      n == 1 ? '1 conflict needs your decision' : '$n conflicts need your decision';
-  static String syncRejected(int n) =>
-      n == 1 ? '1 change was refused and is kept' : '$n changes were refused and are kept';
+  static String syncConflicts(int n) => n == 1
+      ? '1 conflict needs your decision'
+      : '$n conflicts need your decision';
+  static String syncRejected(int n) => n == 1
+      ? '1 change was refused and is kept'
+      : '$n changes were refused and are kept';
   static String syncPending(int n) =>
       n == 1 ? '1 change waiting to be sent' : '$n changes waiting to be sent';
   static const desktopOnlyNotice =

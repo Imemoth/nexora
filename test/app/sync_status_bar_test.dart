@@ -70,11 +70,15 @@ void main() {
       expect(SyncStatusBar.describe(SyncStatus(phase: phase)), isNotEmpty);
     }
     expect(
-      SyncStatusBar.describe(const SyncStatus(phase: SyncPhase.idle, rejected: 1)),
+      SyncStatusBar.describe(
+        const SyncStatus(phase: SyncPhase.idle, rejected: 1),
+      ),
       AppStrings.syncRejected(1),
     );
     expect(
-      SyncStatusBar.describe(const SyncStatus(phase: SyncPhase.idle, pending: 4)),
+      SyncStatusBar.describe(
+        const SyncStatus(phase: SyncPhase.idle, pending: 4),
+      ),
       AppStrings.syncPending(4),
     );
   });
