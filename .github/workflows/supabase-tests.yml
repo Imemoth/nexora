@@ -36,5 +36,7 @@ jobs:
           echo "server_version_num=$v"; test "$v" -ge 170000 -a "$v" -lt 180000
       - name: Migrations plus rollback suites (Phase 2B regression and S1)
         run: supabase/tests/run_local.sh nx_ci
+      - name: Standalone guard_row fix is isolated and composes with S1
+        run: supabase/tests/verify_minimal_fix.sh nx_fix
       - name: Multi-session lock discipline with negative control
         run: supabase/tests/concurrency/lock_discipline.sh nx_ci

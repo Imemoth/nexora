@@ -28,8 +28,10 @@ alter table public.projects add column field_versions jsonb not null default '{}
 alter table public.tasks add column field_versions jsonb not null default '{}'::jsonb
   check (jsonb_typeof(field_versions) = 'object');
 
--- 3. guard_row (also FIXES a Phase 2B defect: UPDATE on public.projects raised 42703 because
---    the tasks-only project_id check was not short-circuited). Takes the owner's lock BEFORE allocating change_seq, so a user's change_seq values are
+-- 3. guard_row (also contains the nested-if fix shipped standalone as 20261112125000 for the Phase 2B
+--    defect: UPDATE on public.projects raised 42703 because the tasks-only project_id check was not
+--    short-circuited; S1 does not depend on the standalone fix, both can be applied in either state).
+--    Takes the owner's lock BEFORE allocating change_seq, so a user's change_seq values are
 --    commit-ordered on every write path (authenticated, service_role, postgres, future RPCs).
 --    A forged owner is rejected before any lock is taken, so a client cannot hold another user's lock.
 create or replace function nexora_private.guard_row() returns trigger
