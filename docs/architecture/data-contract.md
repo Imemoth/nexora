@@ -1,6 +1,6 @@
 # Shared SQLite / PostgreSQL data contract (Phase 2B)
 
-Status: **FROZEN for Phase 3 (S0), owner decisions 2026-11-12.** Phase 2B migrations are applied on the hosted project. Phase 3 S1 (`20261112130000_nexora_sync_protocol_schema.sql`) is prepared on a development branch, passes PostgreSQL 17 CI and is NOT applied to hosted. The standalone `guard_row` fix (`20261112125000_nexora_fix_projects_update_guard.sql`) was applied to hosted on 2026-11-12 as `20261112142732` (`docs/operations/f1-hosted-fix-record.md`).
+Status: **FROZEN for Phase 3 (S0), owner decisions 2026-11-12.** Phase 2B migrations are applied on the hosted project. Phase 3 S1 (`20261112130000_nexora_sync_protocol_schema.sql`) was applied to hosted on 2026-11-12 as `20261112151851` (`docs/operations/s1-hosted-deployment-record.md`); synchronization remains disabled. The standalone `guard_row` fix (`20261112125000_nexora_fix_projects_update_guard.sql`) was applied to hosted on 2026-11-12 as `20261112142732` (`docs/operations/f1-hosted-fix-record.md`).
 Dart domain source of truth: `lib/features/tasks/domain/`. Not implemented in SQLite by this change.
 
 ## Canonical rules and implementation status (2026-11-12)

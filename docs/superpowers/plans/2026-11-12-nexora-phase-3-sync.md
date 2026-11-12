@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: APPROVED by the owner on 2026-11-12 (see `docs/architecture/decisions/0002-sync-protocol.md` for conditions). S0 and S1 are authorized; S1 is implemented on the dev branch, passes PostgreSQL 17 CI (runs 43217510081, 43219771092, 43225149883, 43236184204) and is NOT applied to the hosted project. The standalone `guard_row` fix (`20261112125000`) was applied to hosted on 2026-11-12 as `20261112142732` (`docs/operations/f1-hosted-fix-record.md`). S2 onward needs separate approval.** No hosted change, no user or data creation, no sharing, no merge, no deploy.
+**Status: APPROVED by the owner on 2026-11-12 (see `docs/architecture/decisions/0002-sync-protocol.md` for conditions). S0 and S1 are authorized; S1 passes PostgreSQL 17 CI (runs 43217510081, 43219771092, 43225149883, 43236184204) and was applied to the hosted project on 2026-11-12 as `20261112151851` (`docs/operations/s1-hosted-deployment-record.md`). The standalone `guard_row` fix (`20261112125000`) was applied to hosted on 2026-11-12 as `20261112142732` (`docs/operations/f1-hosted-fix-record.md`). S2 onward needs separate approval.** No hosted change, no user or data creation, no sharing, no merge, no deploy.
 
 **Goal:** Two or more devices of one user converge on the same projects and tasks through Supabase, with no lost edit, no duplicate application and no cross-user access.
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 
-**Status: PLAN ONLY. Nothing here is implemented, applied, exposed or activated.** S2 needs separate owner approval to start, and S1 must be applied and verified on hosted before S2 is applied (S2 relies on `field_versions`, the append-only log and the device cap). Local development on a disposable database can start earlier.
+**Status: PLAN ONLY. Nothing here is implemented, applied, exposed or activated.** S2 needs separate owner approval to start, and S1 is applied and verified on hosted (2026-11-12, `20261112151851`), so the prerequisite for any later S2 hosted apply is met (S2 relies on `field_versions`, the append-only log and the device cap). Local development on a disposable database can start earlier.
 
 **Goal:** a signed-in user's device can register itself and push batches of create/update operations that are applied at most once, with field-level conflict detection and no cross-user access.
 

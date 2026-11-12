@@ -1,4 +1,4 @@
-# S1 hosted deployment gate report (prepared 2026-11-12; S1 NOT applied)
+# S1 hosted deployment gate report (prepared 2026-11-12; SUPERSEDED: S1 was applied, see `s1-hosted-deployment-record.md`)
 
 Migration: `supabase/migrations/20261112130000_nexora_sync_protocol_schema.sql`, SHA-256 `cb947073bd41166d18a89ac746d94a5b4166a648f4306a3c0d4e0695bc5d42e2`.
 Rollback (verified locally): `supabase/rollback/20261112130000_rollback_s1_sync_protocol_schema.sql`, SHA-256 `97f5e738f96d3a165f1966c9e5beae278ce6a02ffc9a6dda203bc2c7fc538596`.
