@@ -1,38 +1,51 @@
 import 'package:flutter/material.dart';
+import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
+import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
+import 'package:nexora/features/tasks/presentation/tasks_scope.dart';
 
-/// Application root. Phase 0 shell: no network, no Supabase, no configuration.
+import 'app_shell.dart';
+import 'theme.dart';
+
+/// Application root: the approved dark theme, the task workspace scope and the
+/// shell. No network, no persistence and no configuration.
 class NexoraApp extends StatelessWidget {
-  const NexoraApp({super.key});
+  const NexoraApp({
+    super.key,
+    required this.notifier,
+    this.onExitApp,
+    this.textScaler,
+  });
+
+  final TasksNotifier notifier;
+
+  /// Test seam for the exit action. Production uses the platform exit.
+  final void Function()? onExitApp;
+
+  /// Test seam for text scaling. Null keeps the platform scaling.
+  final TextScaler? textScaler;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Nexora',
-      debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      theme: ThemeData(brightness: Brightness.light, useMaterial3: true),
-      darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: true),
-      home: const _DiagnosticHome(),
-    );
-  }
-}
-
-class _DiagnosticHome extends StatelessWidget {
-  const _DiagnosticHome();
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Nexora', style: textTheme.headlineMedium),
-            const SizedBox(height: 8),
-            const Text('Offline ready'),
-          ],
-        ),
+    return TasksScope(
+      notifier: notifier,
+      child: MaterialApp(
+        title: AppStrings.appName,
+        debugShowCheckedModeBanner: false,
+        themeMode: ThemeMode.dark,
+        theme: buildNexoraDarkTheme(),
+        darkTheme: buildNexoraDarkTheme(),
+        builder: (context, child) {
+          final scaler = textScaler;
+          final content = child ?? const SizedBox.shrink();
+          if (scaler == null) {
+            return content;
+          }
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: scaler),
+            child: content,
+          );
+        },
+        home: AppShell(onExitApp: onExitApp),
       ),
     );
   }
