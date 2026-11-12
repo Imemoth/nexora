@@ -15,16 +15,16 @@
 - Dart enum mapping (`review`, `archived`, `none`) must be mirrored by the SQLite implementation.
 - Pull cursor gaps from concurrent transactions.
 - Hard-delete removal: clients must use tombstones.
-- Tests ran on PG 16 locally; hosted is 17.
+- Local tests ran on PG 16; PostgreSQL 17.11 CI later confirmed the Phase 2B suites (see `docs/operations/phase-2b-apply-record.md`).
 
 ### Task 1: Local verification — DONE
 - [x] Bootstrap fixture + 3 migrations + `supabase/tests/rls_and_contract_test.sql` → 57 assertions pass; same suite fails on the pre-migration schema (negative control).
 
-### Task 2: Apply to hosted (BLOCKED: needs write-capable connector)
-- [ ] Re-run read-only checks (project id, migration list = 1, row counts = 0).
-- [ ] Apply the three files in order, names `nexora_security_hardening`, `nexora_contract_alignment`, `nexora_sync_foundation`.
-- [ ] Run `rls_and_contract_test.sql` wrapped so it rolls back (it already ends in `rollback`); expect `passed = 57`.
-- [ ] `get_advisors(security)` expect no `rls_auto_enable` findings.
+### Task 2: Apply to hosted — DONE 2026-11-12 (see `docs/operations/phase-2b-apply-record.md`)
+- [x] Re-run read-only checks (project id, migration list = 1, row counts = 0).
+- [x] Apply the three files in order, names `nexora_security_hardening`, `nexora_contract_alignment`, `nexora_sync_foundation`.
+- [x] Run `rls_and_contract_test.sql` wrapped so it rolls back (it already ends in `rollback`); expect `passed = 57`.
+- [x] `get_advisors(security)` expect no `rls_auto_enable` findings.
 
-### Task 3: SQLite parity (parallel owner)
+### Task 3: SQLite parity (parallel owner) — in progress: Phase 2A PR #13 (Draft) implements REQ-1, REQ-7, REQ-8; see the status table in `docs/architecture/data-contract.md`
 - [ ] Adopt the wire values and `version`/`deleted_at`/`change_seq` columns from the contract; do not modify from this branch.

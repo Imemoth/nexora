@@ -1,7 +1,21 @@
 # Shared SQLite / PostgreSQL data contract (Phase 2B)
 
-Status: **FROZEN for Phase 3 (S0), owner decisions 2026-11-12.** Phase 2B migrations are applied on the hosted project; Phase 3 S1 (`20261112130000_nexora_sync_protocol_schema.sql`) is prepared locally and NOT applied.
+Status: **FROZEN for Phase 3 (S0), owner decisions 2026-11-12.** Phase 2B migrations are applied on the hosted project. Phase 3 S1 (`20261112130000_nexora_sync_protocol_schema.sql`) and the standalone `guard_row` fix (`20261112125000_nexora_fix_projects_update_guard.sql`) are prepared on a development branch, pass PostgreSQL 17 CI, and are NOT applied to hosted.
 Dart domain source of truth: `lib/features/tasks/domain/`. Not implemented in SQLite by this change.
+
+## Canonical rules and implementation status (2026-11-12)
+Legend: **Applied** = on the hosted project. **Implemented** = in code that exists and passed CI (not necessarily merged). **Prepared** = on a development branch, tested, not applied or merged. **Required** = future work, not built.
+
+| # | Canonical rule | Decision | Status |
+|---|---|---|---|
+| 1 | Ownership is `owner_id`; the revision is `version`. `workspace_id` is deferred (spec deviation) | D1 approved | **Applied** (hosted schema). Phase 2A stores `owner_id` |
+| 2 | `version` is server-owned. A local edit never changes it; only a pull or an ack does | D-V approved | **Implemented** in Phase 2A (PR #13, Draft, `c970d61`). Server side **Applied** (guard trigger sets `version`) |
+| 3 | Locally pending creates: operations of an entity whose create is unacknowledged carry `base_version = 0`; the sync engine re-bases them from the create's ack before sending | wire rule decided; stored representation open (Phase 2A D-1: stored `0`, or stored `1` with a base derived from the outbox) | Phase 2A derives base `0` from the outbox and stores `1`: **Implemented**. Re-basing: **Required** (S6) |
+| 4 | An update operation carries only the fields that changed (field-level patch), never the whole row | D-C approved | Phase 2A sends the full row: **not implemented, Required** before S6 (REQ-3). Server `field_versions`: **Prepared** (S1) |
+| 5 | Tombstones are permanent, no undelete. Deleting a parent is explicit leaf-first from the client; the server never cascades | D-T, D-E, D-P approved | Tombstone revert blocked: **Applied**. Leaf-first tombstones and the parent-with-live-children conflict: **Required** (REQ-6, S3). Phase 2A soft-deletes a single row only |
+| 6 | Outbox v2 (`seq`, `in_flight`, `request_id`, `sync_state`, local conflict mirror) | deferred to S5 | **Required**, needs owner approval. Not in Phase 2A |
+| 7 | Pull cursor safety: per-user advisory lock before `change_seq` | D-L conditional | **Prepared** (S1). Hosted `change_seq` is **not** commit-ordered today, so pull must not be activated until S1 is applied |
+| 8 | Push RPCs, idempotency, conflict records, resolution | D-A, D-C, D-O, D-R | Schema objects **Applied** (inert). RPCs: **Required** (S2-S4). Synchronization is disabled |
 
 ## Identifiers and ownership
 - All ids are client-generated UUIDv4 text (lowercase, hyphenated) in SQLite, `uuid` in Postgres. The server accepts the client id on insert; offline-created rows keep their id forever.
@@ -37,7 +51,7 @@ Optimistic: a client update carries `base_version`; the server applies only if `
 `sync_operations` primary key `(user_id, operation_id)`; `user_id` is taken from `auth.uid()`, never from the payload. A replay returns the stored `result`; same id with different `request_hash` is rejected.
 
 ## Pull
-`select ... where owner_id = auth.uid() and change_seq > :cursor order by change_seq limit N`. Cursor = max `change_seq` seen. Uncommitted concurrent transactions can commit with a lower seq than an already-pulled row, so Phase 3 must re-read a safety window (e.g. cursor − K) or use a lag fence; applying is idempotent by `version`.
+`select ... where owner_id = auth.uid() and change_seq > :cursor order by change_seq limit N`. Cursor = max `change_seq` seen. Commit order of one user's `change_seq` values is guaranteed by the per-user lock (D-L, see "Pull safety" below; **Prepared** in S1, not yet applied). Applying a row is idempotent by `version`.
 
 ## Membership
 `project_members` has no client privileges and no policy grants task access. Sharing stays inactive.
@@ -47,6 +61,9 @@ Optimistic: a client update carries `base_version`; the server applies only if `
 ### Local version semantics (D-V, binding on SQLite)
 - Local `version` = the last **server** version known for the row. It changes only from a pull or from an ack, never from a local edit. A local edit does not bump it.
 - `base_version` of an operation = that stored value (0 for a create).
+- While an entity's create is unacknowledged, its operations carry `base_version = 0`; the sync engine re-bases each from the create's ack before sending. How a never-synced row stores its `version` (`0`, or `1` with a base derived from the outbox) is an open owner decision (Phase 2A D-1); both satisfy the wire rule.
+- Update operations contain only the changed fields (field-level patch). A full-row payload would claim every field and cause false conflicts.
+- The binding of a local database to its user is stored in `meta` as `owner_id` (Phase 2A) or `user_id` (earlier contract text). The name is an open owner decision (Phase 2A decision 4); the meaning is the same: the Supabase `auth.users.id` the database belongs to.
 - A pull never overwrites a field that has a pending outbox operation. The server row is stored, and the conflict is detected when the operation is pushed.
 
 ### Server-owned change tracking (D-C)
