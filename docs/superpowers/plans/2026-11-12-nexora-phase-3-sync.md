@@ -78,15 +78,15 @@ Result: `{operation_id, status: applied|conflict|rejected, applied_version, row,
 - Local `version` means "last server version known", changed only by pull or by an ack. A local edit does not bump it. `base_version` of an op is that stored value.
 - Local dirty fields are derived from pending outbox ops. A pull never overwrites a field that has a pending op; the server row is stored and the field conflict is detected at push time.
 - The domain change and its outbox row are written in one SQLite transaction (already planned in 2A §5.4). A failure leaves neither.
-- An entity with an unacknowledged create has all its operations at `base_version = 0`; the engine re-bases each from the create's ack. Update operations carry only changed fields.
+- An entity with an unacknowledged create has all its operations at `base_version = 0`; the engine re-bases each from the create's ack. Update operations carry only changed fields. **Superseded 2026-11-12 (S5 reconciliation):** the engine does not blindly re-base from the ack; the dependency-adjusted rule R in `docs/coordination/phase-3-s5-outbox-v2.md` section 2 applies.
 
 ### 4.2 Outbox v2 (proposed forward migration; owner of 2A decides)
 `sync_outbox`: add `seq INTEGER PRIMARY KEY AUTOINCREMENT` (strict send order), map `upsert` to server `create|update` by `base_version = 0`, states `pending → in_flight → applied | conflict | rejected` (crash recovery returns `in_flight` to `pending`), `request_id`, `sent_at`, `server_result_json`. New tables: `sync_state(singleton: user_id, device_id, cursor, state)`, `sync_conflicts_local` (mirror). `meta.user_id` binds the database to one user.
 
 ### 4.3 Engine behaviour
-- One in-flight op per entity, in `seq` order. Before sending a follow-up op for an entity, its `base_version` is rewritten from the previous ack.
+- One in-flight op per entity, in `seq` order. Before sending a follow-up op for an entity, its `base_version` is rewritten from the previous ack. **Superseded 2026-11-12 (S5 reconciliation):** rewriting the base from the previous acknowledgement is unsafe in general (it can suppress a real conflict); the dependency-adjusted rule R in `docs/coordination/phase-3-s5-outbox-v2.md` section 2 applies.
 - After a non-applied result for an entity, later ops of that entity are held until the conflict is resolved.
-- Delete of a task or project with descendants sends tombstone ops leaf-first in one push, then the parent. A parent delete is never cascaded by the server (decision D-P).
+- Delete of a task or project with descendants sends tombstone ops leaf-first in one push, then the parent. A parent delete is never cascaded by the server (decision D-P). **Held until the S3 gate (2026-11-12):** the S2 contract applies each operation in its own sub-transaction, so a chain is not atomic; see `docs/coordination/phase-3-s5-outbox-v2.md` section 9.
 - Retry: exponential backoff with jitter, capped; transient errors keep the op `pending`; terminal `rejected` surfaces to the user and is never dropped silently.
 - Triggers: app start, after a local commit, 60 s timer while foreground, manual. No background sync, no Realtime (V1 non-goal).
 - Pull applies each page in one SQLite transaction with `defer_foreign_keys` and advances `cursor` in the same transaction. After `has_more=false` an orphan check runs; any orphan triggers a full re-pull.

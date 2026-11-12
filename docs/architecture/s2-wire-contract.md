@@ -64,6 +64,7 @@ Per-operation rejections (in `results`): `invalid_op`, `invalid_patch`, `operati
 | `NX002 device_limit` | 10 active devices | Stop; user action needed. |
 | `NX003 batch_too_large`, `NX004 payload_too_large` | Call over the limits | Split the batch; never resend unchanged. A single operation over the limits is a client bug. |
 | `NX005 invalid_request` | Malformed call | Client bug; stop. |
+| any successful call | Match results to operations **by `operation_id`** and check that the result count equals the operation count and the id sets are equal; never rely on position alone (a mismatch is treated as a transient failure and the batch is retried unchanged) |
 | per operation `applied` | Acknowledged | Mark applied; set local `version := applied_version`; store `row` for the next pull to reconcile. |
 | per operation `conflict` | Nothing applied; open conflict recorded | Mirror `conflict` locally; stop sending operations for that entity (they would answer `blocked_by_conflict`) until resolve (S3). |
 | per operation `rejected` (any code) | Terminal | Do not retry the same `operation_id`. Fix the cause and enqueue a **new** operation. `blocked_by_conflict` is retryable only after the conflict is resolved, again as a new operation. |
@@ -120,3 +121,6 @@ Recommendations are not approvals. "Owner direction" quotes the consolidation in
 | 6 | `request_id` | Open: no server meaning. S5 may keep a per-attempt id client-side; S2 identifies work only by `operation_id`. |
 | 7 | Exposed schemas | Partly verified read-only on 2026-11-12 (see the security record); the HTTP-level check remains part of the hosted gate. |
 | 8 | Response size bound (D-RESP) | Open (section 3.2). |
+| 9 | `blocked_by_conflict` is recorded as a terminal `rejected` (today). The S5 report asks whether it should instead be unrecorded and retryable after resolution (like `invalid_op`). | **Open (O-11).** Recommendation (not approved): keep terminal, recover with a new `operation_id` (consistent with OD-5). |
+| 10 | Conflict kinds | S1 allows `field, edit_deleted, delete_edited, parent_deleted, parent_has_live_children, cycle, exists`; S2 emits `field, exists, edit_deleted, delete_edited, parent_has_live_children` (a tombstoned parent is `rejected: parent_invalid`, OD-4, so `parent_deleted` is not emitted; a cycle is rejected). |
+| 11 | Client-side base handling | The S5 client keeps an observed base and sends a dependency-adjusted wire base (rule R in `docs/coordination/phase-3-s5-outbox-v2.md`), which relies on `version_before` and on the +1 version increment per changing update (tested by `s2_contract_test.sql`). |

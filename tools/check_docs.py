@@ -24,13 +24,21 @@ POLICY_RULES = [
     ('OD-9 ambiguous v1 states (sent, failed) must not be replayed or mapped away automatically',
      r"[`']?sent[`']?(?:\s+rows?)?\s+(?:becomes|become|to|->|→)\s+[`']?pending|WHEN\s+'sent'\s+THEN\s+'pending'",
      r'[Rr]eplaces|automatic replay|withdrawn|must not|not executed|[Cc]orrected|no automatic replay|never'),
+    ('Rule R: a blind rebase of the next operation from the previous/create acknowledgement can suppress a real conflict',
+     r"re-?bases?[^.\n]{0,60}from the (?:create's|previous) ack|rewrites? the `?base_version`? of the next[^.\n]{0,60}from the ack|rewritten from the previous ack",
+     r'rule R|Superseded|superseded|naive'),
+    ('OD-9 no blanket version reset of unsent or ambiguous rows',
+     r'reset every non-acked|reset all (?:non-acked )?versions|every non-acked version',
+     r'[Rr]emoved|never|no version reset|without|withdrawn|blanket'),
 ]
 
 def policy_problems(text, rel):
     out = []
     for name, pat, exempt in POLICY_RULES:
         for m in re.finditer(pat, text):
-            ctx = text[max(0, m.start() - 200): m.end() + 200]
+            ls = text.rfind('\n', 0, m.start()) + 1
+            le = text.find('\n', m.end()); le = len(text) if le < 0 else le
+            ctx = text[min(ls, max(0, m.start() - 200)): max(le, m.end() + 200)]   # the whole line, at least 200 chars around
             if re.search(exempt, ctx):
                 continue
             out.append(f'{rel}: policy contradiction ({name}): "{m.group(0)}"')
@@ -43,12 +51,17 @@ def self_test():
         'backup': 'Keep one backup and delete older backups after the next start.',
         'backup2': 'Old backups are deleted automatically after 30 days.',
         'replay': "WHEN 'sent' THEN 'pending'",
+        'rebase': "Before sending a follow-up op, its base_version is rewritten from the previous ack.",
+        'rebase2': 'the engine re-bases each from the create\'s ack before sending.',
+        'reset': 'Reset every non-acked version to 0 during migration.',
         'replay2': 'A sent row becomes pending after migration.',
     }
     good = {
         'order': 'The order is the verified v1 rowid order, never created_at_utc.',
         'backup': 'The app never deletes, rotates, prunes or overwrites a backup on its own (OD-8).',
         'replay': 'sent and failed rows are preserved with no automatic replay.',
+        'rebase': 'The engine re-bases each from the create\'s ack, which is superseded by rule R.',
+        'reset': 'The blanket reset of every non-acked version was removed.',
     }
     failures = []
     for k, t in bad.items():
