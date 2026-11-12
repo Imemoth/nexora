@@ -34,6 +34,9 @@ class TaskRow extends StatelessWidget {
           : Colors.transparent,
       child: InkWell(
         key: ValueKey('row-${task.id}'),
+        // Keyboard focus stays on the list, so the rows themselves are not
+        // focus targets. Enter would otherwise re-select instead of editing.
+        canRequestFocus: false,
         onTap: onSelect,
         child: Padding(
           padding: EdgeInsets.fromLTRB(16 + row.depth * 24.0, 8, 16, 8),

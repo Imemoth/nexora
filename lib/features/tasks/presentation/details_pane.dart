@@ -9,6 +9,8 @@ import 'package:nexora/features/tasks/domain/task_priority.dart';
 
 import 'create_task_dialog.dart';
 import 'due_date_field.dart';
+import 'keymap.dart';
+import 'keyboard_actions.dart';
 import 'strings/app_strings.dart';
 import 'synced_text_field.dart';
 import 'tasks_notifier.dart';
@@ -24,10 +26,13 @@ class DetailsPane extends StatelessWidget {
     final notifier = TasksScope.of(context);
     final state = notifier.state;
     final draft = state.draft;
+    final Widget content;
     if (draft == null) {
-      return const Center(child: Text(AppStrings.selectTaskPrompt));
+      content = const Center(child: Text(AppStrings.selectTaskPrompt));
+    } else {
+      content = _TaskEditor(notifier: notifier, state: state, draft: draft);
     }
-    return _TaskEditor(notifier: notifier, state: state, draft: draft);
+    return KeymapScope(inEditor: true, child: content);
   }
 }
 
@@ -72,6 +77,7 @@ class _TaskEditor extends StatelessWidget {
           value: draft.title,
           label: AppStrings.fieldTitle,
           errorText: titleError,
+          focusNode: TaskKeyboardFocus.of(notifier).title,
           onChanged: (value) => notifier.editDraft(title: value),
         ),
         const SizedBox(height: 16),

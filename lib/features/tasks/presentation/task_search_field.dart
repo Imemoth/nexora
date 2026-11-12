@@ -8,10 +8,14 @@ class TaskSearchField extends StatefulWidget {
     super.key,
     required this.query,
     required this.onChanged,
+    this.focusNode,
   });
 
   final String query;
   final ValueChanged<String> onChanged;
+
+  /// Owned by the caller so Ctrl+F can focus the field from any pane.
+  final FocusNode? focusNode;
 
   @override
   State<TaskSearchField> createState() => _TaskSearchFieldState();
@@ -43,6 +47,7 @@ class _TaskSearchFieldState extends State<TaskSearchField> {
     return TextField(
       key: const ValueKey('search-field'),
       controller: _controller,
+      focusNode: widget.focusNode,
       onChanged: widget.onChanged,
       decoration: InputDecoration(
         hintText: AppStrings.searchHint,

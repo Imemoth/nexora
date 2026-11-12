@@ -3,6 +3,8 @@ import 'package:nexora/features/tasks/application/nav_selection.dart';
 import 'package:nexora/features/tasks/application/workspace_state.dart';
 
 import 'create_task_dialog.dart';
+import 'keymap.dart';
+import 'keyboard_actions.dart';
 import 'strings/app_strings.dart';
 import 'sort_menu.dart';
 import 'task_row.dart';
@@ -19,86 +21,113 @@ class TaskListPane extends StatelessWidget {
     final state = notifier.state;
     final rows = state.visibleRows;
     final textTheme = Theme.of(context).textTheme;
+    final keyboard = TaskKeyboardFocus.of(notifier);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _titleFor(state),
-                      key: const ValueKey('list-title'),
-                      style: textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      AppStrings.taskCount(state.resultCount),
-                      key: const ValueKey('list-count'),
-                      style: textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
-              FilledButton.icon(
-                key: const ValueKey('new-task'),
-                onPressed: () => showCreateTaskDialog(context, notifier),
-                icon: const Icon(Icons.add),
-                label: const Text(AppStrings.newTaskAction),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: TaskSearchField(
-                  query: state.searchQuery,
-                  onChanged: notifier.search,
-                ),
-              ),
-              const SizedBox(width: 8),
-              SortMenu(sort: state.sort, onSelected: notifier.sort),
-            ],
-          ),
-        ),
-        if (state.selectedTaskHidden)
+    return KeymapScope(
+      listNavigation: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-            child: Text(
-              AppStrings.selectedTaskHidden,
-              key: const ValueKey('hidden-notice'),
-              style: textTheme.bodySmall,
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _titleFor(state),
+                        key: const ValueKey('list-title'),
+                        style: textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppStrings.taskCount(state.resultCount),
+                        key: const ValueKey('list-count'),
+                        style: textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                FilledButton.icon(
+                  key: const ValueKey('new-task'),
+                  onPressed: () => showCreateTaskDialog(context, notifier),
+                  icon: const Icon(Icons.add),
+                  label: const Text(AppStrings.newTaskAction),
+                ),
+              ],
             ),
           ),
-        Expanded(
-          child: rows.isEmpty
-              ? _EmptyList(
-                  state: state,
-                  onClearSearch: () => notifier.search(''),
-                )
-              : ListView.builder(
-                  itemCount: rows.length,
-                  itemBuilder: (context, index) {
-                    final row = rows[index];
-                    return TaskRow(
-                      row: row,
-                      selected: row.task.id == state.selectedTaskId,
-                      onSelect: () => notifier.selectTask(row.task.id),
-                      onToggle: () => notifier.toggleExpanded(row.task.id),
-                    );
-                  },
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TaskSearchField(
+                    query: state.searchQuery,
+                    onChanged: notifier.search,
+                    focusNode: keyboard.search,
+                  ),
                 ),
-        ),
-      ],
+                const SizedBox(width: 8),
+                SortMenu(sort: state.sort, onSelected: notifier.sort),
+              ],
+            ),
+          ),
+          if (state.selectedTaskHidden)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text(
+                AppStrings.selectedTaskHidden,
+                key: const ValueKey('hidden-notice'),
+                style: textTheme.bodySmall,
+              ),
+            ),
+          Expanded(
+            child: Focus(
+              focusNode: keyboard.list,
+              autofocus: true,
+              child: ListenableBuilder(
+                listenable: keyboard.list,
+                builder: (context, child) => DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      width: 2,
+                      color: keyboard.list.hasPrimaryFocus
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.transparent,
+                    ),
+                  ),
+                  child: child,
+                ),
+                child: rows.isEmpty
+                    ? _EmptyList(
+                        state: state,
+                        onClearSearch: () => notifier.search(''),
+                      )
+                    : ListView.builder(
+                        itemCount: rows.length,
+                        itemBuilder: (context, index) {
+                          final row = rows[index];
+                          return TaskRow(
+                            row: row,
+                            selected: row.task.id == state.selectedTaskId,
+                            onSelect: () {
+                              keyboard.list.requestFocus();
+                              notifier.selectTask(row.task.id);
+                            },
+                            onToggle: () =>
+                                notifier.toggleExpanded(row.task.id),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
