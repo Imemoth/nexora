@@ -9,6 +9,7 @@ import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_creation_rules.dart';
 import 'package:nexora/features/tasks/domain/task_ordering.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
+import 'package:nexora/features/tasks/domain/task_search.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
 import 'package:nexora/features/tasks/domain/task_validation.dart';
 
@@ -465,16 +466,33 @@ final class TaskWorkspace {
         ? _state.expandedTaskIds
         : {..._state.expandedTaskIds, expandParentId};
     _publish(
-      _state.copyWith(
-        tasks: tasks,
-        expandedTaskIds: expanded,
-        selectedTaskId: candidate.id,
-        draft: EditDraft.fromTask(candidate),
-        clearPending: true,
-        clearError: true,
+      _revealing(
+        _state.copyWith(
+          tasks: tasks,
+          expandedTaskIds: expanded,
+          selectedTaskId: candidate.id,
+          draft: EditDraft.fromTask(candidate),
+          clearPending: true,
+          clearError: true,
+        ),
+        candidate,
       ),
     );
     return Ok<Task, WorkspaceError>(candidate);
+  }
+
+  /// Makes a newly created task visible. An undated task is hidden in the
+  /// smart views, so the selection moves to its project. A search that hides
+  /// it is cleared. The task never receives a due date, and the selection is
+  /// never dropped.
+  WorkspaceState _revealing(WorkspaceState next, Task candidate) {
+    final selection = inSelection(candidate, next.selection, next.today)
+        ? next.selection
+        : ProjectSelection(candidate.projectId);
+    final query = matchesSearch(candidate, next.searchQuery)
+        ? next.searchQuery
+        : '';
+    return next.copyWith(selection: selection, searchQuery: query);
   }
 
   Future<Result<void, WorkspaceError>> _persistDraft(
