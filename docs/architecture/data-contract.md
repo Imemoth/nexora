@@ -9,13 +9,13 @@ Legend: **Applied** = on the hosted project. **Implemented** = in code that exis
 | # | Canonical rule | Decision | Status |
 |---|---|---|---|
 | 1 | Ownership is `owner_id`; the revision is `version`. `workspace_id` is deferred (spec deviation) | D1 approved | **Applied** (hosted schema). Phase 2A stores `owner_id` |
-| 2 | `version` is server-owned. A local edit never changes it; only a pull or an ack does | D-V approved | **Implemented** in Phase 2A (PR #13, Draft, `c970d61`). Server side **Applied** (guard trigger sets `version`) |
+| 2 | `version` is server-owned. A local edit never changes it; only a pull or an ack does | D-V approved | **Implemented** in Phase 2A (merged to `main`, PR #13). Server side **Applied** (guard trigger sets `version`) |
 | 3 | Locally pending creates: operations of an entity whose create is unacknowledged carry `base_version = 0`; the sync engine re-bases them from the create's ack before sending | wire rule decided; stored representation open (Phase 2A D-1: stored `0`, or stored `1` with a base derived from the outbox) | Phase 2A derives base `0` from the outbox and stores `1`: **Implemented**. Re-basing: **Required** (S6) |
 | 4 | An update operation carries only the fields that changed (field-level patch), never the whole row | D-C approved | Phase 2A sends the full row: **not implemented, Required** before S6 (REQ-3). Server `field_versions`: **Prepared** (S1) |
 | 5 | Tombstones are permanent, no undelete. Deleting a parent is explicit leaf-first from the client; the server never cascades | D-T, D-E, D-P approved | Tombstone revert blocked: **Applied**. Leaf-first tombstones and the parent-with-live-children conflict: **Required** (REQ-6, S3). Phase 2A soft-deletes a single row only |
 | 6 | Outbox v2 (`seq`, `in_flight`, `request_id`, `sync_state`, local conflict mirror) | deferred to S5 | **Required**, needs owner approval. Not in Phase 2A |
-| 7 | Pull cursor safety: per-user advisory lock before `change_seq` | D-L conditional | **Prepared** (S1). Hosted `change_seq` is **not** commit-ordered today, so pull must not be activated until S1 is applied |
-| 8 | Push RPCs, idempotency, conflict records, resolution | D-A, D-C, D-O, D-R | Schema objects **Applied** (inert). Device registration and push (S2): **Prepared** on the dev branch (`20261112160000`), PostgreSQL 17 CI green, **not applied to hosted**. Pull (S4) and resolve (S3): **Required**. Synchronization is disabled |
+| 7 | Pull cursor safety: per-user advisory lock before `change_seq` | D-L conditional | **Applied** (S1, hosted `20261112151851`); the lock is taken in `guard_row` before `change_seq`. Pull (S4) is not built and must not be activated before it is |
+| 8 | Push RPCs, idempotency, conflict records, resolution | D-A, D-C, D-O, D-R | Schema objects **Applied** (inert). Device registration and push (S2): **Prepared** on the dev branch (`20261112160000`), tested locally and on PostgreSQL 17 CI, **not applied to hosted**; wire contract in `s2-wire-contract.md`. Pull (S4) and resolve (S3): **Required**. Synchronization is disabled |
 
 ## Identifiers and ownership
 - All ids are client-generated UUIDv4 text (lowercase, hyphenated) in SQLite, `uuid` in Postgres. The server accepts the client id on insert; offline-created rows keep their id forever.

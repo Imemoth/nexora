@@ -18,7 +18,8 @@ const _goldenStatementsSha256 =
     'aa530b447af3cbf49d64bb237caaf41f15772a057c30451a3b005356fe08f5f5';
 const _statementSeparator = '\n-- next statement --\n';
 
-String _fixture(String name) => File('test/fixtures/v1/$name').readAsStringSync();
+String _fixture(String name) =>
+    File('test/fixtures/v1/$name').readAsStringSync();
 
 String _schemaFingerprint(Database db) {
   return db
@@ -61,28 +62,40 @@ void main() {
   });
 
   group('migration v1 is frozen', () {
-    test('there is exactly one migration and its statement text is unchanged', () {
-      expect(migrationStatements, hasLength(1));
-      final canonical = migrationStatements.single.join(_statementSeparator);
-      expect(canonical, _fixture('v1_migration_statements.golden.txt'));
-      expect(sha256Hex(canonical), _goldenStatementsSha256);
-    });
+    test(
+      'there is exactly one migration and its statement text is unchanged',
+      () {
+        expect(migrationStatements, hasLength(1));
+        final canonical = migrationStatements.single.join(_statementSeparator);
+        expect(canonical, _fixture('v1_migration_statements.golden.txt'));
+        expect(sha256Hex(canonical), _goldenStatementsSha256);
+      },
+    );
 
     test('a new file gets exactly the golden v1 schema', () {
       final db = LocalDatabase.open('${dir.path}/new.db');
       addTearDown(db.close);
 
       expect(db.raw.userVersion, 1);
-      expect(_schemaFingerprint(db.raw), _fixture('v1_schema_fingerprint.golden.txt'));
+      expect(
+        _schemaFingerprint(db.raw),
+        _fixture('v1_schema_fingerprint.golden.txt'),
+      );
     });
 
-    test('the frozen synthetic fixture has the same schema as the app creates', () {
-      final raw = sqlite3.open('${dir.path}/fixture.db');
-      addTearDown(raw.close);
-      raw.execute(_fixture('synthetic_v1.sql'));
+    test(
+      'the frozen synthetic fixture has the same schema as the app creates',
+      () {
+        final raw = sqlite3.open('${dir.path}/fixture.db');
+        addTearDown(raw.close);
+        raw.execute(_fixture('synthetic_v1.sql'));
 
-      expect(_schemaFingerprint(raw), _fixture('v1_schema_fingerprint.golden.txt'));
-    });
+        expect(
+          _schemaFingerprint(raw),
+          _fixture('v1_schema_fingerprint.golden.txt'),
+        );
+      },
+    );
   });
 
   group('a v1 file with synthetic data', () {
@@ -105,22 +118,27 @@ void main() {
       expect(before['tasks'], hasLength(3));
     });
 
-    test('the synthetic outbox covers every v1 state and pending-create base 0', () {
-      final raw = sqlite3.open(':memory:');
-      addTearDown(raw.close);
-      raw.execute(_fixture('synthetic_v1.sql'));
+    test(
+      'the synthetic outbox covers every v1 state and pending-create base 0',
+      () {
+        final raw = sqlite3.open(':memory:');
+        addTearDown(raw.close);
+        raw.execute(_fixture('synthetic_v1.sql'));
 
-      final states = raw
-          .select('SELECT DISTINCT state FROM sync_outbox')
-          .map((r) => r['state'])
-          .toSet();
-      expect(states, {'pending', 'sent', 'acked', 'failed'});
-      expect(
-        raw.select(
-          "SELECT COUNT(*) AS n FROM sync_outbox WHERE base_version = 0 AND operation_type = 'upsert'",
-        ).single['n'],
-        greaterThan(0),
-      );
-    });
+        final states = raw
+            .select('SELECT DISTINCT state FROM sync_outbox')
+            .map((r) => r['state'])
+            .toSet();
+        expect(states, {'pending', 'sent', 'acked', 'failed'});
+        expect(
+          raw
+              .select(
+                "SELECT COUNT(*) AS n FROM sync_outbox WHERE base_version = 0 AND operation_type = 'upsert'",
+              )
+              .single['n'],
+          greaterThan(0),
+        );
+      },
+    );
   });
 }

@@ -1,6 +1,6 @@
 # Where the Supabase SQL and tests live (as of 2026-11-12)
 
-The shared architecture documents in this repository refer to `supabase/migrations/*`, `supabase/tests/*` and the `supabase-schema-tests` workflow. **Those files are not on `main`.** They live on the development branch `claude/affectionate-turing-unzmd2` (reviewed at `0d20ee6`).
+The shared architecture documents in this repository refer to `supabase/migrations/*`, `supabase/tests/*` and the `supabase-schema-tests` workflow. **Those files were not on `main` when this note was written (2026-11-12) and may still not be.** They live on the development branch `claude/affectionate-turing-unzmd2` (reviewed at `0d20ee6`).
 
 | Item | State | On `main` |
 |---|---|---|

@@ -101,7 +101,7 @@ Result: `{operation_id, status: applied|conflict|rejected, applied_version, row,
 - [ ] Owner approves the decisions in §8. Update `docs/architecture/data-contract.md` with: server-owned local `version`, op type mapping, `field_versions`, conflict kinds, the no-cascade delete rule.
 - [ ] Send the §4 items to the Phase 2A owner as a written change request. Do not edit their branch.
 
-### S1 Server schema increment (new migration `…_nexora_sync_protocol_schema`) — IMPLEMENTED LOCALLY, NOT APPLIED
+### S1 Server schema increment (new migration `…_nexora_sync_protocol_schema`) — APPLIED TO HOSTED (`20261112151851`, 2026-11-12)
 Actual scope (supersedes the list below where they differ): `field_versions` on both tables; guard trigger takes the per-user advisory lock before `change_seq` (D-L) and is `ENABLE ALWAYS`; conflict `kind` plus auditable resolution columns, append-only `sync_operations`, immutable conflict values (D-O); device cap (D-D); FK cascade fix; FK indexes; fix for the Phase 2B project-update defect. Tests: `supabase/tests/s1_sync_schema_test.sql`, `supabase/tests/concurrency/lock_discipline.sh`.
 **Files:** Create `supabase/migrations/<ts>_nexora_sync_protocol_schema.sql`; Test `supabase/tests/sync_schema_test.sql`.
 **Interfaces — Produces:** `projects.field_versions jsonb`, `tasks.field_versions jsonb` maintained by `nexora_private.guard_row`; `sync_conflicts.kind text` (enum check above) and `resolution_operation_id uuid`; `devices.last_push_at`; unique cap of 10 active devices per user.
@@ -117,7 +117,7 @@ Actual scope (supersedes the list below where they differ): `field_versions` on 
 ### S3 Server delete, tombstone tree rules, resolve
 **Files:** Create `supabase/migrations/<ts>_nexora_sync_delete_resolve.sql`; Test `supabase/tests/sync_tree_test.sql`.
 **Interfaces — Produces:** delete handling in `apply_operation`; `nexora_resolve_conflict`.
-- [ ] Failing tests: `delete_parent_with_live_child_conflicts`, `leaf_first_batch_deletes_tree`, `create_under_tombstoned_parent_conflicts`, `concurrent_move_cycle_conflicts`, `edit_after_delete_conflicts_no_undelete`, `delete_after_edit_conflicts`, `resolve_is_idempotent`, `resolution_keeps_both_values`.
+- [ ] Failing tests: `delete_parent_with_live_child_conflicts`, `leaf_first_batch_deletes_tree`, `create_under_tombstoned_parent_conflicts` (superseded by owner direction 2026-11-12: creation under a tombstoned parent is `rejected: parent_invalid`, implemented in S2), `concurrent_move_cycle_conflicts`, `edit_after_delete_conflicts_no_undelete`, `delete_after_edit_conflicts`, `resolve_is_idempotent`, `resolution_keeps_both_values`.
 - [ ] Implement.
 
 ### S4 Server pull and cursor concurrency
@@ -126,7 +126,7 @@ Actual scope (supersedes the list below where they differ): `field_versions` on 
 - [ ] Failing tests: `uncommitted_writer_blocks_second_writer_so_no_gap`, `pull_during_open_push_never_skips`, `pagination_resumes_without_duplicates_or_gaps`, `tombstones_are_returned`, `other_user_rows_never_returned`.
 - [ ] Implement; confirm tests fail if the advisory lock is removed (negative control).
 
-### S5 SQLite outbox v2 (Phase 2A owner)
+### S5 SQLite outbox v2 (Phase 2A owner). Planning document: `docs/coordination/phase-3-s5-outbox-v2.md`; migration safety spec: `docs/operations/s5-migration-safety-test-spec.md`; not implemented
 - [ ] Their migration v2 per §4.2 with tests: `domain_write_and_outbox_row_atomic`, `crash_in_flight_returns_to_pending`, `seq_order_survives_restart`, `db_bound_to_single_user`.
 
 ### S6 Dart sync engine against a fake transport

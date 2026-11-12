@@ -43,4 +43,4 @@ Outstanding blockers and decisions before any S2 hosted step:
 3. Direct INSERT/UPDATE on `projects` and `tasks` stays granted until the S9 activation gate; those paths bypass conflict detection. The per-user lock now covers them on hosted.
 4. Fidelity of the test environment: the PostgreSQL 17 CI uses stub Supabase roles, not the Supabase image; S2's JWT-claim handling (`auth.uid()`, `is_anonymous`) should be tested with claim fixtures and re-verified rollback-only on hosted.
 5. Client side: Phase 3 S5 (outbox v2) is not started; S6 depends on it.
-6. Documentation on `main` still describes S1 as not applied; a follow-up docs PR needs owner approval. The S1 SQL and tests exist only on `claude/affectionate-turing-unzmd2`.
+6. ~~Documentation on `main` still describes S1 as not applied~~ Corrected on the development branch by the 2026-11-12 documentation consolidation (status: `docs/coordination/status-register.md`); reaching `main` needs a separate owner-approved merge. The S1 SQL and tests exist only on `claude/affectionate-turing-unzmd2` until then.

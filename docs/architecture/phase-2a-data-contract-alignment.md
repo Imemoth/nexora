@@ -10,7 +10,7 @@ Scope: local SQLite only. No Supabase code, no network, no sync engine, no schem
 | Phase 3 requirements for Phase 2A (REQ-1 to REQ-8) | `docs/coordination/phase-2a-sync-requirements.md` | On `main` (PR #14, merged 2026-11-12) and on this branch after the merge of `main`. Read only. |
 | Shared data contract (frozen for Phase 3) | `docs/architecture/data-contract.md` | On `main` (PR #14). Read only. |
 | Phase 3 plan | `docs/superpowers/plans/2026-11-12-nexora-phase-3-sync.md` | On `main` (PR #14). Read only. |
-| Hosted Supabase schema | Hosted project, read only | Migrations `20261112111349`, `20261112115809`, `20261112120132`, `20261112120149` applied. S1 `20261112130000` not applied, as the contract says. |
+| Hosted Supabase schema | Hosted project, read only | Migrations `20261112111349`, `20261112115809`, `20261112120132`, `20261112120149`, F1 `20261112142732` and S1 `20261112151851` applied (as read on 2026-11-12 after this document was written; the original text said S1 was not applied). Current status: `docs/coordination/status-register.md`. |
 
 The source documents reached `main` through PR #14 and were merged into this branch. This branch still does not depend on them at run time.
 

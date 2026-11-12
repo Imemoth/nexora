@@ -1,6 +1,6 @@
 # Nexora Phase 2A — Local SQLite Persistence (implementation plan)
 
-Status: **plan for owner review. No implementation has started.** This slice does not begin code until the decisions in section 4 are approved. Phase 2A builds on the Phase 1 acceptance head (`64d10cb`, PR #12).
+Status: **historical plan. Implemented and merged into `main` (PR #13); owner Windows acceptance SAVE-PERSIST-01 recorded.** Current status: `docs/coordination/status-register.md`. (Original text: plan for owner review, no implementation started.) Phase 2A builds on the Phase 1 acceptance head (`64d10cb`, PR #12).
 
 Goal: a Windows desktop app that keeps tasks, projects and nested subtasks across full process restarts, using SQLite on the device, with durable Save and an outbox designed for later synchronization. No Supabase writes, no network, no authentication and no live sync are in this slice.
 

@@ -26,8 +26,11 @@ void main() {
     return db;
   }
 
-  SqliteTaskRepository repo(LocalDatabase db) =>
-      SqliteTaskRepository(db, ownerId: 'owner-local', now: () => DateTime.utc(2026, 11, 12, 10));
+  SqliteTaskRepository repo(LocalDatabase db) => SqliteTaskRepository(
+    db,
+    ownerId: 'owner-local',
+    now: () => DateTime.utc(2026, 11, 12, 10),
+  );
 
   int count(LocalDatabase db, String table) =>
       db.raw.select('SELECT COUNT(*) AS n FROM $table').single['n'] as int;
@@ -94,28 +97,33 @@ void main() {
       throwsA(isA<RepositoryException>()),
     );
 
-    final row = db.raw.select("SELECT title, deleted_at FROM tasks WHERE id = 't1'").single;
+    final row = db.raw
+        .select("SELECT title, deleted_at FROM tasks WHERE id = 't1'")
+        .single;
     expect(row['title'], 'Original');
     expect(row['deleted_at'], isNull);
     expect(count(db, 'sync_outbox'), outboxBefore);
   });
 
-  test('the repository works again once the injected failure is removed', () async {
-    final db = open();
-    await seedProject(db);
-    db.raw.execute(
-      "CREATE TRIGGER inject_outbox_failure BEFORE INSERT ON sync_outbox "
-      "BEGIN SELECT RAISE(ABORT, 'injected outbox failure'); END",
-    );
-    await expectLater(
-      repo(db).saveTask(makeTask(id: 't1')),
-      throwsA(isA<RepositoryException>()),
-    );
-    db.raw.execute('DROP TRIGGER inject_outbox_failure');
+  test(
+    'the repository works again once the injected failure is removed',
+    () async {
+      final db = open();
+      await seedProject(db);
+      db.raw.execute(
+        "CREATE TRIGGER inject_outbox_failure BEFORE INSERT ON sync_outbox "
+        "BEGIN SELECT RAISE(ABORT, 'injected outbox failure'); END",
+      );
+      await expectLater(
+        repo(db).saveTask(makeTask(id: 't1')),
+        throwsA(isA<RepositoryException>()),
+      );
+      db.raw.execute('DROP TRIGGER inject_outbox_failure');
 
-    await repo(db).saveTask(makeTask(id: 't1'));
+      await repo(db).saveTask(makeTask(id: 't1'));
 
-    expect(count(db, 'tasks'), 1);
-    expect(count(db, 'sync_outbox'), 2); // project create + task create
-  });
+      expect(count(db, 'tasks'), 1);
+      expect(count(db, 'sync_outbox'), 2); // project create + task create
+    },
+  );
 }
