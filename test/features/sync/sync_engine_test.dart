@@ -348,8 +348,10 @@ void main() {
       final status = await a.engine.syncNow();
 
       expect(status.phase, SyncPhase.idle);
-      expect(server.log.where((l) => l == 'push:4'), isEmpty);
-      expect(server.log.where((l) => l == 'push:2'), isNotEmpty);
+      // The refused batch of 4 never reached the server; the first accepted
+      // call carries the halved batch of 2.
+      final pushes = server.log.where((l) => l.startsWith('push:')).toList();
+      expect(pushes.first, 'push:2');
       expect(server.rows.length, 9);
     });
 
