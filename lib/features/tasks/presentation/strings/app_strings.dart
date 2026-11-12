@@ -30,7 +30,7 @@ abstract final class AppStrings {
   static const fieldTitle = 'Title';
   static const fieldProject = 'Project';
   static const fieldParent = 'Parent';
-  static const unsavedIndicator = 'Unsaved changes';
+  static const unsavedIndicator = 'Edited, not saved';
   static const saveAction = 'Save';
   static const revertAction = 'Revert';
   static const addSubtaskAction = 'Add subtask';
