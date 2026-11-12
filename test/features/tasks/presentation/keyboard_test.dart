@@ -1,5 +1,5 @@
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
@@ -58,6 +58,11 @@ Finder _searchField() => find.descendant(
 bool _hasPrimaryFocus(WidgetTester tester, Finder editable) {
   return tester.widget<EditableText>(editable).focusNode.hasPrimaryFocus;
 }
+
+/// The dialog title, looked up inside the dialog. The list header's New task
+/// button has the same text, so a page-wide text finder would match twice.
+Finder _inDialog(String text) =>
+    find.descendant(of: find.byType(AlertDialog), matching: find.text(text));
 
 void main() {
   group('keymap', () {
@@ -211,7 +216,7 @@ void main() {
       await _key(tester, LogicalKeyboardKey.keyN, control: true);
 
       expect(find.byKey(const ValueKey('create-title')), findsOneWidget);
-      expect(find.text(AppStrings.newTaskTitle), findsOneWidget);
+      expect(_inDialog(AppStrings.newTaskTitle), findsOneWidget);
     });
 
     testWidgets('Ctrl+Shift+N opens the subtask dialog for the selected task', (
@@ -224,7 +229,7 @@ void main() {
 
       await _key(tester, LogicalKeyboardKey.keyN, control: true, shift: true);
 
-      expect(find.text(AppStrings.newSubtaskTitle), findsOneWidget);
+      expect(_inDialog(AppStrings.newSubtaskTitle), findsOneWidget);
     });
 
     testWidgets('Ctrl+Shift+N does nothing for an archived task', (
@@ -238,7 +243,7 @@ void main() {
 
       await _key(tester, LogicalKeyboardKey.keyN, control: true, shift: true);
 
-      expect(find.text(AppStrings.newSubtaskTitle), findsNothing);
+      expect(_inDialog(AppStrings.newSubtaskTitle), findsNothing);
     });
 
     testWidgets('Ctrl+S saves a dirty draft', (tester) async {
