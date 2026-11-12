@@ -20,7 +20,10 @@ const List<String> projectUpdatableFields = ['name', 'sort_order'];
 
 /// The patch of a create operation for [row] (a `projects` or `tasks` row): every
 /// required field, and the optional ones only when set.
-Map<String, Object?> createPatchFromRow(String entityType, Map<String, Object?> row) {
+Map<String, Object?> createPatchFromRow(
+  String entityType,
+  Map<String, Object?> row,
+) {
   if (entityType == 'project') {
     return {'name': row['name'], 'sort_order': row['sort_order']};
   }

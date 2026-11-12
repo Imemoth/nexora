@@ -28,11 +28,7 @@ final class _FakeServer {
   final Map<String, Map<String, Object?>> stored = {};
   final List<String> violations = [];
 
-  Map<String, Object?> _row() => {
-    'id': 'p1',
-    ...values,
-    'version': version,
-  };
+  Map<String, Object?> _row() => {'id': 'p1', ...values, 'version': version};
 
   void otherEdit(String field, Object? value) {
     if (values[field] == value) {
@@ -83,10 +79,19 @@ final class _FakeServer {
     }
     final base = op['base_version']! as int;
     if (base > version || base < 1) {
-      violations.add('op $id sent with base $base but the server is at $version');
-      return {'operation_id': id, 'status': 'rejected', 'error_code': 'invalid_op', 'replayed': false};
+      violations.add(
+        'op $id sent with base $base but the server is at $version',
+      );
+      return {
+        'operation_id': id,
+        'status': 'rejected',
+        'error_code': 'invalid_op',
+        'replayed': false,
+      };
     }
-    final patch = Map<String, Object?>.from((op['patch'] ?? <String, Object?>{}) as Map);
+    final patch = Map<String, Object?>.from(
+      (op['patch'] ?? <String, Object?>{}) as Map,
+    );
     final conflicting = <String>[];
     for (final entry in patch.entries) {
       if (values[entry.key] == entry.value) {
@@ -150,26 +155,35 @@ void main() {
   setUp(() => dir = Directory.systemTemp.createTempSync('nexora-prop-'));
   tearDown(() => dir.deleteSync(recursive: true));
 
-  test('rule R never hides a conflict, and the outbox stays consistent (40 seeds)', () async {
-    for (var seed = 0; seed < 40; seed++) {
-      await _scenario(seed, dir);
-    }
-  });
+  test(
+    'rule R never hides a conflict, and the outbox stays consistent (40 seeds)',
+    () async {
+      for (var seed = 0; seed < 40; seed++) {
+        await _scenario(seed, dir);
+      }
+    },
+  );
 }
 
 Future<void> _scenario(int seed, Directory dir) async {
   final rng = Random(seed);
-  final db = LocalDatabase.open('${dir.path}${Platform.pathSeparator}prop-$seed.db');
+  final db = LocalDatabase.open(
+    '${dir.path}${Platform.pathSeparator}prop-$seed.db',
+  );
   try {
     final repo = SqliteTaskRepository(
       db,
       ownerId: 'o',
       now: () => DateTime.utc(2026, 11, 12, 10),
-      ids: SequentialIdGenerator([for (var i = 0; i < 4000; i++) 'op-$seed-$i']),
+      ids: SequentialIdGenerator([
+        for (var i = 0; i < 4000; i++) 'op-$seed-$i',
+      ]),
     );
     final store = OutboxStore(
       db,
-      ids: SequentialIdGenerator([for (var i = 0; i < 4000; i++) 'rq-$seed-$i']),
+      ids: SequentialIdGenerator([
+        for (var i = 0; i < 4000; i++) 'rq-$seed-$i',
+      ]),
     );
     final server = _FakeServer();
     final claimedPayloads = <String, String>{};
@@ -184,7 +198,9 @@ Future<void> _scenario(int seed, Directory dir) async {
 
     void ack(List<ClaimedOperation> batch, List<Map<String, Object?>> results) {
       store.acknowledge([for (final op in batch) op.operationId], results);
-      for (final conflict in db.select("SELECT id FROM sync_conflicts_local WHERE status = 'open'")) {
+      for (final conflict in db.select(
+        "SELECT id FROM sync_conflicts_local WHERE status = 'open'",
+      )) {
         store.resolveConflictUseServer(conflict['id'] as String);
       }
     }
@@ -195,14 +211,26 @@ Future<void> _scenario(int seed, Directory dir) async {
         return;
       }
       expect(
-        db.select("SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'in_flight'").single['n'],
+        db
+            .select(
+              "SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'in_flight'",
+            )
+            .single['n'],
         lessThanOrEqualTo(1),
         reason: 'seed $seed: one in flight per entity',
       );
       for (final op in batch) {
-        final payload = db.select('SELECT payload_json FROM sync_outbox WHERE seq = ?', [op.seq]).single['payload_json'] as String;
+        final payload =
+            db.select('SELECT payload_json FROM sync_outbox WHERE seq = ?', [
+                  op.seq,
+                ]).single['payload_json']
+                as String;
         final seen = claimedPayloads[op.operationId];
-        expect(seen == null || seen == payload, isTrue, reason: 'seed $seed: claimed payload changed');
+        expect(
+          seen == null || seen == payload,
+          isTrue,
+          reason: 'seed $seed: claimed payload changed',
+        );
         claimedPayloads[op.operationId] = payload;
       }
       final wires = [for (final op in batch) op.wire];
@@ -210,7 +238,9 @@ Future<void> _scenario(int seed, Directory dir) async {
         // The response is lost: the server applied it, the client times out and
         // retries the identical operations, and the server replays them.
         server.process(wires, observedOf);
-        store.releaseClaims([for (final op in batch) op.operationId], error: 'timeout');
+        store.releaseClaims([
+          for (final op in batch) op.operationId,
+        ], error: 'timeout');
         final again = store.claimBatch();
         expect(
           [for (final op in again) op.operationId],
@@ -218,16 +248,25 @@ Future<void> _scenario(int seed, Directory dir) async {
           reason: 'seed $seed: retry sends the same operations',
         );
         for (var i = 0; i < again.length; i++) {
-          expect(again[i].wire, batch[i].wire, reason: 'seed $seed: retry is identical');
+          expect(
+            again[i].wire,
+            batch[i].wire,
+            reason: 'seed $seed: retry is identical',
+          );
         }
-        ack(again, server.process([for (final op in again) op.wire], observedOf));
+        ack(
+          again,
+          server.process([for (final op in again) op.wire], observedOf),
+        );
       } else {
         ack(batch, server.process(wires, observedOf));
       }
     }
 
     Map<String, Object?> local() {
-      final row = db.select("SELECT name, sort_order FROM projects WHERE id = 'p1'").single;
+      final row = db
+          .select("SELECT name, sort_order FROM projects WHERE id = 'p1'")
+          .single;
       return {'name': row['name'], 'sort_order': row['sort_order']};
     }
 
@@ -237,9 +276,15 @@ Future<void> _scenario(int seed, Directory dir) async {
       final roll = rng.nextInt(10);
       if (roll < 4) {
         final current = local();
-        final name = rng.nextBool() ? 'n${rng.nextInt(5)}' : current['name']! as String;
-        final position = rng.nextBool() ? rng.nextInt(5) : current['sort_order']! as int;
-        await repo.saveProject(Project(id: 'p1', name: name, position: position));
+        final name = rng.nextBool()
+            ? 'n${rng.nextInt(5)}'
+            : current['name']! as String;
+        final position = rng.nextBool()
+            ? rng.nextInt(5)
+            : current['sort_order']! as int;
+        await repo.saveProject(
+          Project(id: 'p1', name: name, position: position),
+        );
       } else if (roll < 7) {
         pump();
       } else if (rng.nextBool()) {
@@ -254,11 +299,18 @@ Future<void> _scenario(int seed, Directory dir) async {
 
     expect(server.violations, isEmpty, reason: 'seed $seed');
     expect(
-      db.select("SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'in_flight'").single['n'],
+      db
+          .select(
+            "SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'in_flight'",
+          )
+          .single['n'],
       0,
       reason: 'seed $seed',
     );
-    final seqs = [for (final r in db.select('SELECT seq FROM sync_outbox ORDER BY seq')) r['seq'] as int];
+    final seqs = [
+      for (final r in db.select('SELECT seq FROM sync_outbox ORDER BY seq'))
+        r['seq'] as int,
+    ];
     expect([...seqs]..sort(), seqs);
   } finally {
     db.close();

@@ -250,8 +250,7 @@ final class OutboxStore {
       "(%s.state = 'applied' OR (%s.state IN ('conflict', 'rejected') "
       'AND %s.handled_at_utc IS NOT NULL))';
 
-  static String _ok(String alias) =>
-      _handledOrApplied.replaceAll('%s', alias);
+  static String _ok(String alias) => _handledOrApplied.replaceAll('%s', alias);
 
   /// Operations that may be sent now, oldest first: pending; every earlier
   /// operation on the entity is applied or handled; the operation it depends on
@@ -332,7 +331,8 @@ final class OutboxStore {
       'ORDER BY seq DESC LIMIT 1',
       [row['entity_type'], row['entity_id'], row['seq']],
     );
-    final applied = predecessor.isNotEmpty && predecessor.single['state'] == 'applied';
+    final applied =
+        predecessor.isNotEmpty && predecessor.single['state'] == 'applied';
     return computeWireBase(
       opType: opType,
       observedBase: row['observed_base_version'] as int,
@@ -397,7 +397,9 @@ final class OutboxStore {
       throw const OutboxProtocolException('results is not a list');
     }
     if (results.length != sentIds.length) {
-      throw const OutboxProtocolException('result count differs from sent count');
+      throw const OutboxProtocolException(
+        'result count differs from sent count',
+      );
     }
     final byId = <String, Map<String, Object?>>{};
     for (final result in results) {
@@ -406,7 +408,9 @@ final class OutboxStore {
       }
       final id = result['operation_id'];
       if (id is! String || byId.containsKey(id)) {
-        throw const OutboxProtocolException('missing or duplicate operation_id');
+        throw const OutboxProtocolException(
+          'missing or duplicate operation_id',
+        );
       }
       byId[id] = Map<String, Object?>.from(result);
     }
@@ -456,7 +460,9 @@ final class OutboxStore {
     final op = _inFlight(operationId);
     final version = result['applied_version'];
     if (version is! int) {
-      throw const OutboxProtocolException('applied result without applied_version');
+      throw const OutboxProtocolException(
+        'applied result without applied_version',
+      );
     }
     final before = result['version_before'];
     _raw.execute(
@@ -490,7 +496,9 @@ final class OutboxStore {
     final op = _inFlight(operationId);
     final conflictId = result['conflict_id'];
     if (conflictId is! String) {
-      throw const OutboxProtocolException('conflict result without conflict_id');
+      throw const OutboxProtocolException(
+        'conflict result without conflict_id',
+      );
     }
     final detail = result['conflict'];
     _raw.execute(
@@ -561,7 +569,12 @@ final class OutboxStore {
     );
   }
 
-  void _snapshot(String entityType, String entityId, Object? row, String source) {
+  void _snapshot(
+    String entityType,
+    String entityId,
+    Object? row,
+    String source,
+  ) {
     if (row is! Map) {
       return;
     }
@@ -573,7 +586,14 @@ final class OutboxStore {
       'row_json = excluded.row_json, server_version = excluded.server_version, '
       'source = excluded.source, updated_at_utc = excluded.updated_at_utc '
       'WHERE excluded.server_version >= sync_entity_snapshot.server_version',
-      [entityType, entityId, jsonEncode(row), version is int ? version : 0, source, _iso()],
+      [
+        entityType,
+        entityId,
+        jsonEncode(row),
+        version is int ? version : 0,
+        source,
+        _iso(),
+      ],
     );
   }
 
@@ -629,7 +649,9 @@ final class OutboxStore {
   Map<String, Object?> _unhandled(String operationId, String state) {
     final op = _opById(operationId);
     if (op['state'] != state || op['handled_at_utc'] != null) {
-      throw RepositoryException('operation $operationId is not an unhandled $state operation');
+      throw RepositoryException(
+        'operation $operationId is not an unhandled $state operation',
+      );
     }
     return op;
   }
@@ -776,7 +798,9 @@ final class OutboxStore {
       [entityType, entityId],
     );
     if (busy.isNotEmpty) {
-      throw RepositoryException('$entityType $entityId has operations in flight');
+      throw RepositoryException(
+        '$entityType $entityId has operations in flight',
+      );
     }
     for (final row in _rows(
       "SELECT * FROM sync_outbox WHERE entity_type = ? AND entity_id = ? AND state = 'pending'",
@@ -813,13 +837,17 @@ final class OutboxStore {
   String deviceId() {
     return _transaction(() {
       _raw.execute('INSERT OR IGNORE INTO sync_state (singleton) VALUES (1)');
-      final rows = _rows('SELECT device_id FROM sync_state WHERE singleton = 1');
+      final rows = _rows(
+        'SELECT device_id FROM sync_state WHERE singleton = 1',
+      );
       final existing = rows.single['device_id'] as String?;
       if (existing != null) {
         return existing;
       }
       final id = _ids.nextId();
-      _raw.execute('UPDATE sync_state SET device_id = ? WHERE singleton = 1', [id]);
+      _raw.execute('UPDATE sync_state SET device_id = ? WHERE singleton = 1', [
+        id,
+      ]);
       return id;
     });
   }
@@ -836,7 +864,10 @@ final class OutboxStore {
 
   String _iso() => _now().toUtc().toIso8601String();
 
-  List<Map<String, Object?>> _rows(String sql, [List<Object?> params = const []]) {
+  List<Map<String, Object?>> _rows(
+    String sql, [
+    List<Object?> params = const [],
+  ]) {
     return [
       for (final row in _raw.select(sql, params))
         {for (final key in row.keys) key: row[key]},

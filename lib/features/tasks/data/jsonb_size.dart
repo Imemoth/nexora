@@ -12,7 +12,9 @@ String _jsonbText(Object? value) {
   if (value is Map) {
     final parts = <String>[];
     for (final entry in value.entries) {
-      parts.add('${jsonEncode(entry.key.toString())}: ${_jsonbText(entry.value)}');
+      parts.add(
+        '${jsonEncode(entry.key.toString())}: ${_jsonbText(entry.value)}',
+      );
     }
     return '{${parts.join(', ')}}';
   }

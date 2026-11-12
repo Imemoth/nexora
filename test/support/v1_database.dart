@@ -24,7 +24,8 @@ void createV1File(String path, [List<String> statements = const []]) {
   }
 }
 
-String _q(String? value) => value == null ? 'NULL' : "'${value.replaceAll("'", "''")}'";
+String _q(String? value) =>
+    value == null ? 'NULL' : "'${value.replaceAll("'", "''")}'";
 
 String v1Project(
   String id, {

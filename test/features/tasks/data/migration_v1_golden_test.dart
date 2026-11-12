@@ -116,7 +116,9 @@ void main() {
       expect(_dump(db.raw)['projects'], hasLength(2));
       expect(_dump(db.raw)['tasks'], hasLength(3));
       expect(
-        db.raw.select('SELECT COUNT(*) AS n FROM sync_outbox_archive').single['n'],
+        db.raw
+            .select('SELECT COUNT(*) AS n FROM sync_outbox_archive')
+            .single['n'],
         5,
       );
     });

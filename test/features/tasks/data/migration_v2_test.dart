@@ -58,10 +58,16 @@ void main() {
       final db = LocalDatabase.open(path);
       addTearDown(db.close);
 
-      final tasks = _all(db.raw, 'SELECT id, version, sync_scope FROM tasks ORDER BY id');
+      final tasks = _all(
+        db.raw,
+        'SELECT id, version, sync_scope FROM tasks ORDER BY id',
+      );
       expect(tasks.map((r) => r['version']), [0, 0]);
       expect(tasks.map((r) => r['sync_scope']), ['synced', 'synced']);
-      final project = _all(db.raw, 'SELECT version, sync_scope FROM projects').single;
+      final project = _all(
+        db.raw,
+        'SELECT version, sync_scope FROM projects',
+      ).single;
       expect(project['version'], 0);
       expect(project['sync_scope'], 'synced');
       final ops = _all(db.raw, 'SELECT * FROM sync_outbox ORDER BY seq');
@@ -77,56 +83,105 @@ void main() {
       expect(db.migrationReport!.counts['class_u_entities'], 0);
     });
 
-    test('later pending upserts are folded into the first create and archived', () {
-      final path = _path();
-      createV1File(path, [
-        "INSERT INTO meta (key, value) VALUES ('owner_id', 'owner-1')",
-        v1Project('p1'),
-        v1Task('t1', 'p1', title: 'Final title'),
-        v1Op('op-p1', 'project', 'p1', v1ProjectPayload('p1')),
-        v1Op('op-t1a', 'task', 't1', v1TaskPayload('t1', 'p1', title: 'First')),
-        v1Op('op-t1b', 'task', 't1', v1TaskPayload('t1', 'p1', title: 'Final title')),
-      ]);
+    test(
+      'later pending upserts are folded into the first create and archived',
+      () {
+        final path = _path();
+        createV1File(path, [
+          "INSERT INTO meta (key, value) VALUES ('owner_id', 'owner-1')",
+          v1Project('p1'),
+          v1Task('t1', 'p1', title: 'Final title'),
+          v1Op('op-p1', 'project', 'p1', v1ProjectPayload('p1')),
+          v1Op(
+            'op-t1a',
+            'task',
+            't1',
+            v1TaskPayload('t1', 'p1', title: 'First'),
+          ),
+          v1Op(
+            'op-t1b',
+            'task',
+            't1',
+            v1TaskPayload('t1', 'p1', title: 'Final title'),
+          ),
+        ]);
 
-      final db = LocalDatabase.open(path);
-      addTearDown(db.close);
+        final db = LocalDatabase.open(path);
+        addTearDown(db.close);
 
-      final live = _all(db.raw, "SELECT * FROM sync_outbox WHERE entity_id = 't1'").single;
-      expect(live['operation_id'], 'op-t1a'); // the first create keeps its id
-      expect(jsonDecode(live['payload_json'] as String)['title'], 'Final title');
-      final reasons = {
-        for (final r in _all(db.raw, 'SELECT operation_id, archive_reason FROM sync_outbox_archive'))
-          r['operation_id']: r['archive_reason'],
-      };
-      expect(reasons['op-t1a'], 'migrated_to_v2_create');
-      expect(reasons['op-t1b'], 'folded_into_create');
-    });
+        final live = _all(
+          db.raw,
+          "SELECT * FROM sync_outbox WHERE entity_id = 't1'",
+        ).single;
+        expect(live['operation_id'], 'op-t1a'); // the first create keeps its id
+        expect(
+          jsonDecode(live['payload_json'] as String)['title'],
+          'Final title',
+        );
+        final reasons = {
+          for (final r in _all(
+            db.raw,
+            'SELECT operation_id, archive_reason FROM sync_outbox_archive',
+          ))
+            r['operation_id']: r['archive_reason'],
+        };
+        expect(reasons['op-t1a'], 'migrated_to_v2_create');
+        expect(reasons['op-t1b'], 'folded_into_create');
+      },
+    );
 
-    test('ordering follows the verified v1 rowid order, never created_at_utc', () {
-      final path = _path();
-      // The clock went backwards: later rows carry earlier timestamps.
-      createV1File(path, [
-        "INSERT INTO meta (key, value) VALUES ('owner_id', 'owner-1')",
-        v1Project('p1'),
-        v1Project('p2'),
-        v1Project('p3'),
-        v1Op('op-3', 'project', 'p3', v1ProjectPayload('p3'), createdAt: '2026-03-01T00:00:00.000Z'),
-        v1Op('op-1', 'project', 'p1', v1ProjectPayload('p1'), createdAt: '2026-02-01T00:00:00.000Z'),
-        v1Op('op-2', 'project', 'p2', v1ProjectPayload('p2'), createdAt: '2026-01-01T00:00:00.000Z'),
-      ]);
+    test(
+      'ordering follows the verified v1 rowid order, never created_at_utc',
+      () {
+        final path = _path();
+        // The clock went backwards: later rows carry earlier timestamps.
+        createV1File(path, [
+          "INSERT INTO meta (key, value) VALUES ('owner_id', 'owner-1')",
+          v1Project('p1'),
+          v1Project('p2'),
+          v1Project('p3'),
+          v1Op(
+            'op-3',
+            'project',
+            'p3',
+            v1ProjectPayload('p3'),
+            createdAt: '2026-03-01T00:00:00.000Z',
+          ),
+          v1Op(
+            'op-1',
+            'project',
+            'p1',
+            v1ProjectPayload('p1'),
+            createdAt: '2026-02-01T00:00:00.000Z',
+          ),
+          v1Op(
+            'op-2',
+            'project',
+            'p2',
+            v1ProjectPayload('p2'),
+            createdAt: '2026-01-01T00:00:00.000Z',
+          ),
+        ]);
 
-      final db = LocalDatabase.open(path);
-      addTearDown(db.close);
+        final db = LocalDatabase.open(path);
+        addTearDown(db.close);
 
-      expect(
-        _all(db.raw, 'SELECT operation_id FROM sync_outbox ORDER BY seq').map((r) => r['operation_id']),
-        ['op-3', 'op-1', 'op-2'],
-      );
-      expect(
-        _all(db.raw, 'SELECT operation_id FROM sync_outbox_archive ORDER BY id').map((r) => r['operation_id']),
-        ['op-3', 'op-1', 'op-2'],
-      );
-    });
+        expect(
+          _all(
+            db.raw,
+            'SELECT operation_id FROM sync_outbox ORDER BY seq',
+          ).map((r) => r['operation_id']),
+          ['op-3', 'op-1', 'op-2'],
+        );
+        expect(
+          _all(
+            db.raw,
+            'SELECT operation_id FROM sync_outbox_archive ORDER BY id',
+          ).map((r) => r['operation_id']),
+          ['op-3', 'op-1', 'op-2'],
+        );
+      },
+    );
 
     test('ambiguous states make the entity unclassified, with nothing replayed or reset', () {
       final path = _path();
@@ -137,18 +192,55 @@ void main() {
         v1Task('t-failed', 'p1', version: 3),
         v1Task('t-acked', 'p1', version: 7),
         v1Task('t-child', 'p1', parentId: 't-acked', version: 1),
-        v1Op('o1', 'project', 'p1', v1ProjectPayload('p1'), state: 'acked', attempts: 1),
-        v1Op('o2', 'task', 't-sent', v1TaskPayload('t-sent', 'p1'), state: 'sent', attempts: 2),
-        v1Op('o3', 'task', 't-failed', v1TaskPayload('t-failed', 'p1'), state: 'failed', attempts: 3, lastError: 'boom'),
-        v1Op('o4', 'task', 't-acked', v1TaskPayload('t-acked', 'p1'), state: 'acked', attempts: 1),
-        v1Op('o5', 'task', 't-child', v1TaskPayload('t-child', 'p1', parentId: 't-acked')),
+        v1Op(
+          'o1',
+          'project',
+          'p1',
+          v1ProjectPayload('p1'),
+          state: 'acked',
+          attempts: 1,
+        ),
+        v1Op(
+          'o2',
+          'task',
+          't-sent',
+          v1TaskPayload('t-sent', 'p1'),
+          state: 'sent',
+          attempts: 2,
+        ),
+        v1Op(
+          'o3',
+          'task',
+          't-failed',
+          v1TaskPayload('t-failed', 'p1'),
+          state: 'failed',
+          attempts: 3,
+          lastError: 'boom',
+        ),
+        v1Op(
+          'o4',
+          'task',
+          't-acked',
+          v1TaskPayload('t-acked', 'p1'),
+          state: 'acked',
+          attempts: 1,
+        ),
+        v1Op(
+          'o5',
+          'task',
+          't-child',
+          v1TaskPayload('t-child', 'p1', parentId: 't-acked'),
+        ),
       ]);
 
       final db = LocalDatabase.open(path);
       addTearDown(db.close);
 
       final versions = {
-        for (final r in _all(db.raw, 'SELECT id, version, sync_scope FROM tasks'))
+        for (final r in _all(
+          db.raw,
+          'SELECT id, version, sync_scope FROM tasks',
+        ))
           r['id']: [r['version'], r['sync_scope']],
       };
       expect(versions['t-sent'], [2, 'unclassified']);
@@ -157,7 +249,10 @@ void main() {
       // A pending base-0 child of an unclassified parent is unclassified too.
       expect(versions['t-child'], [1, 'unclassified']);
       expect(_scalar(db.raw, 'SELECT COUNT(*) FROM sync_outbox'), 0);
-      final archived = _all(db.raw, 'SELECT * FROM sync_outbox_archive ORDER BY id');
+      final archived = _all(
+        db.raw,
+        'SELECT * FROM sync_outbox_archive ORDER BY id',
+      );
       expect(archived, hasLength(5));
       final failed = archived.firstWhere((r) => r['operation_id'] == 'o3');
       expect(failed['state'], 'failed');
@@ -179,20 +274,32 @@ void main() {
         v1Op('b', 'task', 't-del', v1TaskPayload('t-del', 'p1')),
         v1Op('c', 'task', 't-del', {'id': 't-del'}, operationType: 'delete'),
         v1Op('d', 'task', 't-base', v1TaskPayload('t-base', 'p1'), base: 4),
-        v1Op('e', 'task', 't-edit', v1TaskPayload('t-edit', 'p1', title: 'Old title')),
+        v1Op(
+          'e',
+          'task',
+          't-edit',
+          v1TaskPayload('t-edit', 'p1', title: 'Old title'),
+        ),
       ]);
 
       final db = LocalDatabase.open(path);
       addTearDown(db.close);
 
       final scopes = {
-        for (final r in _all(db.raw, 'SELECT id, sync_scope FROM tasks')) r['id']: r['sync_scope'],
+        for (final r in _all(db.raw, 'SELECT id, sync_scope FROM tasks'))
+          r['id']: r['sync_scope'],
       };
       expect(scopes['t-del'], 'unclassified');
       expect(scopes['t-base'], 'unclassified');
       expect(scopes['t-edit'], 'unclassified');
       expect(db.migrationReport!.warnings, contains('W05:task:t-edit'));
-      expect(_all(db.raw, 'SELECT scope FROM (SELECT sync_scope AS scope FROM projects)').single['scope'], 'synced');
+      expect(
+        _all(
+          db.raw,
+          'SELECT scope FROM (SELECT sync_scope AS scope FROM projects)',
+        ).single['scope'],
+        'synced',
+      );
     });
 
     test('rows without any operation (demo-like) and orphan operations are unclassified or archived', () {
@@ -214,7 +321,10 @@ void main() {
       });
       expect(_scalar(db.raw, 'SELECT COUNT(*) FROM sync_outbox'), 0);
       expect(
-        _all(db.raw, 'SELECT archive_reason FROM sync_outbox_archive').single['archive_reason'],
+        _all(
+          db.raw,
+          'SELECT archive_reason FROM sync_outbox_archive',
+        ).single['archive_reason'],
         'orphan_entity',
       );
     });
@@ -226,10 +336,19 @@ void main() {
       final db = LocalDatabase.open(path);
       addTearDown(db.close);
 
-      expect(_scalar(db.raw, "SELECT COUNT(*) FROM tasks WHERE notes IS NULL"), 0);
-      expect(_scalar(db.raw, "SELECT value FROM meta WHERE key = 'user_id'"), 'owner-1');
+      expect(
+        _scalar(db.raw, "SELECT COUNT(*) FROM tasks WHERE notes IS NULL"),
+        0,
+      );
+      expect(
+        _scalar(db.raw, "SELECT value FROM meta WHERE key = 'user_id'"),
+        'owner-1',
+      );
       db.bindUser('owner-1'); // the same user is accepted
-      expect(() => db.bindUser('someone-else'), throwsA(isA<RepositoryException>()));
+      expect(
+        () => db.bindUser('someone-else'),
+        throwsA(isA<RepositoryException>()),
+      );
     });
   });
 
@@ -239,14 +358,24 @@ void main() {
       expect(
         () => LocalDatabase.open(path),
         throwsA(
-          isA<RepositoryException>().having((e) => e.message, 'message', contains(code)),
+          isA<RepositoryException>().having(
+            (e) => e.message,
+            'message',
+            contains(code),
+          ),
         ),
       );
       final raw = sqlite3.open(path);
       addTearDown(raw.close);
       expect(raw.userVersion, 1);
       expect(snapshotDigest(raw), before);
-      expect(_scalar(raw, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'sync_outbox_archive'"), 0);
+      expect(
+        _scalar(
+          raw,
+          "SELECT COUNT(*) FROM sqlite_master WHERE name = 'sync_outbox_archive'",
+        ),
+        0,
+      );
     }
 
     test('a title over 200 characters is never truncated', () async {
@@ -331,7 +460,10 @@ void main() {
       addTearDown(db.close);
 
       expect(db.schemaVersion, 2);
-      expect(_backups(path), hasLength(2)); // nothing was deleted or overwritten
+      expect(
+        _backups(path),
+        hasLength(2),
+      ); // nothing was deleted or overwritten
     });
 
     test('an unwritable backup location aborts before any change', () {
@@ -340,9 +472,16 @@ void main() {
       final before = _digestOf(path);
 
       expect(
-        () => LocalDatabase.open(path, backupDirectory: '${_dir.path}${Platform.pathSeparator}missing'),
+        () => LocalDatabase.open(
+          path,
+          backupDirectory: '${_dir.path}${Platform.pathSeparator}missing',
+        ),
         throwsA(
-          isA<RepositoryException>().having((e) => e.message, 'message', contains('backup_failed')),
+          isA<RepositoryException>().having(
+            (e) => e.message,
+            'message',
+            contains('backup_failed'),
+          ),
         ),
       );
 
@@ -414,7 +553,13 @@ void main() {
         addTearDown(raw.close);
         expect(raw.userVersion, 1);
         expect(snapshotDigest(raw), before);
-        expect(_scalar(raw, "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('sync_outbox_archive', 'projects_v2', 'tasks_v2')"), 0);
+        expect(
+          _scalar(
+            raw,
+            "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('sync_outbox_archive', 'projects_v2', 'tasks_v2')",
+          ),
+          0,
+        );
         // The file migrates normally afterwards.
         final db = LocalDatabase.open(path);
         addTearDown(db.close);
@@ -465,7 +610,10 @@ void main() {
       addTearDown(second.close);
 
       expect(second.migrationReport, isNull);
-      expect(_scalar(second.raw, 'SELECT COUNT(*) FROM sync_outbox_archive'), 3);
+      expect(
+        _scalar(second.raw, 'SELECT COUNT(*) FROM sync_outbox_archive'),
+        3,
+      );
       expect(_backups(path), hasLength(1));
     });
   });
@@ -478,7 +626,10 @@ void main() {
       raw.userVersion = 99;
       raw.close();
 
-      expect(() => LocalDatabase.open(path), throwsA(isA<RepositoryException>()));
+      expect(
+        () => LocalDatabase.open(path),
+        throwsA(isA<RepositoryException>()),
+      );
 
       final check = sqlite3.open(path);
       addTearDown(check.close);
@@ -492,8 +643,19 @@ void main() {
         v1Project('p1', name: 'Secret project name'),
         v1Task('t1', 'p1', title: 'Secret task title', notes: 'secret notes'),
         v1Task('t2', 'p1', title: 'Another secret'),
-        v1Op('x1', 'project', 'p1', v1ProjectPayload('p1', name: 'Secret project name')),
-        v1Op('x2', 'task', 't1', v1TaskPayload('t1', 'p1', title: 'Older secret'), state: 'sent'),
+        v1Op(
+          'x1',
+          'project',
+          'p1',
+          v1ProjectPayload('p1', name: 'Secret project name'),
+        ),
+        v1Op(
+          'x2',
+          'task',
+          't1',
+          v1TaskPayload('t1', 'p1', title: 'Older secret'),
+          state: 'sent',
+        ),
       ]);
 
       final db = LocalDatabase.open(path);
@@ -537,19 +699,36 @@ void main() {
 
     test('every table, index and trigger exists', () {
       final names = {
-        for (final r in _all(db.raw, 'SELECT name FROM sqlite_master')) r['name'],
+        for (final r in _all(db.raw, 'SELECT name FROM sqlite_master'))
+          r['name'],
       };
       for (final expected in [
-        'projects', 'tasks', 'meta', 'sync_outbox', 'sync_outbox_archive',
-        'sync_entity_snapshot', 'sync_conflicts_local', 'sync_state',
-        'sync_migration_report', 'tasks_by_project', 'sync_one_inflight',
-        'sync_one_live_create', 'sync_outbox_by_entity', 'sync_outbox_by_state',
-        'sync_outbox_identity_immutable', 'sync_outbox_claimed_immutable',
-        'sync_outbox_state_machine', 'sync_outbox_result_write_once',
-        'sync_outbox_handled_write_once', 'sync_outbox_no_delete_claimed',
-        'sync_outbox_archive_no_update', 'sync_outbox_archive_no_delete',
-        'sync_conflicts_evidence_immutable', 'sync_conflicts_resolution_write_once',
-        'sync_conflicts_no_delete', 'tasks_project_immutable',
+        'projects',
+        'tasks',
+        'meta',
+        'sync_outbox',
+        'sync_outbox_archive',
+        'sync_entity_snapshot',
+        'sync_conflicts_local',
+        'sync_state',
+        'sync_migration_report',
+        'tasks_by_project',
+        'sync_one_inflight',
+        'sync_one_live_create',
+        'sync_outbox_by_entity',
+        'sync_outbox_by_state',
+        'sync_outbox_identity_immutable',
+        'sync_outbox_claimed_immutable',
+        'sync_outbox_state_machine',
+        'sync_outbox_result_write_once',
+        'sync_outbox_handled_write_once',
+        'sync_outbox_no_delete_claimed',
+        'sync_outbox_archive_no_update',
+        'sync_outbox_archive_no_delete',
+        'sync_conflicts_evidence_immutable',
+        'sync_conflicts_resolution_write_once',
+        'sync_conflicts_no_delete',
+        'tasks_project_immutable',
       ]) {
         expect(names, contains(expected), reason: expected);
       }
@@ -557,11 +736,14 @@ void main() {
       expect(_scalar(db.raw, 'PRAGMA integrity_check'), 'ok');
     });
 
-    test('the rebuilt tasks table has foreign keys to the final table names', () {
-      final fks = _all(db.raw, 'PRAGMA foreign_key_list(tasks)');
-      expect(fks, hasLength(3));
-      expect(fks.map((r) => r['table']).toSet(), {'tasks', 'projects'});
-    });
+    test(
+      'the rebuilt tasks table has foreign keys to the final table names',
+      () {
+        final fks = _all(db.raw, 'PRAGMA foreign_key_list(tasks)');
+        expect(fks, hasLength(3));
+        expect(fks.map((r) => r['table']).toSet(), {'tasks', 'projects'});
+      },
+    );
 
     test('a child whose parent is in another project is rejected by the composite key', () {
       db.raw.execute(
@@ -579,11 +761,15 @@ void main() {
 
     test('sync_scope has no default and only three values', () {
       expect(
-        tryExecute("INSERT INTO projects (id, owner_id, name, created_at, updated_at) VALUES ('x', 'o', 'N', 't', 't')"),
+        tryExecute(
+          "INSERT INTO projects (id, owner_id, name, created_at, updated_at) VALUES ('x', 'o', 'N', 't', 't')",
+        ),
         contains('NOT NULL'),
       );
       expect(
-        tryExecute("INSERT INTO projects (id, owner_id, name, sync_scope, created_at, updated_at) VALUES ('x', 'o', 'N', 'bogus', 't', 't')"),
+        tryExecute(
+          "INSERT INTO projects (id, owner_id, name, sync_scope, created_at, updated_at) VALUES ('x', 'o', 'N', 'bogus', 't', 't')",
+        ),
         contains('CHECK'),
       );
     });
@@ -600,74 +786,206 @@ void main() {
     });
 
     test('create must have base 0; update with base 0 needs a dependency; payload ceiling', () {
-      expect(tryExecute(insert, ['a', 'task', 't', 'create', 1, '{}', 2, 't', null]), contains('CHECK'));
-      expect(tryExecute(insert, ['b', 'task', 't', 'update', 0, '{}', 2, 't', null]), contains('CHECK'));
-      expect(tryExecute(insert, ['c', 'task', 't', 'create', 0, '{}', 229377, 't', null]), contains('CHECK'));
-      expect(tryExecute(insert, ['d', 'task', 't', 'create', 0, '{}', 2, 't', null]), 'ok');
+      expect(
+        tryExecute(insert, ['a', 'task', 't', 'create', 1, '{}', 2, 't', null]),
+        contains('CHECK'),
+      );
+      expect(
+        tryExecute(insert, ['b', 'task', 't', 'update', 0, '{}', 2, 't', null]),
+        contains('CHECK'),
+      );
+      expect(
+        tryExecute(insert, [
+          'c',
+          'task',
+          't',
+          'create',
+          0,
+          '{}',
+          229377,
+          't',
+          null,
+        ]),
+        contains('CHECK'),
+      );
+      expect(
+        tryExecute(insert, ['d', 'task', 't', 'create', 0, '{}', 2, 't', null]),
+        'ok',
+      );
     });
 
     test('one live create and one in-flight operation per entity', () {
-      expect(tryExecute(insert, ['a', 'task', 't', 'create', 0, '{}', 2, 't', null]), 'ok');
-      expect(tryExecute(insert, ['b', 'task', 't', 'create', 0, '{}', 2, 't', null]), contains('UNIQUE'));
-      expect(tryExecute(insert, ['c', 'task', 't', 'update', 1, '{}', 2, 't', null]), 'ok');
-      db.raw.execute("UPDATE sync_outbox SET base_version = 0, state = 'in_flight' WHERE operation_id = 'a'");
       expect(
-        tryExecute("UPDATE sync_outbox SET base_version = 1, state = 'in_flight' WHERE operation_id = 'c'"),
+        tryExecute(insert, ['a', 'task', 't', 'create', 0, '{}', 2, 't', null]),
+        'ok',
+      );
+      expect(
+        tryExecute(insert, ['b', 'task', 't', 'create', 0, '{}', 2, 't', null]),
+        contains('UNIQUE'),
+      );
+      expect(
+        tryExecute(insert, ['c', 'task', 't', 'update', 1, '{}', 2, 't', null]),
+        'ok',
+      );
+      db.raw.execute(
+        "UPDATE sync_outbox SET base_version = 0, state = 'in_flight' WHERE operation_id = 'a'",
+      );
+      expect(
+        tryExecute(
+          "UPDATE sync_outbox SET base_version = 1, state = 'in_flight' WHERE operation_id = 'c'",
+        ),
         contains('UNIQUE'),
       );
     });
 
     test('identity, claimed payload and results are immutable; history is never deleted', () {
-      expect(tryExecute(insert, ['a', 'task', 't', 'create', 0, '{}', 2, 't', null]), 'ok');
-      expect(tryExecute("UPDATE sync_outbox SET entity_id = 'x' WHERE operation_id = 'a'"), contains('immutable'));
+      expect(
+        tryExecute(insert, ['a', 'task', 't', 'create', 0, '{}', 2, 't', null]),
+        'ok',
+      );
+      expect(
+        tryExecute(
+          "UPDATE sync_outbox SET entity_id = 'x' WHERE operation_id = 'a'",
+        ),
+        contains('immutable'),
+      );
       // Before the first claim the payload may still be edited (folding).
-      expect(tryExecute("UPDATE sync_outbox SET payload_json = '{\"a\":1}', payload_bytes = 7 WHERE operation_id = 'a'"), 'ok');
-      db.raw.execute("UPDATE sync_outbox SET base_version = 0, state = 'in_flight' WHERE operation_id = 'a'");
-      expect(tryExecute("UPDATE sync_outbox SET payload_json = '{}' WHERE operation_id = 'a'"), contains('immutable'));
-      expect(tryExecute("UPDATE sync_outbox SET state = 'pending' WHERE operation_id = 'a'"), 'ok'); // requeue
-      db.raw.execute("UPDATE sync_outbox SET state = 'in_flight' WHERE operation_id = 'a'");
-      db.raw.execute("UPDATE sync_outbox SET state = 'applied', applied_version = 1, version_before = 0 WHERE operation_id = 'a'");
-      expect(tryExecute("UPDATE sync_outbox SET state = 'pending' WHERE operation_id = 'a'"), contains('illegal'));
-      expect(tryExecute("UPDATE sync_outbox SET applied_version = 9 WHERE operation_id = 'a'"), contains('written once'));
-      expect(tryExecute("DELETE FROM sync_outbox WHERE operation_id = 'a'"), contains('never deleted'));
+      expect(
+        tryExecute(
+          "UPDATE sync_outbox SET payload_json = '{\"a\":1}', payload_bytes = 7 WHERE operation_id = 'a'",
+        ),
+        'ok',
+      );
+      db.raw.execute(
+        "UPDATE sync_outbox SET base_version = 0, state = 'in_flight' WHERE operation_id = 'a'",
+      );
+      expect(
+        tryExecute(
+          "UPDATE sync_outbox SET payload_json = '{}' WHERE operation_id = 'a'",
+        ),
+        contains('immutable'),
+      );
+      expect(
+        tryExecute(
+          "UPDATE sync_outbox SET state = 'pending' WHERE operation_id = 'a'",
+        ),
+        'ok',
+      ); // requeue
+      db.raw.execute(
+        "UPDATE sync_outbox SET state = 'in_flight' WHERE operation_id = 'a'",
+      );
+      db.raw.execute(
+        "UPDATE sync_outbox SET state = 'applied', applied_version = 1, version_before = 0 WHERE operation_id = 'a'",
+      );
+      expect(
+        tryExecute(
+          "UPDATE sync_outbox SET state = 'pending' WHERE operation_id = 'a'",
+        ),
+        contains('illegal'),
+      );
+      expect(
+        tryExecute(
+          "UPDATE sync_outbox SET applied_version = 9 WHERE operation_id = 'a'",
+        ),
+        contains('written once'),
+      );
+      expect(
+        tryExecute("DELETE FROM sync_outbox WHERE operation_id = 'a'"),
+        contains('never deleted'),
+      );
     });
 
-    test('a pending, never-claimed operation may be deleted (archive first)', () {
-      expect(tryExecute(insert, ['a', 'task', 't', 'create', 0, '{}', 2, 't', null]), 'ok');
-      expect(tryExecute("DELETE FROM sync_outbox WHERE operation_id = 'a'"), 'ok');
-    });
+    test(
+      'a pending, never-claimed operation may be deleted (archive first)',
+      () {
+        expect(
+          tryExecute(insert, [
+            'a',
+            'task',
+            't',
+            'create',
+            0,
+            '{}',
+            2,
+            't',
+            null,
+          ]),
+          'ok',
+        );
+        expect(
+          tryExecute("DELETE FROM sync_outbox WHERE operation_id = 'a'"),
+          'ok',
+        );
+      },
+    );
 
     test('seq values are never reused', () {
-      expect(tryExecute(insert, ['a', 'task', 't', 'create', 0, '{}', 2, 't', null]), 'ok');
+      expect(
+        tryExecute(insert, ['a', 'task', 't', 'create', 0, '{}', 2, 't', null]),
+        'ok',
+      );
       final first = _scalar(db.raw, 'SELECT MAX(seq) FROM sync_outbox') as int;
       db.raw.execute("DELETE FROM sync_outbox WHERE operation_id = 'a'");
-      expect(tryExecute(insert, ['b', 'task', 't', 'create', 0, '{}', 2, 't', null]), 'ok');
-      expect(_scalar(db.raw, 'SELECT MAX(seq) FROM sync_outbox') as int, greaterThan(first));
+      expect(
+        tryExecute(insert, ['b', 'task', 't', 'create', 0, '{}', 2, 't', null]),
+        'ok',
+      );
+      expect(
+        _scalar(db.raw, 'SELECT MAX(seq) FROM sync_outbox') as int,
+        greaterThan(first),
+      );
     });
 
-    test('the archive and conflict evidence are append-only and write-once', () {
-      db.raw.execute(
-        "INSERT INTO sync_outbox_archive (source, archive_reason, operation_id, entity_type, entity_id, operation_type, payload_json, created_at_utc, state, attempts, archived_at_utc) "
-        "VALUES ('v1', 'x', 'z', 'task', 't', 'upsert', '{}', 't', 'pending', 0, 't')",
-      );
-      expect(tryExecute("UPDATE sync_outbox_archive SET archive_reason = 'y'"), contains('append-only'));
-      expect(tryExecute('DELETE FROM sync_outbox_archive'), contains('append-only'));
-      db.raw.execute(
-        "INSERT INTO sync_conflicts_local (id, operation_id, entity_type, entity_id, kind, fields_json, base_version, server_version, server_value_json, client_value_json, created_at_utc) "
-        "VALUES ('c1', 'o1', 'task', 't', 'field', '[]', 1, 2, '{}', '{}', 't')",
-      );
-      expect(tryExecute("UPDATE sync_conflicts_local SET kind = 'exists' WHERE id = 'c1'"), contains('immutable'));
-      db.raw.execute("UPDATE sync_conflicts_local SET status = 'resolved_server', resolution_source = 'x', resolved_at_utc = 't' WHERE id = 'c1'");
-      expect(tryExecute("UPDATE sync_conflicts_local SET status = 'open' WHERE id = 'c1'"), contains('written once'));
-      expect(tryExecute("DELETE FROM sync_conflicts_local WHERE id = 'c1'"), contains('never deleted'));
-    });
+    test(
+      'the archive and conflict evidence are append-only and write-once',
+      () {
+        db.raw.execute(
+          "INSERT INTO sync_outbox_archive (source, archive_reason, operation_id, entity_type, entity_id, operation_type, payload_json, created_at_utc, state, attempts, archived_at_utc) "
+          "VALUES ('v1', 'x', 'z', 'task', 't', 'upsert', '{}', 't', 'pending', 0, 't')",
+        );
+        expect(
+          tryExecute("UPDATE sync_outbox_archive SET archive_reason = 'y'"),
+          contains('append-only'),
+        );
+        expect(
+          tryExecute('DELETE FROM sync_outbox_archive'),
+          contains('append-only'),
+        );
+        db.raw.execute(
+          "INSERT INTO sync_conflicts_local (id, operation_id, entity_type, entity_id, kind, fields_json, base_version, server_version, server_value_json, client_value_json, created_at_utc) "
+          "VALUES ('c1', 'o1', 'task', 't', 'field', '[]', 1, 2, '{}', '{}', 't')",
+        );
+        expect(
+          tryExecute(
+            "UPDATE sync_conflicts_local SET kind = 'exists' WHERE id = 'c1'",
+          ),
+          contains('immutable'),
+        );
+        db.raw.execute(
+          "UPDATE sync_conflicts_local SET status = 'resolved_server', resolution_source = 'x', resolved_at_utc = 't' WHERE id = 'c1'",
+        );
+        expect(
+          tryExecute(
+            "UPDATE sync_conflicts_local SET status = 'open' WHERE id = 'c1'",
+          ),
+          contains('written once'),
+        );
+        expect(
+          tryExecute("DELETE FROM sync_conflicts_local WHERE id = 'c1'"),
+          contains('never deleted'),
+        );
+      },
+    );
 
     test('a task cannot move to another project', () {
       db.raw.execute(
         "INSERT INTO tasks (id, project_id, owner_id, title, status, priority, version, sync_scope, created_at, updated_at) "
         "VALUES ('t', 'p1', 'o', 'T', 'open', 'none', 0, 'synced', 't', 't')",
       );
-      expect(tryExecute("UPDATE tasks SET project_id = 'p2' WHERE id = 't'"), contains('cannot move'));
+      expect(
+        tryExecute("UPDATE tasks SET project_id = 'p2' WHERE id = 't'"),
+        contains('cannot move'),
+      );
     });
   });
 
@@ -680,15 +998,21 @@ void main() {
       addTearDown(b.close);
       addTearDown(c.close);
       for (final db in [a, b, c]) {
-        db.execute('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+        db.execute(
+          'CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+        );
         db.execute('CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT)');
         db.execute('CREATE TABLE tasks (id TEXT PRIMARY KEY, title TEXT)');
-        db.execute('CREATE TABLE sync_outbox (operation_id TEXT PRIMARY KEY, n INTEGER)');
+        db.execute(
+          'CREATE TABLE sync_outbox (operation_id TEXT PRIMARY KEY, n INTEGER)',
+        );
       }
       a.execute("INSERT INTO sync_outbox VALUES ('x', 1), ('y', 2)");
       b.execute("INSERT INTO sync_outbox VALUES ('x', 1), ('y', 2)");
       b.execute("DELETE FROM sync_outbox WHERE operation_id = 'y'");
-      b.execute("INSERT INTO sync_outbox (rowid, operation_id, n) VALUES (50, 'y', 2)");
+      b.execute(
+        "INSERT INTO sync_outbox (rowid, operation_id, n) VALUES (50, 'y', 2)",
+      );
       c.execute("INSERT INTO sync_outbox VALUES ('y', 2), ('x', 1)");
 
       expect(snapshotDigest(a), snapshotDigest(b)); // same rows, same order

@@ -427,65 +427,74 @@ void main() {
   });
 
   group('outbox', () {
-    test('a create is queued once and an edit before sending folds into it', () async {
-      final db = LocalDatabase.open(_newPath());
-      addTearDown(db.close);
-      final repo = _repo(db);
-      await repo.saveProject(
-        const Project(id: 'p1', name: 'Home', position: 0),
-      );
-      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'A'));
-      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'B'));
+    test(
+      'a create is queued once and an edit before sending folds into it',
+      () async {
+        final db = LocalDatabase.open(_newPath());
+        addTearDown(db.close);
+        final repo = _repo(db);
+        await repo.saveProject(
+          const Project(id: 'p1', name: 'Home', position: 0),
+        );
+        await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'A'));
+        await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'B'));
 
-      final rows = _outbox(db);
-      expect(rows, hasLength(2)); // project create, task create (edit folded)
-      final create = rows.last;
-      expect(create['entity_id'], 't1');
-      expect(create['op_type'], 'create');
-      expect(create['observed_base_version'], 0);
-      expect(create['base_version'], isNull); // not claimed yet
-      expect(create['state'], 'pending');
-      expect(create['created_at_utc'], '2026-11-12T10:00:00.000Z');
-      expect(jsonDecode(create['payload_json'] as String)['title'], 'B');
-      final operationIds = rows.map((row) => row['operation_id']).toSet();
-      expect(operationIds, hasLength(2));
-    });
+        final rows = _outbox(db);
+        expect(rows, hasLength(2)); // project create, task create (edit folded)
+        final create = rows.last;
+        expect(create['entity_id'], 't1');
+        expect(create['op_type'], 'create');
+        expect(create['observed_base_version'], 0);
+        expect(create['base_version'], isNull); // not claimed yet
+        expect(create['state'], 'pending');
+        expect(create['created_at_utc'], '2026-11-12T10:00:00.000Z');
+        expect(jsonDecode(create['payload_json'] as String)['title'], 'B');
+        final operationIds = rows.map((row) => row['operation_id']).toSet();
+        expect(operationIds, hasLength(2));
+      },
+    );
 
-    test('after the create is acknowledged an edit is a new patch-only operation', () async {
-      final db = LocalDatabase.open(_newPath());
-      addTearDown(db.close);
-      final repo = _repo(db);
-      final store = OutboxStore(db);
-      await repo.saveProject(
-        const Project(id: 'p1', name: 'Home', position: 0),
-      );
-      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'A'));
-      // Phase 3: the project create goes first, then the task create (which
-      // waits for its project), each acknowledged with a server version.
-      for (final version in [1, 3]) {
-        final batch = store.claimBatch();
-        expect(batch, hasLength(1));
-        store.acknowledge([batch.single.operationId], [
-          {
-            'operation_id': batch.single.operationId,
-            'status': 'applied',
-            'version_before': 0,
-            'applied_version': version,
-            'row': {'version': version},
-            'replayed': false,
-          },
-        ]);
-      }
-      expect(_rows(db, 'tasks', 'id', 't1').single['version'], 3);
+    test(
+      'after the create is acknowledged an edit is a new patch-only operation',
+      () async {
+        final db = LocalDatabase.open(_newPath());
+        addTearDown(db.close);
+        final repo = _repo(db);
+        final store = OutboxStore(db);
+        await repo.saveProject(
+          const Project(id: 'p1', name: 'Home', position: 0),
+        );
+        await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'A'));
+        // Phase 3: the project create goes first, then the task create (which
+        // waits for its project), each acknowledged with a server version.
+        for (final version in [1, 3]) {
+          final batch = store.claimBatch();
+          expect(batch, hasLength(1));
+          store.acknowledge(
+            [batch.single.operationId],
+            [
+              {
+                'operation_id': batch.single.operationId,
+                'status': 'applied',
+                'version_before': 0,
+                'applied_version': version,
+                'row': {'version': version},
+                'replayed': false,
+              },
+            ],
+          );
+        }
+        expect(_rows(db, 'tasks', 'id', 't1').single['version'], 3);
 
-      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'B'));
+        await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'B'));
 
-      final edit = _outbox(db).last;
-      expect(edit['op_type'], 'update');
-      expect(edit['observed_base_version'], 3);
-      expect(jsonDecode(edit['payload_json'] as String), {'title': 'B'});
-      expect(_rows(db, 'tasks', 'id', 't1').single['version'], 3);
-    });
+        final edit = _outbox(db).last;
+        expect(edit['op_type'], 'update');
+        expect(edit['observed_base_version'], 3);
+        expect(jsonDecode(edit['payload_json'] as String), {'title': 'B'});
+        expect(_rows(db, 'tasks', 'id', 't1').single['version'], 3);
+      },
+    );
 
     test('a project edit leaves its stored version unchanged', () async {
       final db = LocalDatabase.open(_newPath());

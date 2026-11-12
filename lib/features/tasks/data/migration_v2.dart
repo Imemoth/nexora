@@ -415,10 +415,10 @@ final class MigrationV2 {
     );
     for (final key in plan.createPatch.keys) {
       final split = key.indexOf(':');
-      _raw.execute('INSERT INTO nx_scope (entity_type, entity_id) VALUES (?, ?)', [
-        key.substring(0, split),
-        key.substring(split + 1),
-      ]);
+      _raw.execute(
+        'INSERT INTO nx_scope (entity_type, entity_id) VALUES (?, ?)',
+        [key.substring(0, split), key.substring(split + 1)],
+      );
     }
     _raw.execute(projectsV2Create);
     _raw.execute(tasksV2Create);
@@ -496,8 +496,7 @@ final class MigrationV2 {
       'tasks': taskCount,
       'v1_operations': v1.ops.length,
       'class_s_entities': plan.createPatch.length,
-      'class_u_entities':
-          projectCount + taskCount - plan.createPatch.length,
+      'class_u_entities': projectCount + taskCount - plan.createPatch.length,
       'live_creates': seqs,
       'archived_operations': archived,
     };
@@ -566,10 +565,10 @@ final class MigrationV2 {
           ? seqOf['task:$parentId']
           : seqOf['project:${task['project_id']}'];
       if (dependency != null) {
-        _raw.execute('UPDATE sync_outbox SET depends_on_seq = ? WHERE seq = ?', [
-          dependency,
-          seqOf[key],
-        ]);
+        _raw.execute(
+          'UPDATE sync_outbox SET depends_on_seq = ? WHERE seq = ?',
+          [dependency, seqOf[key]],
+        );
       }
     }
     return keys.length;
@@ -598,9 +597,13 @@ final class MigrationV2 {
     final integrity = _raw.select('PRAGMA integrity_check');
     final fk = _raw.select('PRAGMA foreign_key_check');
     final ok =
-        integrity.isNotEmpty && integrity.first.values.first == 'ok' && fk.isEmpty;
+        integrity.isNotEmpty &&
+        integrity.first.values.first == 'ok' &&
+        fk.isEmpty;
     if (!ok) {
-      _raw.execute("UPDATE sync_state SET state = 'paused' WHERE singleton = 1");
+      _raw.execute(
+        "UPDATE sync_state SET state = 'paused' WHERE singleton = 1",
+      );
       throw const RepositoryException(
         'post-commit invariant failed: synchronization paused; restore from the verified backup',
       );

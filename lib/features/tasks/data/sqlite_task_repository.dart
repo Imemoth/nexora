@@ -215,7 +215,9 @@ final class SqliteTaskRepository implements TaskRepository {
       return; // Repeated save of identical content writes nothing.
     }
     if (row['project_id'] != task.projectId) {
-      throw RepositoryException('task ${task.id} cannot move to another project');
+      throw RepositoryException(
+        'task ${task.id} cannot move to another project',
+      );
     }
     // completed_at is derived: set exactly while the task is done (local time,
     // kept once set), null for every other status including archived.
