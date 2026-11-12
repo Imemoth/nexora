@@ -566,23 +566,57 @@ void main() {
         v1Op('x', 'task', 'lt', v1TaskPayload('lt', 'lp'), state: 'sent'),
       ]);
       final l = _node(_transport(user), user, path: legacy);
-    await l.repo.saveTask(makeTask(id: _id(), projectId: 'lp', title: 'under legacy'));
-    final a = _node(_transport(user), user);
-    final demo = buildDemoData(const CalendarDate(2026, 11, 12));
-    await a.repo.seedDemoData(projects: demo.projects, tasks: demo.tasks);
-    await a.repo.saveTask(makeTask(id: _id(), projectId: demo.projects.first.id, title: 'under demo'));
-    final real = _id();
-    await a.repo.saveProject(Project(id: real, name: 'Synchronized', position: 9));
+      await l.repo.saveTask(
+        makeTask(id: _id(), projectId: 'lp', title: 'under legacy'),
+      );
+      final a = _node(_transport(user), user);
+      final demo = buildDemoData(const CalendarDate(2026, 11, 12));
+      await a.repo.seedDemoData(projects: demo.projects, tasks: demo.tasks);
+      await a.repo.saveTask(
+        makeTask(
+          id: _id(),
+          projectId: demo.projects.first.id,
+          title: 'under demo',
+        ),
+      );
+      final real = _id();
+      await a.repo.saveProject(
+        Project(id: real, name: 'Synchronized', position: 9),
+      );
 
-    expect((await l.engine.syncNow()).phase, SyncPhase.idle);
-    expect((await a.engine.syncNow()).phase, SyncPhase.idle);
+      expect((await l.engine.syncNow()).phase, SyncPhase.idle);
+      expect((await a.engine.syncNow()).phase, SyncPhase.idle);
 
-    expect(await _q("select count(*) from public.projects where owner_id = '$user'"), '1');
-    expect(await _q("select count(*) from public.tasks where owner_id = '$user'"), '0');
-    expect(l.task('lt')['version'], 2);
-    expect(l.rows("SELECT COUNT(*) AS n FROM tasks WHERE sync_scope <> 'synced'").single['n'], greaterThan(1));
-    expect(a.rows("SELECT COUNT(*) AS n FROM tasks WHERE sync_scope <> 'synced'").single['n'], greaterThan(1));
-  }, skip: skip);
+      expect(
+        await _q(
+          "select count(*) from public.projects where owner_id = '$user'",
+        ),
+        '1',
+      );
+      expect(
+        await _q("select count(*) from public.tasks where owner_id = '$user'"),
+        '0',
+      );
+      expect(l.task('lt')['version'], 2);
+      expect(
+        l
+            .rows(
+              "SELECT COUNT(*) AS n FROM tasks WHERE sync_scope <> 'synced'",
+            )
+            .single['n'],
+        greaterThan(1),
+      );
+      expect(
+        a
+            .rows(
+              "SELECT COUNT(*) AS n FROM tasks WHERE sync_scope <> 'synced'",
+            )
+            .single['n'],
+        greaterThan(1),
+      );
+    },
+    skip: skip,
+  );
 
   test('10. a server-side rejection cannot silently lose a client change', () async {
     final user = await _newUser();
