@@ -1,6 +1,6 @@
 # Shared SQLite / PostgreSQL data contract (Phase 2B)
 
-Status: proposed, pending owner review. Implemented server-side by `supabase/migrations/20261112120000..200`.
+Status: **FROZEN for Phase 3 (S0), owner decisions 2026-11-12.** Phase 2B migrations are applied on the hosted project; Phase 3 S1 (`20261112130000_nexora_sync_protocol_schema.sql`) is prepared locally and NOT applied.
 Dart domain source of truth: `lib/features/tasks/domain/`. Not implemented in SQLite by this change.
 
 ## Identifiers and ownership
@@ -41,3 +41,41 @@ Optimistic: a client update carries `base_version`; the server applies only if `
 
 ## Membership
 `project_members` has no client privileges and no policy grants task access. Sharing stays inactive.
+
+## Phase 3 additions (S0 freeze)
+
+### Local version semantics (D-V, binding on SQLite)
+- Local `version` = the last **server** version known for the row. It changes only from a pull or from an ack, never from a local edit. A local edit does not bump it.
+- `base_version` of an operation = that stored value (0 for a create).
+- A pull never overwrites a field that has a pending outbox operation. The server row is stored, and the conflict is detected when the operation is pushed.
+
+### Server-owned change tracking (D-C)
+- `field_versions jsonb` on `projects` and `tasks`: field -> server `version` at which the field last changed. Maintained only by the guard trigger; client values are ignored. Tracked fields: tasks `parent_id,title,notes,status,priority,due_date,completed_at,sort_order,deleted_at`; projects `name,description,color,is_archived,sort_order,deleted_at`.
+- An update conflicts only when a patched field has `field_versions[f] > base_version` and the current value differs from the patched value. Equal values merge; different fields merge.
+- A conflicting operation applies nothing (D-A). Both values are stored in `sync_conflicts`.
+
+### Operation types
+Server: `create | update | delete`. Phase 2A `upsert` maps to `create` when `base_version = 0`, otherwise to `update`. `delete` sets the tombstone.
+
+### Conflict kinds
+`field`, `edit_deleted`, `delete_edited`, `parent_deleted`, `parent_has_live_children`, `cycle`, `exists`.
+
+### Deletion (D-P, D-T, D-E)
+- The client sends tombstones leaf-first, then the parent. The server never cascades.
+- A parent with live children, or a child under a tombstoned parent, is a conflict.
+- Tombstones are permanent. An update after a delete is a conflict (`edit_deleted`); resolution is server-wins or recreate-as-copy with a new id.
+
+### Auditable resolution (D-O)
+- `sort_order` conflicts may be auto-resolved server-wins only with `resolution_source = 'auto_policy'` and `resolution_policy = 'sort_order_server_wins'`. The conflict row keeps `server_value` and `client_value`; the losing operation stays in `sync_operations` (`patch`, `request_hash`, `result`).
+- `sync_operations` is append-only and conflict values are immutable (DB-enforced). No other automatic resolution exists.
+
+### Pull safety (D-L)
+- Every write that assigns `change_seq` takes `pg_advisory_xact_lock(hashtextextended(owner_id::text,0))` inside the guard trigger **before** `nextval`, on every path (authenticated, service_role, postgres, future RPCs). The guard triggers are `ENABLE ALWAYS`.
+- Pull: `where owner_id = auth.uid() and change_seq > :cursor order by change_seq`.
+- A forged owner is rejected before any lock is taken.
+
+### Devices (D-D)
+Max 10 active devices per user (revocation frees a slot). `device_id` is not an authentication factor.
+
+### Limits proposed for S2 (to be confirmed there)
+<=100 ops per push, patch <=256 KB, RPC statement timeout.

@@ -78,3 +78,8 @@ create policy project_members_owner_select on public.project_members for select 
 create policy project_members_owner_insert on public.project_members for insert to authenticated with check (exists (select 1 from public.projects p where p.id = project_id and p.owner_id = (select auth.uid())));
 create policy project_members_owner_update on public.project_members for update to authenticated using (exists (select 1 from public.projects p where p.id = project_id and p.owner_id = (select auth.uid()))) with check (exists (select 1 from public.projects p where p.id = project_id and p.owner_id = (select auth.uid())));
 create policy project_members_owner_delete on public.project_members for delete to authenticated using (exists (select 1 from public.projects p where p.id = project_id and p.owner_id = (select auth.uid())));
+
+-- Hosted initial migration also attached these triggers (verified read-only on the live catalog).
+create trigger profiles_updated_at before update on public.profiles for each row execute function public.nexora_set_updated_at();
+create trigger projects_updated_at before update on public.projects for each row execute function public.nexora_set_updated_at();
+create trigger tasks_updated_at before update on public.tasks for each row execute function public.nexora_set_updated_at();

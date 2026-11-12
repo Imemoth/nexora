@@ -12,3 +12,9 @@ Connector: project-scoped write connector (`Supabase_Nexora_Dev`), verified to r
 Verification: migration history lists 4 entries; RLS on 7 tables; `anon` has no table grants; `authenticated` has no DELETE and no `project_members` access; `rls_auto_enable` ACL = postgres, service_role only and `ensure_rls` still enabled; guard triggers present. Regression suite `supabase/tests/rls_and_contract_test.sql`: 57/57 pass on hosted, rolled back (0 users/projects/tasks/devices/operations afterwards; `nexora_private.change_seq` advanced to 18 because sequences are not transactional). Security Advisor: 0 findings. Performance Advisor: INFO only.
 
 Correction to the earlier audit: the initial schema already had `profiles_updated_at`, `projects_updated_at`, `tasks_updated_at` triggers using `nexora_set_updated_at()`. They coexist with the new guard triggers (same value, harmless); `nexora_set_updated_at` is in use and must not be dropped.
+
+## Repository file names (rename on 2026-11-12)
+The repository files were renamed to the versions recorded in the hosted history (content unchanged, hashes identical): `20261112115809_nexora_security_hardening.sql`, `20261112120132_nexora_contract_alignment.sql`, `20261112120149_nexora_sync_foundation.sql`.
+
+## Defect found after apply (fixed in S1, not yet applied)
+`nexora_private.guard_row()` raises `record "new" has no field "project_id"` on any UPDATE of `public.projects` (the tasks-only check was not short-circuited). Task writes and all inserts are unaffected. No data impact (tables empty). Security impact: none. Fix: S1 migration `20261112130000`.

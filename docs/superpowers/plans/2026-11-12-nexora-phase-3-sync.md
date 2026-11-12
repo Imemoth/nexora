@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: PLAN FOR OWNER REVIEW. Nothing in this plan is implemented, applied or activated.** No hosted change, no user or data creation, no sharing, no merge, no deploy.
+**Status: APPROVED by the owner on 2026-11-12 (see `docs/architecture/decisions/0002-sync-protocol.md` for conditions). S0 and S1 are authorized; S1 is implemented locally and NOT applied to the hosted project. S2 onward needs separate approval.** No hosted change, no user or data creation, no sharing, no merge, no deploy.
 
 **Goal:** Two or more devices of one user converge on the same projects and tasks through Supabase, with no lost edit, no duplicate application and no cross-user access.
 
@@ -99,7 +99,8 @@ Result: `{operation_id, status: applied|conflict|rejected, applied_version, row,
 - [ ] Owner approves the decisions in §8. Update `docs/architecture/data-contract.md` with: server-owned local `version`, op type mapping, `field_versions`, conflict kinds, the no-cascade delete rule.
 - [ ] Send the §4 items to the Phase 2A owner as a written change request. Do not edit their branch.
 
-### S1 Server schema increment (new migration `…_nexora_sync_protocol_schema`)
+### S1 Server schema increment (new migration `…_nexora_sync_protocol_schema`) — IMPLEMENTED LOCALLY, NOT APPLIED
+Actual scope (supersedes the list below where they differ): `field_versions` on both tables; guard trigger takes the per-user advisory lock before `change_seq` (D-L) and is `ENABLE ALWAYS`; conflict `kind` plus auditable resolution columns, append-only `sync_operations`, immutable conflict values (D-O); device cap (D-D); FK cascade fix; FK indexes; fix for the Phase 2B project-update defect. Tests: `supabase/tests/s1_sync_schema_test.sql`, `supabase/tests/concurrency/lock_discipline.sh`.
 **Files:** Create `supabase/migrations/<ts>_nexora_sync_protocol_schema.sql`; Test `supabase/tests/sync_schema_test.sql`.
 **Interfaces — Produces:** `projects.field_versions jsonb`, `tasks.field_versions jsonb` maintained by `nexora_private.guard_row`; `sync_conflicts.kind text` (enum check above) and `resolution_operation_id uuid`; `devices.last_push_at`; unique cap of 10 active devices per user.
 - [ ] Write failing tests: `field_versions` updates only for changed fields; unchanged fields keep their version; forged `field_versions` ignored; kind check rejects unknown values.
