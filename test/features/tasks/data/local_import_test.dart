@@ -86,7 +86,9 @@ void main() {
     await _seedLocal(local);
     local.close();
     Directory('${_dir.path}${Platform.pathSeparator}acc').createSync();
-    account = LocalDatabase.open(_file('acc${Platform.pathSeparator}nexora.db'));
+    account = LocalDatabase.open(
+      _file('acc${Platform.pathSeparator}nexora.db'),
+    );
     accountRepo = SqliteTaskRepository(
       account,
       ownerId: 'account-owner',
@@ -112,50 +114,65 @@ void main() {
     }
   }
 
-  test('preview offers the live synchronized projects and writes nothing', () async {
-    final before = snapshotDigest(account.raw);
-    final sourceBefore = sourceDigest();
-    final preview = await service().preview();
-    expect(preview.candidates.map((c) => c.project.name), ['Work', 'Home']);
-    expect(preview.candidates.first.tasks, hasLength(3));
-    expect(preview.isEmpty, isFalse);
-    expect(snapshotDigest(account.raw), before);
-    expect(sourceDigest(), sourceBefore);
-  });
+  test(
+    'preview offers the live synchronized projects and writes nothing',
+    () async {
+      final before = snapshotDigest(account.raw);
+      final sourceBefore = sourceDigest();
+      final preview = await service().preview();
+      expect(preview.candidates.map((c) => c.project.name), ['Work', 'Home']);
+      expect(preview.candidates.first.tasks, hasLength(3));
+      expect(preview.isEmpty, isFalse);
+      expect(snapshotDigest(account.raw), before);
+      expect(sourceDigest(), sourceBefore);
+    },
+  );
 
-  test('import copies projects and tasks with new ids, hierarchy and notes', () async {
-    final sourceBefore = sourceDigest();
-    final result = await service().run([
-      const ImportChoice(sourceProjectId: 'lp1'),
-    ]);
-    expect(result.projectsCreated, 1);
-    expect(result.tasksImported, 3);
-    expect(File(result.backupFile).existsSync(), isTrue);
+  test(
+    'import copies projects and tasks with new ids, hierarchy and notes',
+    () async {
+      final sourceBefore = sourceDigest();
+      final result = await service().run([
+        const ImportChoice(sourceProjectId: 'lp1'),
+      ]);
+      expect(result.projectsCreated, 1);
+      expect(result.tasksImported, 3);
+      expect(File(result.backupFile).existsSync(), isTrue);
 
-    final projects = await accountRepo.loadProjects();
-    expect(projects.map((p) => p.name), ['Work']);
-    expect(projects.single.id, isNot('lp1'));
-    final tasks = await accountRepo.loadTasks();
-    final plan = tasks.singleWhere((t) => t.title == 'Plan');
-    final step = tasks.singleWhere((t) => t.title == 'Step one');
-    final detail = tasks.singleWhere((t) => t.title == 'Detail');
-    expect(plan.notes, 'multi\nline notes');
-    expect(plan.priority, TaskPriority.high);
-    expect(plan.dueDate, CalendarDate(2026, 12, 24));
-    expect(step.parentId, plan.id);
-    expect(detail.parentId, step.id);
-    expect(step.status, TaskStatus.done);
-    expect({plan.id, step.id, detail.id}.intersection({'lt1', 'lt2', 'lt3'}), isEmpty);
-    // The other project was not chosen, so it is not imported.
-    expect(tasks.where((t) => t.title == 'Buy milk'), isEmpty);
-    // The source is unchanged, byte for byte in content.
-    expect(sourceDigest(), sourceBefore);
-  });
+      final projects = await accountRepo.loadProjects();
+      expect(projects.map((p) => p.name), ['Work']);
+      expect(projects.single.id, isNot('lp1'));
+      final tasks = await accountRepo.loadTasks();
+      final plan = tasks.singleWhere((t) => t.title == 'Plan');
+      final step = tasks.singleWhere((t) => t.title == 'Step one');
+      final detail = tasks.singleWhere((t) => t.title == 'Detail');
+      expect(plan.notes, 'multi\nline notes');
+      expect(plan.priority, TaskPriority.high);
+      expect(plan.dueDate, CalendarDate(2026, 12, 24));
+      expect(step.parentId, plan.id);
+      expect(detail.parentId, step.id);
+      expect(step.status, TaskStatus.done);
+      expect(
+        {plan.id, step.id, detail.id}.intersection({'lt1', 'lt2', 'lt3'}),
+        isEmpty,
+      );
+      // The other project was not chosen, so it is not imported.
+      expect(tasks.where((t) => t.title == 'Buy milk'), isEmpty);
+      // The source is unchanged, byte for byte in content.
+      expect(sourceDigest(), sourceBefore);
+    },
+  );
 
-  test('imported records are queued for synchronization, nothing else is', () async {
-    await service().run([const ImportChoice(sourceProjectId: 'lp1')]);
-    expect(SyncStateStore(account).counts().pending, 4); // 1 project + 3 tasks
-  });
+  test(
+    'imported records are queued for synchronization, nothing else is',
+    () async {
+      await service().run([const ImportChoice(sourceProjectId: 'lp1')]);
+      expect(
+        SyncStateStore(account).counts().pending,
+        4,
+      ); // 1 project + 3 tasks
+    },
+  );
 
   test('the backup holds the pre-import state', () async {
     await accountRepo.saveProject(
@@ -178,9 +195,8 @@ void main() {
     final before = snapshotDigest(account.raw);
     Object? error;
     try {
-      await service(beforeCommit: () => throw StateError('boom')).run([
-        const ImportChoice(sourceProjectId: 'lp1'),
-      ]);
+      await service(beforeCommit: () => throw StateError('boom'))
+          .run([const ImportChoice(sourceProjectId: 'lp1')]);
     } on ImportException catch (e) {
       error = e;
     }
@@ -193,32 +209,36 @@ void main() {
     expect(backups, isNotEmpty);
   });
 
-  test('importing the same project again is blocked unless confirmed', () async {
-    await service().run([const ImportChoice(sourceProjectId: 'lp1')]);
-    final preview = await service().preview();
-    final work = preview.candidates.firstWhere((c) => c.project.id == 'lp1');
-    expect(work.warnings, contains(ImportWarning.alreadyImported));
-    Object? error;
-    try {
+  test(
+    'importing the same project again is blocked unless confirmed',
+    () async {
       await service().run([const ImportChoice(sourceProjectId: 'lp1')]);
-    } on ImportException catch (e) {
-      error = e;
-    }
-    expect((error as ImportException).code, 'blocked_duplicate');
-    expect(await accountRepo.loadProjects(), hasLength(1));
-  });
+      final preview = await service().preview();
+      final work = preview.candidates.firstWhere((c) => c.project.id == 'lp1');
+      expect(work.warnings, contains(ImportWarning.alreadyImported));
+      Object? error;
+      try {
+        await service().run([const ImportChoice(sourceProjectId: 'lp1')]);
+      } on ImportException catch (e) {
+        error = e;
+      }
+      expect((error as ImportException).code, 'blocked_duplicate');
+      expect(await accountRepo.loadProjects(), hasLength(1));
+    },
+  );
 
-  test('merging into an existing project skips tasks that already exist', () async {
-    await service().run([const ImportChoice(sourceProjectId: 'lp1')]);
-    final destination = (await accountRepo.loadProjects()).single.id;
-    final result = await service().run([
-      ChoiceFor.merge('lp1', destination),
-    ]);
-    expect(result.projectsCreated, 0);
-    expect(result.tasksImported, 0);
-    expect(result.tasksSkippedDuplicate, 3);
-    expect(await accountRepo.loadTasks(), hasLength(3));
-  });
+  test(
+    'merging into an existing project skips tasks that already exist',
+    () async {
+      await service().run([const ImportChoice(sourceProjectId: 'lp1')]);
+      final destination = (await accountRepo.loadProjects()).single.id;
+      final result = await service().run([ChoiceFor.merge('lp1', destination)]);
+      expect(result.projectsCreated, 0);
+      expect(result.tasksImported, 0);
+      expect(result.tasksSkippedDuplicate, 3);
+      expect(await accountRepo.loadTasks(), hasLength(3));
+    },
+  );
 
   test('same-name project is warned about, not merged automatically', () async {
     await accountRepo.saveProject(
@@ -231,36 +251,42 @@ void main() {
     expect(await accountRepo.loadProjects(), hasLength(2));
   });
 
-  test('unknown source, nothing selected and a missing source are refused', () async {
-    for (final entry in {
-      'unknown_source': () => service().run([
-        const ImportChoice(sourceProjectId: 'nope'),
-      ]),
-      'nothing_selected': () => service().run([]),
-    }.entries) {
+  test(
+    'unknown source, nothing selected and a missing source are refused',
+    () async {
+      for (final entry in {
+        'unknown_source': () =>
+            service().run([const ImportChoice(sourceProjectId: 'nope')]),
+        'nothing_selected': () => service().run([]),
+      }.entries) {
+        Object? error;
+        try {
+          await entry.value();
+        } on ImportException catch (e) {
+          error = e;
+        }
+        expect((error as ImportException).code, entry.key);
+      }
+      File(localPath).deleteSync();
       Object? error;
       try {
-        await entry.value();
+        await service().preview();
       } on ImportException catch (e) {
         error = e;
       }
-      expect((error as ImportException).code, entry.key);
-    }
-    File(localPath).deleteSync();
-    Object? error;
-    try {
-      await service().preview();
-    } on ImportException catch (e) {
-      error = e;
-    }
-    expect((error as ImportException).code, 'no_source');
-    expect(await accountRepo.loadProjects(), isEmpty);
-  });
+      expect((error as ImportException).code, 'no_source');
+      expect(await accountRepo.loadProjects(), isEmpty);
+    },
+  );
 
   test('local-only and unclassified records are never offered', () async {
     final db = LocalDatabase.open(localPath);
-    db.raw.execute("UPDATE projects SET sync_scope = 'local_only' WHERE id = 'lp2'");
-    db.raw.execute("UPDATE tasks SET sync_scope = 'unclassified' WHERE id = 'lt3'");
+    db.raw.execute(
+      "UPDATE projects SET sync_scope = 'local_only' WHERE id = 'lp2'",
+    );
+    db.raw.execute(
+      "UPDATE tasks SET sync_scope = 'unclassified' WHERE id = 'lt3'",
+    );
     db.close();
     final preview = await service().preview();
     expect(preview.candidates.map((c) => c.project.id), ['lp1']);

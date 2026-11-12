@@ -102,7 +102,11 @@ abstract final class AppStrings {
       'The import did not run and nothing was changed. Your backup and local data are intact';
   static const importBackupNote = 'Backup of this account saved at';
   static String importTaskCount(int n) => n == 1 ? '1 task' : '$n tasks';
-  static String importSkippedNote(int localOnly, int unclassified, int deleted) =>
+  static String importSkippedNote(
+    int localOnly,
+    int unclassified,
+    int deleted,
+  ) =>
       'Not offered: $localOnly local-only, $unclassified of unknown origin, $deleted deleted';
   static String importDone(int projects, int tasks, int skipped) =>
       'Imported $projects project(s) and $tasks task(s); $skipped skipped as duplicates';

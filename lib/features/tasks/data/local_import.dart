@@ -116,7 +116,8 @@ final class ImportException implements Exception {
   final String? detail;
 
   @override
-  String toString() => 'ImportException($code${detail == null ? '' : ': $detail'})';
+  String toString() =>
+      'ImportException($code${detail == null ? '' : ': $detail'})';
 }
 
 /// Manual, preview-first import of the local workspace's projects and tasks into
@@ -197,12 +198,12 @@ final class LocalImportService {
     };
     final deleted =
         (source.raw
-                    .select(
-                      'SELECT (SELECT COUNT(*) FROM projects WHERE deleted_at IS NOT NULL) + '
-                      '(SELECT COUNT(*) FROM tasks WHERE deleted_at IS NOT NULL) AS n',
-                    )
-                    .single['n']
-                as int);
+                .select(
+                  'SELECT (SELECT COUNT(*) FROM projects WHERE deleted_at IS NOT NULL) + '
+                  '(SELECT COUNT(*) FROM tasks WHERE deleted_at IS NOT NULL) AS n',
+                )
+                .single['n']
+            as int);
     final sourceOwner = _ownerOf(source.raw);
 
     var localOnly = 0;
@@ -247,8 +248,8 @@ final class LocalImportService {
       final ordered = _parentsFirst(list);
       orphaned += list.length - ordered.length;
       final mapped = _metaValue(_mapKey(sourceOwner, 'p', p.id));
-      final liveMapped = mapped != null &&
-          targetProjects.any((tp) => tp.id == mapped);
+      final liveMapped =
+          mapped != null && targetProjects.any((tp) => tp.id == mapped);
       final sameName = targetProjects
           .where(
             (tp) => tp.name.trim().toLowerCase() == p.name.trim().toLowerCase(),
@@ -303,7 +304,9 @@ final class LocalImportService {
     var projectsCreated = 0;
     var nextProjectPosition = targetProjects.isEmpty
         ? 0
-        : targetProjects.map((p) => p.position).reduce((a, b) => a > b ? a : b) +
+        : targetProjects
+                  .map((p) => p.position)
+                  .reduce((a, b) => a > b ? a : b) +
               1;
     final usedSources = <String>{};
     for (final choice in choices) {
@@ -347,9 +350,10 @@ final class LocalImportService {
       final existingKeys = {
         for (final t in destinationTasks) _taskKey(t, destinationTasks),
       };
-      final offset = destinationTasks
-          .where((t) => t.parentId == null)
-          .fold<int>(-1, (m, t) => t.position > m ? t.position : m) +
+      final offset =
+          destinationTasks
+              .where((t) => t.parentId == null)
+              .fold<int>(-1, (m, t) => t.position > m ? t.position : m) +
           1;
       for (final t in candidate.tasks) {
         if (destination != null) {
@@ -508,10 +512,12 @@ final class LocalImportService {
         .replaceAll(RegExp(r'[^0-9]'), '')
         .padRight(17, '0')
         .substring(0, 17);
-    var path = '$dir${Platform.pathSeparator}${_name(file.path)}.pre-import-$stamp.bak';
+    var path =
+        '$dir${Platform.pathSeparator}${_name(file.path)}.pre-import-$stamp.bak';
     var n = 1;
     while (File(path).existsSync()) {
-      path = '$dir${Platform.pathSeparator}${_name(file.path)}.pre-import-$stamp-$n.bak';
+      path =
+          '$dir${Platform.pathSeparator}${_name(file.path)}.pre-import-$stamp-$n.bak';
       n++;
     }
     try {

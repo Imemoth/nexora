@@ -42,10 +42,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1400, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      NexoraApp(
-        notifier: TasksNotifier(harness.workspace),
-        importPanel: panel,
-      ),
+      NexoraApp(notifier: TasksNotifier(harness.workspace), importPanel: panel),
     );
     await tester.pumpAndSettle();
     return runs;
@@ -128,10 +125,7 @@ void main() {
   });
 
   testWidgets('nothing to import is stated plainly', (tester) async {
-    await pumpEmpty(
-      tester,
-      preview: const ImportPreviewView(candidates: []),
-    );
+    await pumpEmpty(tester, preview: const ImportPreviewView(candidates: []));
     await tester.tap(find.byKey(const ValueKey('empty-import')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('import-empty')), findsOneWidget);

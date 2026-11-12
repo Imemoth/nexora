@@ -108,7 +108,9 @@ final class TaskWorkspace {
     }
     final next = _state.projects.isEmpty
         ? 0
-        : _state.projects.map((p) => p.position).reduce((a, b) => a > b ? a : b) +
+        : _state.projects
+                  .map((p) => p.position)
+                  .reduce((a, b) => a > b ? a : b) +
               1;
     final project = Project(id: ids.nextId(), name: trimmed, position: next);
     try {

@@ -343,7 +343,9 @@ class _ImportDialogState extends State<_ImportDialog> {
             value: selected,
             dense: true,
             controlAffinity: ListTileControlAffinity.leading,
-            title: Text('${c.name} · ${AppStrings.importTaskCount(c.taskCount)}'),
+            title: Text(
+              '${c.name} · ${AppStrings.importTaskCount(c.taskCount)}',
+            ),
             subtitle: Text(
               [
                 if (blocked) AppStrings.importAlreadyDone,
@@ -445,7 +447,8 @@ class EmptyAccountNotice extends StatelessWidget {
                     if (importPanel != null)
                       OutlinedButton(
                         key: const ValueKey('empty-import'),
-                        onPressed: () => showImportDialog(context, importPanel!),
+                        onPressed: () =>
+                            showImportDialog(context, importPanel!),
                         child: const Text(AppStrings.importLocalAction),
                       ),
                   ],
