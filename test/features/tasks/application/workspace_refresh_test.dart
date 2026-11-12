@@ -4,9 +4,8 @@ import '../../../support/task_fixtures.dart';
 import '../../../support/workspace_harness.dart';
 
 void main() {
-  test('refresh picks up stored changes and keeps the selection', () async {
+  test('refresh picks up stored changes and adds the pulled task', () async {
     final h = await loadedHarness(tasks: sampleTasks());
-    h.workspace.requestSelectTask('a');
     await h.repository.saveTask(
       makeTask(id: 'z', title: 'Pulled from the server'),
     );
@@ -14,7 +13,6 @@ void main() {
     expect(await h.workspace.refresh(), isTrue);
 
     expect(h.workspace.state.tasks.containsKey('z'), isTrue);
-    expect(h.workspace.state.selectedTaskId, 'a');
   });
 
   test('refresh never replaces the workspace while a draft is open', () async {

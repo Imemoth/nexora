@@ -1,0 +1,95 @@
+name: http-integration
+
+# The real HTTP boundary on a DISPOSABLE local Supabase stack (Supabase CLI `supabase start` on the runner:
+# Kong gateway, GoTrue Auth and PostgREST in front of PostgreSQL 17 carrying the real S1-S4 migrations).
+# Nothing here touches a hosted project; there are no secrets. The stack's own demo keys exist only inside
+# this job. The production client code (SupabaseAuthApi, SupabaseSyncTransport, SessionManager, the engine)
+# is what the Dart tests run.
+on:
+  pull_request:
+    paths: ['lib/**', 'test/http/**', 'test/support/**', 'supabase/migrations/**', 'supabase/tests/00_bootstrap_local.sql', 'pubspec.*', '.github/workflows/http-integration.yml']
+  push:
+    branches: ['claude/**']
+    paths: ['lib/**', 'test/http/**', 'test/support/**', 'supabase/migrations/**', 'supabase/tests/00_bootstrap_local.sql', 'pubspec.*', '.github/workflows/http-integration.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.47.9"
+  SUPABASE_CLI_VERSION: "2.122.1"
+
+jobs:
+  http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Start the disposable Supabase stack
+        run: |
+          set -euo pipefail
+          supabase --version
+          work="$RUNNER_TEMP/sbx"
+          mkdir -p "$work"
+          cd "$work"
+          supabase init < /dev/null
+          python3 - <<'PY'
+          import re
+          p = 'supabase/config.toml'
+          s = open(p).read()
+          s = re.sub(r'(?m)^major_version\s*=\s*\d+', 'major_version = 17', s)
+          s = re.sub(r'(?m)^enable_anonymous_sign_ins\s*=\s*\w+', 'enable_anonymous_sign_ins = true', s)
+          s = re.sub(r'(?m)^enable_signup\s*=\s*\w+', 'enable_signup = true', s)
+          open(p, 'w').write(s)
+          print(s[:0])
+          PY
+          grep -n -E "^(major_version|enable_anonymous_sign_ins|enable_signup|enable_confirmations|jwt_expiry|enable_refresh_token_rotation|refresh_token_reuse_interval)" supabase/config.toml
+          supabase start -x studio,imgproxy,mailpit,edge-runtime,logflare,vector,storage-api,realtime,postgres-meta,supavisor
+          supabase status -o env > "$RUNNER_TEMP/stack.env"
+          # names only, never values
+          cut -d= -f1 "$RUNNER_TEMP/stack.env"
+      - name: Load the real S1-S4 migrations into the stack
+        run: |
+          set -euo pipefail
+          set -a; . "$RUNNER_TEMP/stack.env"; set +a
+          : "${API_URL:?}" "${ANON_KEY:?}" "${SERVICE_ROLE_KEY:?}" "${JWT_SECRET:?}"
+          admin="postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres"
+          app="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          psql "$app" -tAc "select version()"
+          test "$(psql "$app" -tAc "select current_setting('server_version_num')::int / 10000")" = "17"
+          # the hosted project's automatic-RLS event trigger needs a superuser
+          sed -n '25,39p' supabase/tests/00_bootstrap_local.sql | psql "$admin" -v ON_ERROR_STOP=1 -q
+          # the initial domain schema, without the auth and role stubs (the real ones exist here)
+          sed -n '41,$p' supabase/tests/00_bootstrap_local.sql | psql "$app" -v ON_ERROR_STOP=1 -q
+          for f in supabase/migrations/*.sql; do
+            echo "applying $f"
+            psql "$app" -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+          psql "$app" -tAc "notify pgrst, 'reload schema'"
+          sleep 3
+          curl -sS -o /dev/null -w "rest root: %{http_code}\n" "$API_URL/rest/v1/" -H "apikey: $ANON_KEY"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      - run: flutter pub get --enforce-lockfile
+      - name: HTTP/JWT integration tests
+        run: |
+          set -euo pipefail
+          set -a; . "$RUNNER_TEMP/stack.env"; set +a
+          export NEXORA_HTTP_URL="$API_URL" NEXORA_HTTP_ANON_KEY="$ANON_KEY" \
+                 NEXORA_HTTP_SERVICE_KEY="$SERVICE_ROLE_KEY" NEXORA_HTTP_JWT_SECRET="$JWT_SECRET"
+          flutter test test/http --reporter expanded
+      - name: Stack logs (only when a step failed)
+        if: failure()
+        run: |
+          docker ps --format '{{.Names}} {{.Status}}' || true
+          for c in $(docker ps -a --format '{{.Names}}' | grep -E 'auth|rest|kong' || true); do
+            echo "=== $c"; docker logs --tail 60 "$c" 2>&1 | sed -E 's/(eyJ[A-Za-z0-9_-]{10,})/<jwt>/g' || true
+          done

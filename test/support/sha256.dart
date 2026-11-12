@@ -2,7 +2,13 @@ import 'dart:convert';
 
 /// Minimal pure-Dart SHA-256 (FIPS 180-4) for golden-hash tests, so no new
 /// dependency is needed. Not for production use.
-String sha256Hex(String text) {
+String sha256Hex(String text) => bytesToHex(sha256Bytes(utf8.encode(text)));
+
+String bytesToHex(List<int> bytes) =>
+    bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+
+/// SHA-256 of raw bytes.
+List<int> sha256Bytes(List<int> data) {
   const k = <int>[
     0x428a2f98,
     0x71374491,
@@ -72,7 +78,6 @@ String sha256Hex(String text) {
   const mask = 0xffffffff;
   int rotr(int x, int n) => ((x >> n) | (x << (32 - n))) & mask;
 
-  final data = utf8.encode(text);
   final bitLength = data.length * 8;
   final padded = <int>[...data, 0x80];
   while (padded.length % 64 != 56) {
@@ -134,5 +139,20 @@ String sha256Hex(String text) {
     h[6] = (h[6] + g) & mask;
     h[7] = (h[7] + hh) & mask;
   }
-  return h.map((v) => v.toRadixString(16).padLeft(8, '0')).join();
+  return [
+    for (final v in h) ...[
+      (v >> 24) & 0xff,
+      (v >> 16) & 0xff,
+      (v >> 8) & 0xff,
+      v & 0xff,
+    ],
+  ];
+}
+
+/// HMAC-SHA256 (RFC 2104), for minting test tokens against a disposable stack.
+List<int> hmacSha256(List<int> key, List<int> message) {
+  var k = key.length > 64 ? sha256Bytes(key) : List<int>.of(key);
+  k = [...k, ...List<int>.filled(64 - k.length, 0)];
+  final inner = sha256Bytes([for (final b in k) b ^ 0x36, ...message]);
+  return sha256Bytes([for (final b in k) b ^ 0x5c, ...inner]);
 }
