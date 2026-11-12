@@ -11,12 +11,22 @@ const _pureLayerDirs = [
   'lib/features/tasks/application',
 ];
 
-/// Libraries no layer may import in Phase 1.
-const _forbiddenEverywhere = [
-  'package:sqlite',
-  'package:supabase',
-  'package:http',
-];
+/// The local persistence layer. It is pure Dart: no Flutter, and it may use the
+/// SQLite package and `dart:io`. Only this layer may import SQLite.
+const _dataLayerDir = 'lib/features/tasks/data';
+
+/// Code that must never reach the database directly. The UI depends on
+/// `TaskWorkspace` and the repository abstraction, not on SQLite or the data layer.
+const _uiDirs = ['lib/features/tasks/presentation', 'lib/app'];
+
+/// Libraries no layer may import. The Supabase and network packages are not
+/// approved in any slice so far.
+const _forbiddenEverywhere = ['package:supabase', 'package:http'];
+
+/// The SQLite package. Allowed only in the data layer.
+const _sqlitePackage = 'package:sqlite3';
+
+String _normalize(String path) => path.replaceAll('\\', '/');
 
 List<File> _dartFiles(String dir) {
   final root = Directory(dir);
@@ -54,8 +64,8 @@ void main() {
     }
   });
 
-  test('no Flutter import in core, domain or application layers', () {
-    for (final dir in [..._pureLayerDirs, 'lib/features/tasks/application']) {
+  test('no Flutter import in core, domain, application or data layers', () {
+    for (final dir in [..._pureLayerDirs, _dataLayerDir]) {
       for (final file in _dartFiles(dir)) {
         for (final uri in _importsOf(file)) {
           expect(
@@ -68,7 +78,7 @@ void main() {
     }
   });
 
-  test('no persistence or network package anywhere in lib', () {
+  test('no Supabase or network package anywhere in lib', () {
     for (final file in _dartFiles('lib')) {
       for (final uri in _importsOf(file)) {
         for (final forbidden in _forbiddenEverywhere) {
@@ -76,6 +86,39 @@ void main() {
             uri.startsWith(forbidden),
             isFalse,
             reason: '${file.path} imports $uri',
+          );
+        }
+      }
+    }
+  });
+
+  test('SQLite is imported only by the data layer', () {
+    for (final file in _dartFiles('lib')) {
+      if (_normalize(file.path).contains('$_dataLayerDir/')) {
+        continue;
+      }
+      for (final uri in _importsOf(file)) {
+        expect(
+          uri.startsWith(_sqlitePackage),
+          isFalse,
+          reason: '${file.path} imports $uri outside the data layer',
+        );
+      }
+    }
+  });
+
+  test('the UI never imports the data layer or SQLite', () {
+    for (final dir in _uiDirs) {
+      for (final file in _dartFiles(dir)) {
+        for (final uri in _importsOf(file)) {
+          final reachesData =
+              uri.contains('features/tasks/data/') ||
+              uri.startsWith(_sqlitePackage);
+          expect(
+            reachesData,
+            isFalse,
+            reason:
+                '${file.path} imports $uri; the UI must use the repository abstraction',
           );
         }
       }
