@@ -13,8 +13,8 @@
 | Path | Kind | Current / historical | Notes |
 |---|---|---|---|
 | `coordination/status-register.md` | register | **current, authoritative** | status, migrations, decisions, gates, blockers, evidence index |
-| `coordination/phase-3-s5-outbox-v2.md` | spec (reconstructed) | current planning baseline | S5 not implemented |
-| `coordination/phase-2a-sync-requirements.md` | change request CR-2A-001 | current (requirements REQ-1..8); answered in part | proposal SQL contains the `failed` state defect (S5-Q1) |
+| `coordination/phase-3-s5-outbox-v2.md` | spec (reconstructed, corrected for OD-7 to OD-9) | current planning baseline | S5 not implemented; Session B report not yet received (B-16) |
+| `coordination/phase-2a-sync-requirements.md` | change request CR-2A-001 | current (requirements REQ-1..8); answered in part | proposal SQL corrected 2026-11-12 (rowid order, no auto replay); see S5 doc 3a |
 | `architecture/data-contract.md` | contract | current | status column kept in step with the register |
 | `architecture/s2-wire-contract.md` | contract | current, authoritative for push | amended 2026-11-12 |
 | `architecture/sync-contract.md` | contract | current (S0 protocol detail) | |

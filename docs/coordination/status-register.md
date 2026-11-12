@@ -1,6 +1,6 @@
 # Nexora status register (single source of truth)
 
-Last consolidated: 2026-11-12, branch `claude/affectionate-turing-unzmd2`. **This file is the only place that states current phase and slice status, migration history, owner decisions with their approval status, gates and blockers.** Other documents describe design or evidence and link here; where another document disagrees with this register, this register is correct unless it cites that document as the exception. The documentation map is `docs/README.md`.
+Last consolidated and reconciled: 2026-11-12 (S5 reconciliation gate; baseline head `8074a51`), branch `claude/affectionate-turing-unzmd2`. **This file is the only place that states current phase and slice status, migration history, owner decisions with their approval status, gates and blockers.** Other documents describe design or evidence and link here; where another document disagrees with this register, this register is correct unless it cites that document as the exception. The documentation map is `docs/README.md`.
 
 Rules: (1) a recommendation is not an approval; only entries marked **approved** are decisions; (2) "implemented" requires an evidence path (section 7); (3) hosted changes happen only with explicit owner authorization.
 
@@ -60,6 +60,10 @@ Status: **approved**, **conditional** (approved with the stated condition still 
 | OD-4 | Creation under a tombstoned parent is `rejected: parent_invalid` | **approved** (owner direction 2026-11-12, item 5) | wire contract 7; supersedes the plan's S3 `create_under_tombstoned_parent_conflicts` |
 | OD-5 | Rejected operations are immutable history; recovery uses a new operation id | **approved** (owner direction 2026-11-12, item 3) | wire contract 2 |
 | OD-6 | `version_before` in applied results; conflict detail for the S5 mirror | **approved** (owner direction 2026-11-12, items 1-2) | wire contract 2 |
+| OD-7 | v1 to v2 outbox ordering uses the verified v1 `rowid` order, not `created_at_utc` | **approved** (owner direction, documentation reconciliation gate 2026-11-12, item 3) | S5 doc 3a C1; safety spec M2 |
+| OD-8 | No automatic deletion of SQLite backups; retention is owner-controlled | **approved** (owner direction, same gate, item 4) | S5 doc 3a C2; safety spec section 2, M14 |
+| OD-9 | Ambiguous historical outbox states (`sent`, `failed`) are preserved without automatic replay, version reset or loss | **approved** (owner direction, same gate, item 5); the v2 representation is open (S5-Q1) | S5 doc 3a C3; safety spec M3, M13 |
+| OD-10 | The corrected Session B report is a proposed technical specification, not an authorization of unresolved owner decisions; its backup-under-lock design, observed-base versus wire-base semantics, immutable operation history and conflict-resolution requirements are to be incorporated | **approved as direction** (same gate, items 1 and 6); **content not yet incorporated: the report has not been received** (B-16) | S5 doc provenance |
 | O-1 | `completed_at`/`status` rule | open | recommendation: Option A (validate only); prototype in `supabase/proposed/`; Option B conflicts with S0 |
 | O-2 | Response size bound (D-RESP) | open | wire contract 3.2 |
 | O-3 | Rate limiting and log retention/purge path | open | security record R1-R3 |
@@ -69,7 +73,17 @@ Status: **approved**, **conditional** (approved with the stated condition still 
 | O-7 | S5 open points S5-Q1 to S5-Q6 (failed-state mapping, stored version of pending create, title limit, owner binding name, `request_id`, synced flag) | open | S5 document section 7 |
 | O-8 | Scope and order of S3 and S4 | open | plan section 6 |
 | O-9 | Hosted S2 gate approval | open | S2 record gate steps 1-5 |
-| O-10 | Backup retention for the local SQLite file before migration 2 | open | S5 safety spec section 2 |
+| O-10 | Backup retention for the local SQLite file before migration 2 (how long, who removes it). **Deletion is never automatic (OD-8).** | open | S5 safety spec section 2 |
+
+### 3b. Recommendations (not approvals)
+| Topic | Recommendation | Where |
+|---|---|---|
+| O-1 `completed_at` | Option A (validate only) | wire contract 7 |
+| O-6 D-R | Option A, no privilege change | security record 2 |
+| O-3 rate limit and retention | throttle per user plus storing only the hash for rejected operations | security record R1, R3 |
+| O-5 `request_id` | no server meaning | wire contract 7 |
+| S5 backup | use the SQLite online backup API rather than `VACUUM INTO`, and never take row order from a copy (rowids can change) | S5 doc 3a C1 |
+Recommendations stay here until the owner approves them; only the decision table above records approvals.
 
 ## 4. Gates (GO / HOLD / NO-GO)
 | Gate | Verdict | Reason |
@@ -79,7 +93,7 @@ Status: **approved**, **conditional** (approved with the stated condition still 
 | Hosted permission changes | **HOLD** | no authorization; none made |
 | Auth activation | **NO-GO** | D-U unaudited; S7 not started |
 | Synchronization activation | **NO-GO** | S3, S4, S5, S6, S7, S8, S9 not done |
-| Full SQLite schema v2 (S5 implementation) | **HOLD** | needs S5 specification reconciliation (B-3), S5-Q1 and owner start approval |
+| Full SQLite schema v2 (S5 implementation) | **HOLD** | needs the Session B report reconciliation (B-16), S5-Q1 and owner start approval |
 | Local development of S2/S5-0 and docs on the existing branch | GO | authorized |
 
 ## 5. Blocker register
@@ -87,7 +101,7 @@ Status: **approved**, **conditional** (approved with the stated condition still 
 |---|---|---|---|
 | B-1 | `guard_row` project UPDATE defect | technical | **resolved** (F1 applied to hosted) |
 | B-2 | Documentation on `main` described S1 as not applied | documentation | **resolved by this consolidation** once merged to `main` (owner approval to merge is a separate gate) |
-| B-3 | Corrected S5 specification text not in the repository | open technical/document | **open**: supply the text; `phase-3-s5-outbox-v2.md` is a reconstruction |
+| B-3 | Corrected S5 specification text not in the repository | open technical/document | **open, superseded by B-16**; `phase-3-s5-outbox-v2.md` is a reconstruction corrected only for OD-7 to OD-9 |
 | B-4 | `completed_at`/`status` rule | owner-approval | open (O-1) |
 | B-5 | Response size bound | owner-approval | open (O-2) |
 | B-6 | Rate limit and retention | owner-approval | open (O-3) |
@@ -97,9 +111,10 @@ Status: **approved**, **conditional** (approved with the stated condition still 
 | B-10 | Direct INSERT/UPDATE on `projects`/`tasks` still granted | owner-approval (S9) | open by design |
 | B-11 | D-U dashboard audit | owner-approval | open |
 | B-12 | D-S dependency versions and secure storage | owner-approval | open until S7 |
-| B-13 | S5-Q1: v1 `failed` outbox state has no v2 mapping (defect in the CR-2A-001 proposal) | open technical | open |
+| B-13 | S5-Q1: representation of preserved v1 `sent`/`failed` rows in v2 (requirement fixed by OD-9; the CR-2A-001 mapping is withdrawn) | open technical | open |
 | B-14 | Windows Flutter checks run only in CI (no Flutter SDK in the agent sandbox) | environment | accepted; CI run recorded in section 7 |
 | B-15 | S3, S4, S6, S7, S8, S9 | deferred | not started |
+| B-16 | The corrected Session B S5 report was announced but **not received** in the repository or the instruction. Not incorporated: backup-under-lock design, observed-base versus wire-base semantics, immutable operation history and conflict-resolution requirements of the report; the line-by-line reconciliation is not done. | open document | **open**: supply the report text; then reconcile against the S5 doc, safety spec, wire contract, this register and ADR 0002 |
 
 ## 6. Wire contract and architecture references
 S2/S5 wire contract: `docs/architecture/s2-wire-contract.md` (authoritative for push). Data contract: `docs/architecture/data-contract.md`. Protocol decisions: `docs/architecture/decisions/0002-sync-protocol.md`. S5: `docs/coordination/phase-3-s5-outbox-v2.md`.
@@ -112,10 +127,10 @@ S2/S5 wire contract: `docs/architecture/s2-wire-contract.md` (authoritative for 
 | S1 | `docs/operations/s1-hosted-deployment-record.md`; `s1_sync_schema_test.sql` (43) |
 | S2 | `s2_auth_grants_test.sql` (27), `s2_device_test.sql` (23), `s2_apply_test.sql` (89), `s2_push_test.sql` (49), `s2_contract_test.sql` (47), `s2_security_direct_test.sql` (41); concurrency scripts; `mutation_checks.sh` (21 mutations); workflow `.github/workflows/supabase-tests.yml` |
 | S5-0 | `test/features/tasks/data/migration_v1_golden_test.dart`, `outbox_failure_injection_test.dart`, `test/fixtures/v1/` (PROVENANCE.md), workflow `.github/workflows/ci.yml` |
-| Documentation consistency | `tools/check_docs.py`, workflow `.github/workflows/docs-check.yml` |
+| Documentation consistency (links, paths, migration list, stale phrases, policy rules OD-7 to OD-9, self-test) | `tools/check_docs.py`, workflow `.github/workflows/docs-check.yml` |
 Run results for the current head are recorded in the final report of this consolidation and in `docs/operations/s2-implementation-record.md` section "Consolidation validation".
 
 ## 8. Contradictions that cannot be resolved from approved decisions
 1. The consolidation message says the S5 specification is a "corrected" baseline; no such text exists in the repository (B-3). Not resolvable without the text.
-2. CR-2A-001 proposes mapping v1 `failed` outbox rows unchanged although v2 has no `failed` state (B-13). A mapping is a new policy; not chosen here.
+2. CR-2A-001 proposed `ORDER BY created_at_utc, rowid`, mapping `sent` to `pending` (automatic replay) and copying `failed` unchanged. **Resolved by owner direction:** rowid order (OD-7), no automatic replay or loss (OD-9); the proposal SQL is corrected and withdrawn as a mapping. The v2 representation of preserved rows stays open (B-13).
 3. The plan (S3) lists `create_under_tombstoned_parent_conflicts`; the owner direction (OD-4) makes it `parent_invalid`. Resolved in favor of OD-4; the plan line is annotated.

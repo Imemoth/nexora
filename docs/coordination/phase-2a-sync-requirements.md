@@ -71,6 +71,7 @@ Owner decisions they raised: outbox v2 approval; stored version of a pending cre
 - **Local seed data** (`demo_seeded`) must not enter the outbox (already so per plan 5.3) and must not be pushed.
 
 ## 3. Proposed schema (proposal text only; not applied anywhere)
+> **Corrected 2026-11-12 (owner direction, see `docs/coordination/phase-3-s5-outbox-v2.md` section 3a):** the copy order is the verified v1 `rowid` order, never `created_at_utc`; and v1 rows in the ambiguous states `sent` and `failed` are preserved without automatic replay, version reset or loss, so the state mapping below must **not** be executed as written. The SQL is kept as a schema sketch only.
 ```sql
 -- outbox v2 (forward migration, version 2)
 ALTER TABLE sync_outbox RENAME TO sync_outbox_v1;
@@ -95,8 +96,8 @@ CREATE TABLE sync_outbox (
 INSERT INTO sync_outbox (operation_id, entity_type, entity_id, operation_type, base_version,
   payload_json, created_at_utc, state, attempts, last_error)
 SELECT operation_id, entity_type, entity_id, operation_type, base_version, payload_json,
-  created_at_utc, CASE state WHEN 'acked' THEN 'applied' WHEN 'sent' THEN 'pending' ELSE state END,
-  attempts, last_error FROM sync_outbox_v1 ORDER BY created_at_utc, rowid;
+  created_at_utc, CASE state WHEN 'acked' THEN 'applied' WHEN 'pending' THEN 'pending' END,   -- sent and failed: preserved, mechanism open (S5-Q1)
+  attempts, last_error FROM sync_outbox_v1 WHERE state IN ('acked', 'pending') ORDER BY rowid;
 CREATE TABLE sync_state (
   singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
   user_id TEXT NOT NULL, device_id TEXT NOT NULL,

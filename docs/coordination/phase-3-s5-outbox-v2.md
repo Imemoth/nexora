@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Status | **Planning baseline. Not implemented.** SQLite schema v2 does not exist; `lib/` is unchanged by this document. |
-| Provenance | **Reconstruction.** The owner's message of 2026-11-12 refers to a "corrected S5 specification" accepted as planning baseline. **That text is not in the repository or any branch**, and was not supplied to the implementing session. This document is rebuilt only from sources that are in the repository: CR-2A-001 (`phase-2a-sync-requirements.md`), the Phase 3 plan section 4 and S5/S6, the approved decisions (ADR 0002) and the S2 wire contract. Nothing here is invented policy; every item names its source. **If the corrected specification differs, it wins; send it and this document is reconciled line by line.** |
+| Provenance | **Reconstruction, partly corrected 2026-11-12.** The owner has since said the corrected Session B report is being supplied separately; **as of this reconciliation it has not been received** (not in the repository, any branch, or the instruction), so no line-by-line reconciliation against it has been done and its backup-under-lock design, observed-base versus wire-base semantics, immutable-history and conflict-resolution requirements are **not yet incorporated** (blocker B-16). Section 3a corrects the points the owner stated explicitly. Original provenance note: **Reconstruction.** The owner's message of 2026-11-12 refers to a "corrected S5 specification" accepted as planning baseline. **That text is not in the repository or any branch**, and was not supplied to the implementing session. This document is rebuilt only from sources that are in the repository: CR-2A-001 (`phase-2a-sync-requirements.md`), the Phase 3 plan section 4 and S5/S6, the approved decisions (ADR 0002) and the S2 wire contract. Nothing here is invented policy; every item names its source. **If the corrected specification differs, it wins; send it and this document is reconciled line by line.** |
 | Gate | Subject to the compatibility and migration-safety gates in sections 5 and 6 (owner instruction). |
 | Depends on | S2 wire contract (`docs/architecture/s2-wire-contract.md`). Independent of S3 and S4 at the SQLite level; S6 (sync engine) needs S5. |
 
@@ -35,6 +35,15 @@ Frozen baseline: migration v1 (golden tests in S5-0). The v1 outbox has `operati
 12. **Crash recovery.** `in_flight` rows return to `pending` on start (the server replays by `operation_id`, so resending is safe) (plan S5 test `crash_in_flight_returns_to_pending`).
 13. **A pull never overwrites a field with a pending operation** (CR REQ-5; pull is S6).
 
+## 3a. Corrections by owner direction (2026-11-12 reconciliation)
+These override anything else in this document and in CR-2A-001 where they differ.
+| # | Rule | Replaces |
+|---|---|---|
+| C1 | **v1 to v2 ordering uses the verified v1 `rowid` order, not `created_at_utc`.** `sync_outbox` in v1 is an ordinary rowid table (TEXT primary key, no `WITHOUT ROWID`), so `rowid` is the insertion order the repository wrote; `created_at_utc` comes from the device clock and can go backwards (clock changes), so ordering by it can reorder dependent operations. The order is read from the original file inside the migration transaction. A backup copy is never the source of order: SQLite documents that `VACUUM` may renumber rowids of tables without an explicit `INTEGER PRIMARY KEY`, so a copy made that way can differ. | `ORDER BY created_at_utc, rowid` in CR-2A-001 and the first draft of the safety spec |
+| C2 | **No automatic backup deletion.** The app never deletes, rotates, prunes or overwrites a SQLite backup on its own. Retention is an owner-controlled decision (O-10, open). | the first draft's "keep until the next successful start on v2 and then keep one" |
+| C3 | **Ambiguous historical outbox states are preserved.** v1 `sent` (delivery unknown) and `failed` (cause unknown) rows, and the local `version` of rows whose create was `acked` without a stored server result, are carried into v2 **without automatic replay, without version reset and without loss**: no migration step or startup step sends them, changes their state, rewrites their `base_version`, or resets or recomputes a local `version`. Their user-visible handling (review, resend, discard) is a later decision. The v2 representation of these rows is an open design point (S5-Q1): it is not decided here, and it must not drop them. | the CR proposal's `sent` to `pending` mapping (automatic replay) and the unmapped `failed` state |
+Definitions of "ambiguous" in C3 are this document's reading of the instruction; the Session B text decides if it differs.
+
 ## 4. Tests to write in S5 (not in S5-0)
 `seq_order_survives_restart`, `crash_in_flight_returns_to_pending`, `migration_v1_to_v2_keeps_pending_ops` (see the migration safety spec), `update_payload_contains_only_changed_fields`, `create_payload_contains_all_required_fields`, `unchanged_save_writes_no_outbox_row`, `ack_sets_version_from_server`, `rejected_row_is_immutable_and_recovery_uses_new_operation_id`, `conflict_mirror_matches_wire_conflict_object`, `delete_tree_writes_leaf_first_ops`, `delete_parent_does_not_leave_live_children`, `db_bound_to_single_user`, `device_id_created_once_and_persisted`, `second_user_open_is_refused`, `pull_does_not_overwrite_pending_field`. Wire-level examples for the mirror tests come from `supabase/tests/s2_contract_test.sql`.
 
@@ -56,7 +65,7 @@ See `docs/operations/s5-migration-safety-test-spec.md`. No v2 code merges withou
 ## 7. Open points (not decided here; see the status register)
 | # | Point | Source |
 |---|---|---|
-| S5-Q1 | **State mapping of v1 `failed` rows.** The CR proposal copies `failed` unchanged, but v2 has no `failed` state, so that INSERT would violate the CHECK. A mapping must be decided (for example `pending` with `attempts` and `last_error` kept, or `rejected`). | defect in CR-2A-001 section 3 proposal |
+| S5-Q1 | **Representation of preserved v1 `sent` and `failed` rows in v2.** C3 fixes the requirement (preserve, no replay, no version reset, no loss). The CR proposal's mapping is withdrawn: `failed` unchanged violates the v2 CHECK and `sent` to `pending` is automatic replay. The representation is open. | defect in CR-2A-001 section 3 proposal; C3 |
 | S5-Q2 | Stored `version` of a pending create (D-1 of Phase 2A); v1 stores a value `>= 1` with base 0 in the outbox | CR "Phase 2A response" |
 | S5-Q3 | Title CHECK is 500 locally, 200 on the server | CR REQ-7 |
 | S5-Q4 | Owner binding column name (`owner_id` vs `user_id`) | CR REQ-4 |

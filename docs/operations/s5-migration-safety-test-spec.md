@@ -6,7 +6,7 @@ Status: **specification only (S5-0).** Implemented now: the v1 freeze (golden st
 `test/fixtures/v1/` (see `PROVENANCE.md`): frozen v1 DDL with synthetic rows covering every v1 outbox state and a pending create (`base_version = 0`). Additional S5 fixtures must be synthetic, documented in `PROVENANCE.md`, and generated independently of the code under test.
 
 ## 2. Backup policy under test
-Before migration 2 runs on an existing file the app writes a backup next to it (`<name>.v1.bak`, created with SQLite `VACUUM INTO` or the online backup API so WAL content is included, never by copying a live WAL database file alone). The backup is verified by opening it read-only and comparing `user_version = 1` and the row counts, before the migration starts; if the backup fails, the migration does not run and the app reports the error. Retention (how long backups stay) is an owner decision; tests use the default "keep until the next successful start on v2 and then keep one".
+Before migration 2 runs on an existing file the app writes a backup next to it (`<name>.v1.bak`, created with SQLite `VACUUM INTO` or the online backup API so WAL content is included, never by copying a live WAL database file alone). The backup is verified by opening it read-only and comparing `user_version = 1` and the row counts, before the migration starts; if the backup fails, the migration does not run and the app reports the error. **The app never deletes, rotates, prunes or overwrites a backup automatically** (owner direction 2026-11-12). Retention is an owner-controlled decision (O-10, open); until it is decided a backup stays on disk until a person removes it. The order of outbox rows is never taken from a backup: it is read from the original file inside the migration transaction (rowid, see M2). The backup-under-lock procedure from the corrected Session B report is **not yet incorporated** (the report has not been received; blocker B-16).
 
 ## 3. Test matrix
 | ID | Test | Status |
@@ -16,8 +16,10 @@ Before migration 2 runs on an existing file the app writes a backup next to it (
 | M0c | A v1 file with synthetic data opens at v1 with all rows, versions and outbox rows unchanged | **done** (S5-0) |
 | F0 | A failing outbox insert rolls the domain write back; a failing domain write leaves no outbox row; edit and delete variants; the repository works after the failure is removed | **done** (S5-0) |
 | M1 | Migration v1 to v2 preserves every row of `projects`, `tasks`, `meta` (per-row checksums) and every outbox row's `operation_id`, `entity_*`, `payload_json`, `base_version`, `created_at_utc`, `attempts`, `last_error` | S5 |
-| M2 | Outbox order: `seq` follows the v1 `created_at_utc, rowid` order for all fixture rows; `seq` values are monotone after new inserts and after restart | S5 |
-| M3 | State mapping: `pending` stays, `sent` becomes `pending`, `acked` becomes `applied`, `failed` follows the decision S5-Q1 (the CR proposal's unchanged `failed` violates the v2 CHECK) | S5 (blocked on S5-Q1) |
+| M2 | Outbox order: `seq` follows the verified v1 **`rowid`** order for all fixture rows, **not** `created_at_utc`. The fixture must contain rows whose `created_at_utc` order differs from their `rowid` order (a clock that went backwards), so the test fails if the migration sorts by time. `seq` values are monotone after new inserts and after restart | S5 |
+| M3 | State handling: `pending` stays `pending`; `acked` becomes `applied` (its local `version` untouched); **`sent` and `failed` are preserved** (owner direction C3): after migration every such row still exists with its original `operation_id`, `entity_*`, `payload_json`, `base_version`, `attempts`, `last_error` and original meaning, and none is `in_flight`, resent or re-based | S5 (representation blocked on S5-Q1) |
+| M13 | No automatic replay: after migration and after any number of restarts with no network, no outbox row changes state or `attempts`, and the sync transport receives no call; no local `version` of any row changes | S5 |
+| M14 | No automatic backup deletion: a test that creates several backups, runs migration and restarts repeatedly, and asserts every backup file still exists unchanged; the code has no deletion path for backups | S5 |
 | M4 | Failure injection at every statement of migration 2 (a trigger or a deliberately broken statement at each position): the file stays at `user_version = 1`, schema fingerprint equals the golden v1, rows unchanged | S5 |
 | M5 | Crash mid-migration (process killed or connection closed before COMMIT, simulated by closing the handle inside the migration transaction): reopen gives v1 intact and the migration runs again successfully | S5 |
 | M6 | Backup is created before migration, verified, and restorable: restoring the backup gives a file equal to the pre-migration fingerprint and rows | S5 |
@@ -31,5 +33,5 @@ Before migration 2 runs on an existing file the app writes a backup next to it (
 ## 4. Rules for the implementation of S5
 1. Each migration runs in one transaction together with `PRAGMA user_version` (already the v1 mechanism).
 2. Table rebuild order: create new, copy, verify counts inside the transaction (abort on mismatch), drop old, rename.
-3. The migration never runs on an unverified backup.
+3. The migration never runs on an unverified backup, and never deletes any backup.
 4. No test and no CI step touches a database outside its temporary directory.
