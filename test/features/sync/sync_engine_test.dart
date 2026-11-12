@@ -334,10 +334,7 @@ void main() {
     test('an oversized batch is halved and retried', () async {
       final server = FakeSyncServer();
       final fault = FaultyTransport(server)
-        ..pushFaults.addAll([
-          null,
-          const PushFault(SyncServerError('batch_too_large')),
-        ]);
+        ..pushFaults.add(const PushFault(SyncServerError('batch_too_large')));
       final a = _node('a', fault, config: const SyncEngineConfig(maxBatch: 4));
       await a.repo.saveProject(
         const Project(id: 'p1', name: 'Home', position: 0),
@@ -550,7 +547,11 @@ void main() {
           v1Task('lt', 'lp', version: 3, title: 'Legacy task'),
           v1Op('x', 'task', 'lt', v1TaskPayload('lt', 'lp'), state: 'acked'),
         ]);
-        final a = _node('a', server, path: legacy);
+        final l = _node('l', server, path: legacy);
+        await l.repo.saveTask(
+          makeTask(id: 'under-legacy', projectId: 'lp', title: 'Unclassified'),
+        );
+        final a = _node('a', server);
         final demo = buildDemoData(const CalendarDate(2026, 11, 12));
         await a.repo.seedDemoData(projects: demo.projects, tasks: demo.tasks);
         await a.repo.saveTask(
@@ -559,9 +560,6 @@ void main() {
             projectId: demo.projects.first.id,
             title: 'Local only',
           ),
-        );
-        await a.repo.saveTask(
-          makeTask(id: 'under-legacy', projectId: 'lp', title: 'Unclassified'),
         );
         await a.repo.saveProject(
           const Project(id: 'real', name: 'Synchronized', position: 50),
@@ -574,13 +572,14 @@ void main() {
           ),
         );
 
+        expect((await l.engine.syncNow()).phase, SyncPhase.idle);
         final status = await a.engine.syncNow();
 
         expect(status.phase, SyncPhase.idle);
         expect(server.rows.keys.toSet(), {'project:real', 'task:real-task'});
-        expect(a.task('lt')['version'], 3); // never reset
+        expect(l.task('lt')['version'], 3); // never reset
         expect(a.task('under-demo')['sync_scope'], 'local_only');
-        expect(a.task('under-legacy')['sync_scope'], 'unclassified');
+        expect(l.task('under-legacy')['sync_scope'], 'unclassified');
       },
     );
   });
