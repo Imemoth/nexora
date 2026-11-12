@@ -219,7 +219,7 @@ Twelve file entries plus two directory entries (`data/flutter_assets/packages/` 
 | Up / Down | Move selection through visible rows (through the gate) |
 | Right / Left | Expand or collapse; Left moves to the parent when collapsed |
 | Enter | Focus the title field of the selected task |
-| Esc | In the editor or search, return focus to the list. Elsewhere, clear the selection (through the gate). See section 9 for the open decision. |
+| Esc | Two-stage in the search field: a non-empty query is cleared first and focus stays in the field; a second Esc, or Esc with an empty query, returns focus to the list. In the details editor, returns focus to the list. In the list, clears the selection through the unsaved-change gate. Esc never dismisses the unsaved-change dialog (owner decision, Phase 1 final). |
 | Ctrl+F | Focus the search field |
 | Ctrl+N | Open the New task dialog |
 | Ctrl+Shift+N | Open the New subtask dialog for the selected task (not for archived tasks) |
@@ -328,6 +328,9 @@ Note on demo data: the demo data is built from the **date the app is launched**.
 - [ ] L9. With a dirty draft, press Down. The unsaved-change dialog appears, the same as with the mouse.
 - [ ] L10. Open the overlay at 1000 px, close it with its × button, and press Down. The selection moves.
 - [ ] L11. Complete flows L5, L6 and L7 without touching the mouse.
+- [ ] L12. Press Ctrl+F and type "bike". Press Esc once: the query clears and the search box still has focus. Press Esc again: focus moves to the task list.
+- [ ] L13. Select a task and edit its title. Press Ctrl+F, type "alp", then Esc. The query clears, the edit is still there, and the task is still selected. No dialog appears.
+- [ ] L14. With a dirty draft, click another task so the unsaved-change dialog appears. Press Esc. The dialog stays open. Use Cancel, Save or Discard to answer it.
 
 ### M. Accessibility
 - [ ] M1. Tab through the sidebar, the list, the search box, the sort menu, and the editor. The focus ring is visible on every control.
@@ -371,7 +374,7 @@ An independent reviewer (a fresh agent that did not implement the code) audited 
 ### Deviations recorded but not fixed (owner review requested)
 These differ from the wording of the specification or are design gaps the review found. None blocks Live Acceptance on its own, but each should be accepted or changed by the owner.
 
-- **Esc in the search box** returns focus to the list and keeps the query. Specification 5.2 says Esc clears the query. **Open owner decision.**
+- **Esc in the search box:** resolved by the owner's final decision. A non-empty query is cleared first, focus stays in the field, and a second Esc returns focus to the list. Recorded in the approved keymap (plan section 6.1) and tested by `keyboard_test.dart`.
 - **Right and Left are gated** by the unsaved-change dialog when a draft is dirty. Specification 6.1 marks them as ungated. Right on an expanded parent moves focus to its first child, which the specification does not describe.
 - **Cancelling a gated create drops the title typed in the create dialog.** The create is held as a pending transition until the gate resolves. Cancel discards it. The existing draft is kept.
 - **Up and Down are consumed in the search box**, so the caret cannot move with them there.
