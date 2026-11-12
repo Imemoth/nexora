@@ -176,6 +176,85 @@ void main() {
       expect(harness.workspace.state.selectedTaskId, 'b');
     });
 
+    testWidgets('Esc in a non-empty search clears the query and keeps focus', (
+      tester,
+    ) async {
+      final harness = await _harness();
+      await _pump(tester, harness);
+      await _key(tester, LogicalKeyboardKey.keyF, control: true);
+      await tester.enterText(_searchField(), 'bike');
+      await tester.pumpAndSettle();
+      expect(harness.workspace.state.searchQuery, 'bike');
+
+      await _key(tester, LogicalKeyboardKey.escape);
+
+      expect(harness.workspace.state.searchQuery, '');
+      expect(_hasPrimaryFocus(tester, _searchField()), isTrue);
+    });
+
+    testWidgets('a second Esc in the empty search returns focus to the list', (
+      tester,
+    ) async {
+      final harness = await _harness();
+      await _pump(tester, harness);
+      await _key(tester, LogicalKeyboardKey.keyF, control: true);
+      await tester.enterText(_searchField(), 'bike');
+      await tester.pumpAndSettle();
+      await _key(tester, LogicalKeyboardKey.escape);
+
+      await _key(tester, LogicalKeyboardKey.escape);
+
+      expect(_hasPrimaryFocus(tester, _searchField()), isFalse);
+      expect(FocusManager.instance.primaryFocus?.debugLabel, 'task-list');
+      expect(harness.workspace.state.selectedTaskId, isNull);
+    });
+
+    testWidgets(
+      'Esc in the search with a dirty draft keeps the draft and selection',
+      (tester) async {
+        final harness = await _harness();
+        await _pump(tester, harness);
+        await tester.tap(find.byKey(const ValueKey('row-a')));
+        await tester.pumpAndSettle();
+        await tester.enterText(_titleField('a'), 'Alpha 2');
+        await tester.pumpAndSettle();
+        await _key(tester, LogicalKeyboardKey.keyF, control: true);
+        // 'alp' still matches the dirty title, so the query does not hide the draft.
+        await tester.enterText(_searchField(), 'alp');
+        await tester.pumpAndSettle();
+
+        await _key(tester, LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+
+        expect(harness.workspace.state.searchQuery, '');
+        expect(harness.workspace.state.selectedTaskId, 'a');
+        expect(harness.workspace.state.draft?.title, 'Alpha 2');
+        expect(harness.workspace.state.draft?.isDirty, isTrue);
+        expect(find.text(AppStrings.unsavedChangesTitle), findsNothing);
+      },
+    );
+
+    testWidgets('Esc does not dismiss the unsaved-change dialog', (
+      tester,
+    ) async {
+      final harness = await _harness();
+      await _pump(tester, harness);
+      await tester.tap(find.byKey(const ValueKey('row-a')));
+      await tester.pumpAndSettle();
+      await tester.enterText(_titleField('a'), 'Alpha 2');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('row-b')));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.unsavedChangesTitle), findsOneWidget);
+
+      await _key(tester, LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.unsavedChangesTitle), findsOneWidget);
+      expect(harness.workspace.state.selectedTaskId, 'a');
+      expect(harness.workspace.state.draft?.title, 'Alpha 2');
+    });
+
     testWidgets('Esc in the list clears the selection', (tester) async {
       final harness = await _harness();
       await _pump(tester, harness);

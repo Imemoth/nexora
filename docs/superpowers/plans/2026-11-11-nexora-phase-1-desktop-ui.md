@@ -394,7 +394,9 @@ Dialogs (presentation only, open from intents):
 | ↑ / ↓ | Move selection through visible rows | Yes (selection change) |
 | → / ← | Expand / collapse selected row (← on a collapsed or leaf row moves to parent) | No |
 | Enter | Focus details title (on a selected row) | No |
-| Esc | Clear selection (in list) / leave editor focus to list | Yes (clear) |
+| Esc | Two-stage in the search field: a non-empty query is cleared and focus stays in the search field; an empty query returns focus to the list. In the details editor, returns focus to the list. In the list, clears selection. | Clear selection is gated; clearing the query and returning focus are not |
+
+Owner decision on Esc (Phase 1, final): (1) with a non-empty query the first Esc clears it and keeps focus in the search field; (2) with an empty query Esc returns focus to the task list; (3) Esc in the list clears selection, through the unsaved-change gate when a draft is dirty; (4) Esc never dismisses the unsaved-change dialog; (5) no Esc action silently discards a dirty draft or changes selection unexpectedly. Clearing the query only widens the list, so it never hides a dirty draft and never opens the gate.
 | Ctrl+F | Focus search | No |
 | Ctrl+N | New task dialog | Yes (on success) |
 | Ctrl+Shift+N | New subtask dialog for selected task | Yes (on success) |
