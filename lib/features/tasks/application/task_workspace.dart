@@ -91,6 +91,41 @@ final class TaskWorkspace {
     }
   }
 
+  /// Re-reads projects and tasks after a synchronization changed storage.
+  /// While a draft or a pending decision exists nothing is replaced and false is
+  /// returned: a stale draft must never overwrite what was pulled. The selection
+  /// stays unless the selected task no longer exists.
+  Future<bool> refresh() async {
+    if (_busyForRefresh) {
+      return false;
+    }
+    try {
+      final projects = await repository.loadProjects();
+      final tasks = await repository.loadTasks();
+      if (_busyForRefresh) {
+        return false;
+      }
+      final map = {for (final task in tasks) task.id: task};
+      final selected = _state.selectedTaskId;
+      _publish(
+        _state.copyWith(
+          projects: projects,
+          tasks: map,
+          clearSelectedTask: selected != null && !map.containsKey(selected),
+        ),
+      );
+      return true;
+    } on RepositoryException {
+      return false;
+    }
+  }
+
+  bool get _busyForRefresh =>
+      _state.draft != null ||
+      _state.pending != null ||
+      _saving ||
+      _transitioning;
+
   // ------------------------------------------------- navigation and visibility
 
   void requestSelectView(SmartView view) {

@@ -60,6 +60,24 @@ abstract final class AppStrings {
   static const errorDatabaseOpen =
       'Nexora could not open its local database. Close any other copy of Nexora and start it again. Your data has not been changed.';
   static const defaultProjectName = 'Inbox';
+  static const signInAction = 'Sign in';
+  static const signOutAction = 'Sign out';
+  static const signInTitle = 'Sign in to synchronize';
+  static const emailLabel = 'Email';
+  static const passwordLabel = 'Password';
+  static const signInInvalid = 'Wrong email or password';
+  static const signInUnconfirmed = 'Confirm your email address first';
+  static const signInAnonymous = 'Anonymous accounts cannot synchronize';
+  static const signInOffline = 'No connection. Your local data is unchanged';
+  static const signInRateLimited = 'Too many attempts. Try again later';
+  static const signInFailed = 'Sign-in failed. Try again';
+  static const accountLocalOnly = 'Local workspace, not synchronized';
+  static const accountSessionExpired =
+      'Session ended. Sign in again; your data on this device is kept';
+  static const accountSignedOutNotice = 'You signed out';
+  static const accountStorageProblem =
+      'The protected session store could not be written';
+  static String accountSignedInAs(String email) => 'Signed in as $email';
   static const syncNowAction = 'Sync now';
   static const syncDisabled = 'Synchronization is off';
   static const syncing = 'Synchronizing…';
