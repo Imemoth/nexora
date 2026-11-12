@@ -5,7 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 final _importPattern = RegExp(r"^import '([^']+)'", multiLine: true);
 
 /// Pure layers: Dart core libraries, this package, and relative imports only.
-const _pureLayerDirs = ['lib/core', 'lib/features/tasks/domain'];
+const _pureLayerDirs = [
+  'lib/core',
+  'lib/features/tasks/domain',
+  'lib/features/tasks/application',
+];
 
 /// Libraries no layer may import in Phase 1.
 const _forbiddenEverywhere = [
