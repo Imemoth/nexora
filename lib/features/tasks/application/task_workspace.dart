@@ -29,17 +29,14 @@ import 'workspace_transition.dart';
 /// the gate covers all entry points.
 final class TaskWorkspace {
   TaskWorkspace({
-    required TaskRepository repository,
-    required Clock clock,
-    required IdGenerator ids,
-  }) : _repository = repository,
-       _clock = clock,
-       _ids = ids,
-       _state = WorkspaceState.initial(clock.today());
+    required this.repository,
+    required this.clock,
+    required this.ids,
+  }) : _state = WorkspaceState.initial(clock.today());
 
-  final TaskRepository _repository;
-  final Clock _clock;
-  final IdGenerator _ids;
+  final TaskRepository repository;
+  final Clock clock;
+  final IdGenerator ids;
   final StreamController<WorkspaceState> _controller =
       StreamController<WorkspaceState>.broadcast();
   WorkspaceState _state;
@@ -58,8 +55,8 @@ final class TaskWorkspace {
   Future<void> load() async {
     _publish(_state.copyWith(loading: true, clearError: true));
     try {
-      final projects = await _repository.loadProjects();
-      final tasks = await _repository.loadTasks();
+      final projects = await repository.loadProjects();
+      final tasks = await repository.loadTasks();
       _publish(
         _state.copyWith(
           projects: projects,
@@ -145,7 +142,7 @@ final class TaskWorkspace {
       projectId: projectId,
       projects: projects,
       tasks: _state.tasks.values,
-      ids: _ids,
+      ids: ids,
     );
     switch (created) {
       case Ok(:final value):
@@ -170,7 +167,7 @@ final class TaskWorkspace {
       title: title,
       parentId: parentId,
       tasks: _state.tasks.values,
-      ids: _ids,
+      ids: ids,
     );
     switch (created) {
       case Ok(:final value):
@@ -447,7 +444,7 @@ final class TaskWorkspace {
     required String? expandParentId,
   }) async {
     try {
-      await _repository.saveTask(candidate);
+      await repository.saveTask(candidate);
     } on RepositoryException {
       return const Err<Task, WorkspaceError>(WorkspaceError.saveFailed);
     }
@@ -473,7 +470,7 @@ final class TaskWorkspace {
     Task task,
   ) async {
     try {
-      await _repository.saveTask(task);
+      await repository.saveTask(task);
     } on RepositoryException {
       _publish(_state.copyWith(error: WorkspaceError.saveFailed));
       return const Err<void, WorkspaceError>(WorkspaceError.saveFailed);
@@ -492,7 +489,7 @@ final class TaskWorkspace {
   }
 
   void _publish(WorkspaceState next) {
-    _state = next.copyWith(today: _clock.today());
+    _state = next.copyWith(today: clock.today());
     _controller.add(_state);
   }
 
