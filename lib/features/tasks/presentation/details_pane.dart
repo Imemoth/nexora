@@ -121,7 +121,10 @@ class _TaskEditor extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 16),
-        Row(
+        Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 8,
+          runSpacing: 8,
           children: [
             TextButton(
               key: const ValueKey('add-subtask'),
@@ -135,13 +138,11 @@ class _TaskEditor extends StatelessWidget {
                   : null,
               child: const Text(AppStrings.addSubtaskAction),
             ),
-            const Spacer(),
             TextButton(
               key: const ValueKey('revert'),
               onPressed: dirty ? notifier.revertDraft : null,
               child: const Text(AppStrings.revertAction),
             ),
-            const SizedBox(width: 8),
             FilledButton(
               key: const ValueKey('save'),
               onPressed: dirty ? () => notifier.saveDraft() : null,

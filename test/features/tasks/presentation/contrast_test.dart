@@ -52,7 +52,8 @@ void main() {
         expect(
           ratio >= 4.5,
           isTrue,
-          reason: '${text.key} on ${surface.key} is ${ratio.toStringAsFixed(2)}',
+          reason:
+              '${text.key} on ${surface.key} is ${ratio.toStringAsFixed(2)}',
         );
       }
     }
@@ -65,7 +66,8 @@ void main() {
         expect(
           ratio >= 3.0,
           isTrue,
-          reason: '${text.key} on ${surface.key} is ${ratio.toStringAsFixed(2)}',
+          reason:
+              '${text.key} on ${surface.key} is ${ratio.toStringAsFixed(2)}',
         );
       }
     }

@@ -92,24 +92,22 @@ void main() {
       await tester.tap(find.byTooltip(AppStrings.closeDetails));
       await tester.pumpAndSettle();
 
-      expect(
-        FocusManager.instance.primaryFocus?.debugLabel,
-        'task-list',
-      );
+      expect(FocusManager.instance.primaryFocus?.debugLabel, 'task-list');
     });
 
-    testWidgets('below 900 px a desktop-only notice shows and no overlay opens', (
-      tester,
-    ) async {
-      final harness = await loadedHarness(tasks: sampleTasks());
-      await _pump(tester, harness, width: 800);
+    testWidgets(
+      'below 900 px a desktop-only notice shows and no overlay opens',
+      (tester) async {
+        final harness = await loadedHarness(tasks: sampleTasks());
+        await _pump(tester, harness, width: 800);
 
-      expect(find.text(AppStrings.desktopOnlyNotice), findsOneWidget);
-      await _selectRow(tester, 'a');
+        expect(find.text(AppStrings.desktopOnlyNotice), findsOneWidget);
+        await _selectRow(tester, 'a');
 
-      expect(find.byKey(const ValueKey('details-overlay')), findsNothing);
-      expect(find.byKey(const ValueKey('task-list-pane')), findsOneWidget);
-    });
+        expect(find.byKey(const ValueKey('details-overlay')), findsNothing);
+        expect(find.byKey(const ValueKey('task-list-pane')), findsOneWidget);
+      },
+    );
 
     testWidgets('at 1280 px there is no desktop-only notice', (tester) async {
       final harness = await loadedHarness(tasks: sampleTasks());

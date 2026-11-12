@@ -35,6 +35,7 @@ abstract final class AppStrings {
   static const revertAction = 'Revert';
   static const addSubtaskAction = 'Add subtask';
   static const clearDueDate = 'Clear due date';
+  static const closeDetails = 'Close details';
   static const pickDueDate = 'Pick date';
   static const newTaskAction = 'New task';
   static const createAction = 'Create';
