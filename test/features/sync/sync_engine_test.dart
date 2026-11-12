@@ -333,17 +333,20 @@ void main() {
 
     test('an oversized batch is halved and retried', () async {
       final server = FakeSyncServer();
-      final fault = FaultyTransport(server)
-        ..pushFaults.add(const PushFault(SyncServerError('batch_too_large')));
+      final fault = FaultyTransport(server);
       final a = _node('a', fault, config: const SyncEngineConfig(maxBatch: 4));
       await a.repo.saveProject(
         const Project(id: 'p1', name: 'Home', position: 0),
       );
+      // The project is acknowledged first, so the tasks can travel together.
+      expect((await a.engine.syncNow()).phase, SyncPhase.idle);
       for (var i = 0; i < 8; i++) {
         await a.repo.saveTask(
           makeTask(id: 'b$i', projectId: 'p1', title: 'T$i'),
         );
       }
+      fault.pushFaults.add(const PushFault(SyncServerError('batch_too_large')));
+      server.log.clear();
 
       final status = await a.engine.syncNow();
 
