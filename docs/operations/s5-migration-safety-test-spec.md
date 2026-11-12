@@ -41,3 +41,30 @@ Before migration 2 runs on an existing file the app writes a backup next to it (
 2. Table rebuild order: create new, copy, verify counts inside the transaction (abort on mismatch), drop old, rename.
 3. The migration never runs on an unverified backup, and never deletes any backup.
 4. No test and no CI step touches a database outside its temporary directory.
+
+## 5. Implementation status (2026-11-12, S5 complete)
+Tests run on the pinned `sqlite3` 3.9.1 bundle in Windows CI (evidence: `docs/operations/s5-implementation-record.md`). Files: `test/features/tasks/data/migration_v2_test.dart` (migration, v2 schema, digest), `outbox_store_test.dart` (outbox behavior), `outbox_property_test.dart` (model-based), `migration_v1_golden_test.dart`, `outbox_failure_injection_test.dart`.
+| ID | Status | Test |
+|---|---|---|
+| M0a, M0b, M0c, F0 | done (S5-0) | golden and failure-injection files; M0c now asserts the v1 fixture migrates to v2 with all rows and every operation archived |
+| M1 rows and operations preserved | done | `classification` group (rows, archive verbatim incl. state, attempts, last_error) |
+| M2 rowid order, not time | done | "ordering follows the verified v1 rowid order, never created_at_utc" (timestamps run backwards) |
+| M3 ambiguous states preserved | done | "ambiguous states make the entity unclassified, with nothing replayed or reset" |
+| M4 failure at every step | done | `failure at every step` group, ten named steps, each rolls back to an intact v1 file and then migrates |
+| M5 crash before commit | done | same group (a throw before `COMMIT` is the rollback path a crash takes: WAL discards the transaction); a second open then migrates |
+| M6 backup verified and restorable | done | "a verified backup of the exact v1 snapshot is written first" (copy opens read-only at `user_version` 1 with the digest taken under the lock) |
+| M7 backup failure aborts | done | "an unwritable backup location aborts before any change" |
+| M8 idempotent reopen, newer refused | done | "a second opener ... does nothing"; "a file newer than this build is refused and left unchanged" |
+| M9 v2 schema | done (structural, not text golden) | `v2 schema` group: names, foreign-key list, integrity. A text golden is avoided because SQLite rewrites the stored SQL on `RENAME` |
+| M10 FK and CHECK enforced | done | `v2 schema` group, `foreign_key_check`, composite key across projects |
+| M11 pending creates keep base 0 | done | class S creates have observed base 0, base NULL until claim, child depends on parent create |
+| M12 disk full / power loss | not testable in CI | mitigated by one transaction and `synchronous = FULL` |
+| M13 no automatic replay | done | unclassified and local-only entities are never claimed; `recoverInFlight` only returns operations to `pending`, nothing is sent |
+| M14 backups never deleted | done | "backups are never deleted by later opens"; a failed migration keeps its backup and a rerun adds another |
+| M15 classification | done | `classification` group (clean, folded, ambiguous, delete, positive base, edited after last payload, demo-like, orphan) |
+| M16 abort cases | done for title over 200, binding mismatch (rows and meta), foreign key violation; integrity, unexpected version, digest and row-count aborts are implemented but not separately injected | `aborts leave the v1 file untouched` group |
+| M17 backup under lock | done | "while migrating, another connection cannot write but can read"; backup digest equals the locked snapshot |
+| M18 pre/post commit | pre-commit done; post-commit invariant check implemented (pauses sync, no automatic rollback) but not separately injected | `failure at every step` |
+| M19 v2 invariants | done | `v2 schema` group (CHECKs, partial unique indexes, immutability, state machine, write-once, append-only, `seq` never reused, composite key) |
+| M20 pinned Dart sqlite3 | done | the whole suite ran in Windows CI on `sqlite3` 3.9.1 |
+

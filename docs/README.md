@@ -31,7 +31,8 @@
 | `operations/s2-implementation-record.md` | implementation record | current evidence for S2 | |
 | `operations/security-review-s1.md` | review | historical | |
 | `operations/security-hardening-decision-record.md` | decision record | current | S2 privileges and abuse resistance |
-| `operations/s5-migration-safety-test-spec.md` | test spec | current | S5-0 partly implemented, rest specified |
+| `operations/s5-migration-safety-test-spec.md` | test spec | current | M-tests mapped to implemented tests |
+| `operations/s5-implementation-record.md` | implementation record | current evidence for S5 | what was built, evidence, deviations, open integration points |
 | `operations/auth-dashboard-audit.md` | audit | open (D-U) | |
 | `operations/supabase-access.md` | operations note | current | |
 | `operations/supabase-sql-location.md` | operations note | current (where the SQL lives) | |
