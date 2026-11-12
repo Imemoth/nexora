@@ -15,7 +15,7 @@ Legend: **Applied** = on the hosted project. **Implemented** = in code that exis
 | 5 | Tombstones are permanent, no undelete. Deleting a parent is explicit leaf-first from the client; the server never cascades | D-T, D-E, D-P approved | Tombstone revert blocked: **Applied**. Leaf-first tombstones and the parent-with-live-children conflict: **Required** (REQ-6, S3). Phase 2A soft-deletes a single row only |
 | 6 | Outbox v2 (`seq`, `in_flight`, `request_id`, `sync_state`, local conflict mirror) | deferred to S5 | **Required**, needs owner approval. Not in Phase 2A |
 | 7 | Pull cursor safety: per-user advisory lock before `change_seq` | D-L conditional | **Prepared** (S1). Hosted `change_seq` is **not** commit-ordered today, so pull must not be activated until S1 is applied |
-| 8 | Push RPCs, idempotency, conflict records, resolution | D-A, D-C, D-O, D-R | Schema objects **Applied** (inert). RPCs: **Required** (S2-S4). Synchronization is disabled |
+| 8 | Push RPCs, idempotency, conflict records, resolution | D-A, D-C, D-O, D-R | Schema objects **Applied** (inert). Device registration and push (S2): **Prepared** on the dev branch (`20261112160000`), PostgreSQL 17 CI green, **not applied to hosted**. Pull (S4) and resolve (S3): **Required**. Synchronization is disabled |
 
 ## Identifiers and ownership
 - All ids are client-generated UUIDv4 text (lowercase, hyphenated) in SQLite, `uuid` in Postgres. The server accepts the client id on insert; offline-created rows keep their id forever.

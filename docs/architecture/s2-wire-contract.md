@@ -1,6 +1,6 @@
 # Phase 3 S2 wire contract (device registration and push)
 
-Status: **proposed freeze, written before any RPC code.** Source of authority, in order: owner decisions (`decisions/0002-sync-protocol.md`), the S0 contract (`data-contract.md`), the S2 plan (`docs/superpowers/plans/2026-11-12-nexora-phase-3-s2-push-rpc.md`), then this document. Where this document adds detail, it is marked **(addition)**. Items that need an owner decision are in section 7; nothing in section 7 is implemented as policy.
+Status: **frozen before coding; implemented by `supabase/migrations/20261112160000_nexora_sync_push.sql` (local and PostgreSQL 17 CI only, NOT applied to hosted).** Source of authority, in order: owner decisions (`decisions/0002-sync-protocol.md`), the S0 contract (`data-contract.md`), the S2 plan (`docs/superpowers/plans/2026-11-12-nexora-phase-3-s2-push-rpc.md`), then this document. Where this document adds detail, it is marked **(addition)**. Items that need an owner decision are in section 7; nothing in section 7 is implemented as policy.
 
 ## 1. Endpoints
 | Function | Kind | Returns |
@@ -8,7 +8,7 @@ Status: **proposed freeze, written before any RPC code.** Source of authority, i
 | `public.nexora_register_device(p_device_id uuid, p_label text default null)` | SECURITY INVOKER wrapper | `jsonb` |
 | `public.nexora_sync_push(p_device_id uuid, p_ops jsonb)` | SECURITY INVOKER wrapper | `jsonb` |
 | `nexora_private.register_device`, `nexora_private.push` | SECURITY DEFINER, `search_path=''`, `lock_timeout=5s` | `jsonb` |
-| `nexora_private.apply_operation(uuid, uuid, jsonb)`, `nexora_private.sync_user()` | internal | no client EXECUTE |
+| `nexora_private.apply_operation`, `apply_core`, `sync_user`, `patch_spec`, `check_parent` | internal | no client EXECUTE |
 
 ## 2. Request and response
 **Register response:** `{"device_id": uuid, "created": boolean, "active_devices": integer}`. An existing active device of the caller returns `created=false` (idempotent). The label is stored at first registration only **(addition)**.
@@ -35,8 +35,8 @@ Status: **proposed freeze, written before any RPC code.** Source of authority, i
 Call-level errors are raised as exceptions (PostgREST returns HTTP 4xx with `{code, message}`); the message is the error code.
 | Code | SQLSTATE | Where |
 |---|---|---|
-| `unauthenticated` | `28000` | no `auth.uid()` |
-| `anonymous_not_allowed` | `42501` | JWT claim `is_anonymous` true |
+| `unauthenticated` | `28000` | no `auth.uid()`, a malformed `sub`, or the user no longer exists in `auth.users` (an existing token outlives a deleted user) **(addition)** |
+| `anonymous_not_allowed` | `42501` | JWT claim `is_anonymous` true **or** `auth.users.is_anonymous` true (the authoritative flag, checked in addition to the claim; stricter than D-U, not different) **(addition)** |
 | `invalid_request` **(addition)** | `NX005` | null device id, over-long label, `p_ops` not a non-empty array |
 | `device_invalid` | `NX001` | unknown, another user's, or revoked device (same error for all) |
 | `device_limit` | `NX002` | 10 active devices |
@@ -45,8 +45,8 @@ Call-level errors are raised as exceptions (PostgREST returns HTTP 4xx with `{co
 Per-operation rejections (in `results`): `invalid_op`, `invalid_patch`, `operation_id_reuse`, `not_found`, `parent_invalid`, `blocked_by_conflict`, `payload_too_large` (patch over 262,144 bytes). Transient database errors (classes 40, 53, 55, 57) abort the whole call and record nothing; unexpected errors also abort the call (bugs stay visible).
 
 ## 4. Idempotency and recording
-1. Lock the user (`pg_advisory_xact_lock`, same key as S1). 2. Look up `(user_id, operation_id)`. 3. Same `request_hash` returns the stored `result` with `replayed=true`; a different hash returns `rejected: operation_id_reuse` (not recorded, the key is taken). 4. Otherwise validate, authorize and apply inside a sub-transaction. 5. Insert the final result row once (append-only).
-`request_hash = sha256(entity_type | entity_id | op_type | base_version text | patch text)` over the values as supplied (jsonb text is canonical). Recorded: `applied`, `conflict` and `rejected` with valid identity fields. Not recorded: `invalid_op` for an unusable `operation_id`/`entity_type`/`entity_id`/`op_type`, and `operation_id_reuse`. Concurrent duplicates serialize on the user lock.
+1. Lock the user (`pg_advisory_xact_lock`, same key as S1). 2. Look up `(user_id, operation_id)`. 3. Same `request_hash` returns the stored `result` with `replayed=true` (the **original** result, including the row and version as they were then; current state arrives through pull). The same operation twice in one batch replays the second; a different hash returns `rejected: operation_id_reuse` (not recorded, the key is taken). 4. Otherwise validate, authorize and apply inside a sub-transaction. 5. Insert the final result row once (append-only).
+`request_hash = sha256(entity_type | entity_id | op_type | base_version text | patch text)` over the values as supplied (jsonb text is canonical). Recorded (`server_seq` is the value of `nexora_private.change_seq` at processing time, monotone per user, not the entity's `change_seq`): `applied`, `conflict` and `rejected` with valid identity fields. Not recorded: `invalid_op` for an unusable `operation_id`/`entity_type`/`entity_id`/`op_type`, and `operation_id_reuse`. Concurrent duplicates serialize on the user lock.
 
 ## 5. Operation semantics
 - **Allowed patch keys.** project: `name, description, color, is_archived, sort_order`. task: `parent_id, title, notes, status, priority, due_date, completed_at, sort_order`; create adds `project_id` (task). Anything else, including `owner_id`, `user_id`, `version`, `field_versions`, `change_seq`, `created_at`, `updated_at`, `deleted_at`, `id`, is `rejected: invalid_patch`. JSON types are checked per key; `null` only for nullable columns.

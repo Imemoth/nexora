@@ -40,3 +40,7 @@ jobs:
         run: supabase/tests/verify_minimal_fix.sh nx_fix
       - name: Multi-session lock discipline with negative control
         run: supabase/tests/concurrency/lock_discipline.sh nx_ci
+      - name: S2 multi-session duplicate push with negative control
+        run: supabase/tests/concurrency/s2_duplicate_push.sh nx_ci
+      - name: S2 mutation checks (every deliberate break must be caught)
+        run: supabase/tests/mutation_checks.sh nx_mut

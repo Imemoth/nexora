@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 
-**Status: PLAN ONLY. Nothing here is implemented, applied, exposed or activated.** S2 needs separate owner approval to start, and S1 is applied and verified on hosted (2026-11-12, `20261112151851`), so the prerequisite for any later S2 hosted apply is met (S2 relies on `field_versions`, the append-only log and the device cap). Local development on a disposable database can start earlier.
+**Status: IMPLEMENTED locally in `supabase/migrations/20261112160000_nexora_sync_push.sql` and verified on PostgreSQL 17 CI (see `docs/operations/s2-implementation-record.md`). NOT applied to hosted, not exposed, not activated. Where this plan and `docs/architecture/s2-wire-contract.md` differ, the wire contract applies.** S2 needs separate owner approval to start, and S1 is applied and verified on hosted (2026-11-12, `20261112151851`), so the prerequisite for any later S2 hosted apply is met (S2 relies on `field_versions`, the append-only log and the device cap). Local development on a disposable database can start earlier.
 
 **Goal:** a signed-in user's device can register itself and push batches of create/update operations that are applied at most once, with field-level conflict detection and no cross-user access.
 
