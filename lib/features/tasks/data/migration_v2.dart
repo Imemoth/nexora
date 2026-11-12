@@ -53,17 +53,15 @@ final class MigrationV2 {
   MigrationV2(
     this._raw,
     this._path, {
-    MigrationStepHook? onStep,
-    String? backupDirectory,
+    this.onStep,
+    this.backupDirectory,
     DateTime Function()? now,
-  }) : _onStep = onStep,
-       _backupDirectory = backupDirectory,
-       _now = now ?? (() => DateTime.now().toUtc());
+  }) : _now = now ?? (() => DateTime.now().toUtc());
 
   final Database _raw;
   final String _path;
-  final MigrationStepHook? _onStep;
-  final String? _backupDirectory;
+  final MigrationStepHook? onStep;
+  final String? backupDirectory;
   final DateTime Function() _now;
 
   /// Runs the migration. [createBackup] is false only for a file that was just
@@ -113,7 +111,7 @@ final class MigrationV2 {
   }
 
   void _step(String name) {
-    final hook = _onStep;
+    final hook = onStep;
     if (hook != null) {
       hook(name);
     }
@@ -228,7 +226,7 @@ final class MigrationV2 {
   }
 
   String _uniquePath(String extension) {
-    final directory = _backupDirectory;
+    final directory = backupDirectory;
     final name = File(_path).uri.pathSegments.last;
     final base = directory == null
         ? '$_path.pre-v2'

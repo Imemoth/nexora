@@ -6,7 +6,6 @@ import 'package:nexora/features/tasks/data/local_database.dart';
 import 'package:nexora/features/tasks/data/outbox_store.dart';
 import 'package:nexora/features/tasks/data/sqlite_task_repository.dart';
 import 'package:nexora/features/tasks/domain/project.dart';
-import 'package:sqlite3/sqlite3.dart';
 
 import '../../../support/sequential_id_generator.dart';
 
@@ -189,7 +188,7 @@ Future<void> _scenario(int seed, Directory dir) async {
     final claimedPayloads = <String, String>{};
 
     int observedOf(String operationId) {
-      return db.select(
+      return db.raw.select(
             'SELECT observed_base_version AS v FROM sync_outbox WHERE operation_id = ?',
             [operationId],
           ).single['v']!
@@ -198,7 +197,7 @@ Future<void> _scenario(int seed, Directory dir) async {
 
     void ack(List<ClaimedOperation> batch, List<Map<String, Object?>> results) {
       store.acknowledge([for (final op in batch) op.operationId], results);
-      for (final conflict in db.select(
+      for (final conflict in db.raw.select(
         "SELECT id FROM sync_conflicts_local WHERE status = 'open'",
       )) {
         store.resolveConflictUseServer(conflict['id'] as String);
@@ -221,7 +220,7 @@ Future<void> _scenario(int seed, Directory dir) async {
       );
       for (final op in batch) {
         final payload =
-            db.select('SELECT payload_json FROM sync_outbox WHERE seq = ?', [
+            db.raw.select('SELECT payload_json FROM sync_outbox WHERE seq = ?', [
                   op.seq,
                 ]).single['payload_json']
                 as String;
@@ -308,7 +307,7 @@ Future<void> _scenario(int seed, Directory dir) async {
       reason: 'seed $seed',
     );
     final seqs = [
-      for (final r in db.select('SELECT seq FROM sync_outbox ORDER BY seq'))
+      for (final r in db.raw.select('SELECT seq FROM sync_outbox ORDER BY seq'))
         r['seq'] as int,
     ];
     expect([...seqs]..sort(), seqs);
