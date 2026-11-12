@@ -6,7 +6,7 @@ Dart domain source of truth: `lib/features/tasks/domain/`. Not implemented in SQ
 ## Identifiers and ownership
 - All ids are client-generated UUIDv4 text (lowercase, hyphenated) in SQLite, `uuid` in Postgres. The server accepts the client id on insert; offline-created rows keep their id forever.
 - V1 ownership key is `owner_id` (= `auth.users.id`). `project.owner_id` is authoritative; `task.owner_id` must equal its project's owner (composite FK `(project_id, owner_id)`). `id`, `owner_id` and `task.project_id` are immutable.
-- **Deviation from approved spec (owner decision needed):** the spec's candidate model uses `workspace_id`/`revision`. The applied schema uses `owner_id`/`version`. This contract fixes `version` as the wire name for "revision" and defers `workspaces` until sharing is activated (additive later: add `workspace_id`, backfill = owner). Rationale: the Dart domain has no workspace concept and V1 is single-user.
+- **Deviation from approved spec (D1 APPROVED by owner, 2026-11-12):** the spec's candidate model uses `workspace_id`/`revision`. The applied schema uses `owner_id`/`version`. This contract fixes `version` as the wire name for "revision" and defers `workspaces` until sharing is activated (additive later: add `workspace_id`, backfill = owner). Rationale: the Dart domain has no workspace concept and V1 is single-user.
 
 ## Fields
 | Dart | SQLite (recommended) | Postgres | Notes |
