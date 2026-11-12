@@ -9,6 +9,7 @@ import 'entity_patch.dart';
 import 'jsonb_size.dart';
 import 'local_database.dart';
 import 'schema_v2.dart';
+import 'server_row.dart';
 
 /// Operations per push call (wire contract: 1 to 100).
 const int maxBatchOperations = 100;
@@ -185,6 +186,86 @@ final class OutboxStore {
     _insertOp(entityType, entityId, 'delete', storedVersion, null, dependsOn);
   }
 
+  /// Records the atomic deletion of a subtree (S3 protocol extension): one
+  /// delete operation for the root that lists every live descendant the client
+  /// tombstoned. It waits until all earlier operations of those entities are
+  /// finished, and its manifest of exact base versions is built when it is
+  /// claimed. The server applies all of it or none of it.
+  void recordDeleteTree({
+    required String entityType,
+    required String entityId,
+    required int storedVersion,
+    required List<String> descendantIds,
+  }) {
+    final last = _latestOp(entityType, entityId);
+    final dependsOn = (last != null && last['state'] != 'applied')
+        ? last['seq'] as int
+        : null;
+    _insertOp(entityType, entityId, 'delete', storedVersion, {
+      'tree': descendantIds,
+    }, dependsOn);
+  }
+
+  /// The descendant ids of a not yet claimed tree delete (`{"tree": [ids]}`), or
+  /// null when the payload is not a local tree delete.
+  List<String>? _localTreeIds(String payloadJson) {
+    final decoded = jsonDecode(payloadJson);
+    if (decoded is! Map || decoded['tree'] is! List) {
+      return null;
+    }
+    final list = decoded['tree'] as List;
+    if (list.isNotEmpty && list.first is! String) {
+      return null; // already a built manifest
+    }
+    return list.cast<String>();
+  }
+
+  /// Entity ids of a tree delete in either form (local ids or built manifest).
+  List<String>? _treeIds(String payloadJson) {
+    final decoded = jsonDecode(payloadJson);
+    if (decoded is! Map || decoded['tree'] is! List) {
+      return null;
+    }
+    return [
+      for (final entry in decoded['tree'] as List)
+        if (entry is String) entry else (entry as Map)['id'] as String,
+    ];
+  }
+
+  bool _subtreeReady(Map<String, Object?> row, List<String> ids) {
+    for (var i = 0; i < ids.length; i += 400) {
+      final chunk = ids.sublist(i, i + 400 > ids.length ? ids.length : i + 400);
+      final marks = List.filled(chunk.length, '?').join(', ');
+      final blocking = _rows(
+        'SELECT 1 FROM sync_outbox e WHERE e.entity_type = \'task\' '
+        'AND e.entity_id IN ($marks) AND e.seq < ? AND NOT ${_ok('e')} LIMIT 1',
+        [...chunk, row['seq']],
+      );
+      if (blocking.isNotEmpty) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  String _treeManifestJson(List<String> ids) {
+    final entries = <Map<String, Object?>>[];
+    for (var i = 0; i < ids.length; i += 400) {
+      final chunk = ids.sublist(i, i + 400 > ids.length ? ids.length : i + 400);
+      final marks = List.filled(chunk.length, '?').join(', ');
+      for (final row in _rows(
+        'SELECT id, version FROM tasks WHERE id IN ($marks)',
+        chunk,
+      )) {
+        final version = row['version'] as int;
+        if (version >= 1) {
+          entries.add({'id': row['id'], 'base_version': version});
+        }
+      }
+    }
+    return jsonEncode({'tree': entries});
+  }
+
   int _insertOp(
     String entityType,
     String entityId,
@@ -295,16 +376,45 @@ final class OutboxStore {
         if (base == null) {
           continue;
         }
-        final wire = _wireOperation(row, base);
+        // A tree delete (S3) is claimed only when every earlier operation of every
+        // listed entity is finished; its manifest of exact base versions is built
+        // now, from the acknowledged local versions, and frozen with the claim.
+        String? finalPayload;
+        if (existing == null &&
+            row['op_type'] == 'delete' &&
+            _localTreeIds(row['payload_json'] as String) != null) {
+          final ids = _localTreeIds(row['payload_json'] as String)!;
+          if (!_subtreeReady(row, ids)) {
+            continue;
+          }
+          finalPayload = _treeManifestJson(ids);
+        }
+        final wire = _wireOperation(row, base, payloadJson: finalPayload);
         if (jsonbTextBytes([...wires, wire]) > maxEnvelopeBytes) {
           break;
         }
-        _raw.execute(
-          "UPDATE sync_outbox SET state = 'in_flight', "
-          'base_version = COALESCE(base_version, ?), sent_at = ?, '
-          'attempts = attempts + 1, request_id = ? WHERE seq = ?',
-          [base, _iso(), _ids.nextId(), row['seq']],
-        );
+        if (finalPayload != null) {
+          _raw.execute(
+            "UPDATE sync_outbox SET state = 'in_flight', "
+            'base_version = COALESCE(base_version, ?), payload_json = ?, payload_bytes = ?, '
+            'sent_at = ?, attempts = attempts + 1, request_id = ? WHERE seq = ?',
+            [
+              base,
+              finalPayload,
+              utf8.encode(finalPayload).length,
+              _iso(),
+              _ids.nextId(),
+              row['seq'],
+            ],
+          );
+        } else {
+          _raw.execute(
+            "UPDATE sync_outbox SET state = 'in_flight', "
+            'base_version = COALESCE(base_version, ?), sent_at = ?, '
+            'attempts = attempts + 1, request_id = ? WHERE seq = ?',
+            [base, _iso(), _ids.nextId(), row['seq']],
+          );
+        }
         claimed.add(
           ClaimedOperation(
             seq: row['seq'] as int,
@@ -345,7 +455,11 @@ final class OutboxStore {
     );
   }
 
-  Map<String, Object?> _wireOperation(Map<String, Object?> row, int base) {
+  Map<String, Object?> _wireOperation(
+    Map<String, Object?> row,
+    int base, {
+    String? payloadJson,
+  }) {
     final wire = <String, Object?>{
       'operation_id': row['operation_id'],
       'entity_type': row['entity_type'],
@@ -353,8 +467,9 @@ final class OutboxStore {
       'op_type': row['op_type'],
       'base_version': base,
     };
-    if (row['op_type'] != 'delete') {
-      wire['patch'] = jsonDecode(row['payload_json'] as String);
+    final patch = jsonDecode(payloadJson ?? row['payload_json'] as String);
+    if (row['op_type'] != 'delete' || (patch is Map && patch.isNotEmpty)) {
+      wire['patch'] = patch;
     }
     wire['client_created_at'] = row['created_at_utc'];
     return wire;
@@ -625,10 +740,12 @@ final class OutboxStore {
   /// of the entity are archived, the entity is restored from the snapshot.
   void resolveConflictUseServer(String conflictId) {
     _transaction(() {
-      final conflict = _openConflict(conflictId);
+      final conflict = _conflictForAction(conflictId);
       final op = _opById(conflict['operation_id'] as String);
       _restoreFromServer(op, 'resolved_use_server');
-      _resolveMirror(conflictId, 'resolved_server', 'user_use_server');
+      if (conflict['status'] == 'open') {
+        _resolveMirror(conflictId, 'resolved_server', 'user_use_server');
+      }
       _handle(op);
     });
   }
@@ -638,10 +755,12 @@ final class OutboxStore {
   /// the new operation id, or null when local and server already agree.
   String? resolveConflictRetryLocal(String conflictId) {
     return _transaction(() {
-      final conflict = _openConflict(conflictId);
+      final conflict = _conflictForAction(conflictId);
       final op = _opById(conflict['operation_id'] as String);
       final id = _resubmit(op);
-      _resolveMirror(conflictId, 'resolved_local', 'user_retry_local');
+      if (conflict['status'] == 'open') {
+        _resolveMirror(conflictId, 'resolved_local', 'user_retry_local');
+      }
       return id;
     });
   }
@@ -666,13 +785,19 @@ final class OutboxStore {
     return rows.single;
   }
 
-  Map<String, Object?> _openConflict(String conflictId) {
-    final rows = _rows(
-      "SELECT * FROM sync_conflicts_local WHERE id = ? AND status = 'open'",
-      [conflictId],
-    );
+  /// A conflict whose local operation still needs a decision. The mirror may
+  /// already be resolved (another device resolved it on the server): the local
+  /// data still waits for the user.
+  Map<String, Object?> _conflictForAction(String conflictId) {
+    final rows = _rows('SELECT * FROM sync_conflicts_local WHERE id = ?', [
+      conflictId,
+    ]);
     if (rows.isEmpty) {
-      throw RepositoryException('no open conflict $conflictId');
+      throw RepositoryException('unknown conflict $conflictId');
+    }
+    final op = _opById(rows.single['operation_id'] as String);
+    if (op['handled_at_utc'] != null) {
+      throw RepositoryException('conflict $conflictId is already handled');
     }
     return rows.single;
   }
@@ -744,7 +869,22 @@ final class OutboxStore {
     }
     final observed = snapshot['version'] as int;
     if (opType == 'delete') {
-      _insertOp(entityType, entityId, 'delete', observed, null, null);
+      final tree = _treeIds(op['payload_json'] as String);
+      if (tree != null) {
+        final stillDeleted = [
+          for (final id in tree)
+            if (_rows(
+              'SELECT 1 FROM tasks WHERE id = ? AND deleted_at IS NOT NULL',
+              [id],
+            ).isNotEmpty)
+              id,
+        ];
+        _insertOp(entityType, entityId, 'delete', observed, {
+          'tree': stillDeleted,
+        }, null);
+      } else {
+        _insertOp(entityType, entityId, 'delete', observed, null, null);
+      }
       return _newestOperationId(entityType, entityId);
     }
     final patch = changedFields(entityType, local, snapshot);
@@ -775,11 +915,22 @@ final class OutboxStore {
     final sets = <String>[];
     for (final field in [...fields, 'deleted_at']) {
       sets.add('$field = ?');
-      var value = snapshot.containsKey(field) ? snapshot[field] : local[field];
-      if (field == 'notes') {
-        value = value ?? '';
+      values.add(
+        snapshot.containsKey(field)
+            ? serverColumnValue(field, snapshot)
+            : local[field],
+      );
+    }
+    // A tree delete that never reached the server: every listed entity is live
+    // there, so the local tombstones go away together with the root's.
+    final tree = _treeIds(op['payload_json'] as String);
+    if (tree != null && op['op_type'] == 'delete') {
+      for (final id in tree) {
+        _raw.execute(
+          'UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?',
+          [_iso(), id],
+        );
       }
-      values.add(value);
     }
     _raw.execute(
       'UPDATE ${_table(entityType)} SET ${sets.join(', ')}, version = ?, '
@@ -828,6 +979,123 @@ final class OutboxStore {
         ],
       );
       _raw.execute('DELETE FROM sync_outbox WHERE seq = ?', [row['seq']]);
+    }
+  }
+
+  // -------------------------------------------------- engine-facing actions
+
+  /// Rejected `blocked_by_conflict` operations whose entity has no open conflict
+  /// any more are resubmitted as new operations built from the current local state
+  /// (nothing is discarded). Returns how many new operations were created.
+  int resubmitBlocked() {
+    return _transaction(() {
+      var created = 0;
+      final blocked = _rows(
+        'SELECT o.operation_id FROM sync_outbox o '
+        "WHERE o.state = 'rejected' AND o.error_code = 'blocked_by_conflict' AND o.handled_at_utc IS NULL "
+        'AND NOT EXISTS (SELECT 1 FROM sync_conflicts_local c WHERE c.entity_type = o.entity_type '
+        "AND c.entity_id = o.entity_id AND c.status = 'open') "
+        'AND NOT EXISTS (SELECT 1 FROM sync_outbox x WHERE x.entity_type = o.entity_type '
+        "AND x.entity_id = o.entity_id AND x.state = 'conflict' AND x.handled_at_utc IS NULL) "
+        'ORDER BY o.seq',
+      );
+      for (final row in blocked) {
+        if (_resubmit(_opById(row['operation_id'] as String)) != null) {
+          created++;
+        }
+      }
+      return created;
+    });
+  }
+
+  /// Conflicts that need a decision: the local operation is unhandled.
+  List<Map<String, Object?>> conflictsNeedingAction() {
+    return _rows(
+      'SELECT c.* FROM sync_conflicts_local c JOIN sync_outbox o ON o.operation_id = c.operation_id '
+      "WHERE o.state = 'conflict' AND o.handled_at_utc IS NULL ORDER BY o.seq",
+    );
+  }
+
+  /// Rejected operations nobody has handled yet.
+  List<Map<String, Object?>> rejectedNeedingAction() {
+    return _rows(
+      "SELECT * FROM sync_outbox WHERE state = 'rejected' AND handled_at_utc IS NULL ORDER BY seq",
+    );
+  }
+
+  /// Completes a conflict locally after the **server** accepted a resolution
+  /// (`result` is the resolve RPC's applied result). Nothing is deleted: pending
+  /// work of the entity is archived only when the server state replaces it.
+  void applyServerResolution(String conflictId, Map<String, Object?> result) {
+    final resolution = result['resolution'];
+    final row = result['row'];
+    if (result['status'] != 'applied' || resolution is! String || row is! Map) {
+      throw const OutboxProtocolException('not an applied resolution result');
+    }
+    _transaction(() {
+      final conflict = _conflictForAction(conflictId);
+      final op = _opById(conflict['operation_id'] as String);
+      final entityType = op['entity_type'] as String;
+      final entityId = op['entity_id'] as String;
+      final serverRow = Map<String, Object?>.from(row);
+      switch (resolution) {
+        case 'resolved_server':
+          _snapshot(entityType, entityId, serverRow, 'ack');
+          _restoreFromServer(op, 'resolved_use_server');
+          _finishMirror(conflict, 'resolved_server', 'server_use_server');
+        case 'resolved_client':
+          _snapshot(entityType, entityId, serverRow, 'ack');
+          _raiseVersion(entityType, entityId, serverRow);
+          _finishMirror(conflict, 'resolved_local', 'server_keep_local');
+        case 'resolved_merged':
+          _snapshot(entityType, entityId, serverRow, 'ack');
+          final fields = entityType == 'project'
+              ? projectUpdatableFields
+              : taskUpdatableFields;
+          final sets = <String>[];
+          final values = <Object?>[];
+          for (final field in fields) {
+            sets.add('$field = ?');
+            values.add(serverColumnValue(field, serverRow));
+          }
+          _raw.execute(
+            'UPDATE ${_table(entityType)} SET ${sets.join(', ')}, version = MAX(version, ?) WHERE id = ?',
+            [...values, serverRow['version'], entityId],
+          );
+          _finishMirror(conflict, 'resolved_local', 'server_merged');
+        case 'recreate_copy':
+          // The original stays tombstoned (permanent); the copy arrives through
+          // the pull applier. Pending work on the original is archived.
+          _restoreFromServer(op, 'resolved_copy');
+          _finishMirror(conflict, 'resolved_local', 'server_copy');
+        default:
+          throw const OutboxProtocolException('unknown resolution');
+      }
+      _handle(op);
+    });
+  }
+
+  void _finishMirror(
+    Map<String, Object?> conflict,
+    String status,
+    String source,
+  ) {
+    if (conflict['status'] == 'open') {
+      _resolveMirror(conflict['id'] as String, status, source);
+    }
+  }
+
+  void _raiseVersion(
+    String entityType,
+    String entityId,
+    Map<String, Object?> serverRow,
+  ) {
+    final version = serverRow['version'];
+    if (version is int) {
+      _raw.execute(
+        'UPDATE ${_table(entityType)} SET version = MAX(version, ?) WHERE id = ?',
+        [version, entityId],
+      );
     }
   }
 

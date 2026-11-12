@@ -142,6 +142,77 @@ final class SqliteTaskRepository implements TaskRepository {
     );
   }
 
+  /// Deletes a task together with every live descendant in one transaction
+  /// (S3 atomic tree delete). Each entity is tombstoned locally; for a
+  /// synchronized task one delete operation lists the whole subtree, which the
+  /// server applies completely or not at all. At most 1,000 descendants.
+  Future<void> softDeleteTaskTree(String id) async {
+    _run(() => _transaction(() => _deleteTree('task', id)));
+  }
+
+  /// Deletes a project together with all its live tasks, like [softDeleteTaskTree].
+  Future<void> softDeleteProjectTree(String id) async {
+    _run(() => _transaction(() => _deleteTree('project', id)));
+  }
+
+  void _deleteTree(String entityType, String id) {
+    final table = entityType == 'project' ? 'projects' : 'tasks';
+    final rows = _db.raw.select('SELECT * FROM $table WHERE id = ?', [id]);
+    if (rows.isEmpty || rows.single['deleted_at'] != null) {
+      throw RepositoryException('no live $entityType $id to delete');
+    }
+    final root = rows.single;
+    final descendants = entityType == 'project'
+        ? _db.raw.select(
+            'SELECT id, sync_scope FROM tasks WHERE project_id = ? AND deleted_at IS NULL',
+            [id],
+          )
+        : _db.raw.select(
+            'WITH RECURSIVE d(id) AS ('
+            'SELECT id FROM tasks WHERE parent_id = ? AND deleted_at IS NULL '
+            'UNION ALL SELECT t.id FROM tasks t JOIN d ON t.parent_id = d.id WHERE t.deleted_at IS NULL) '
+            'SELECT t.id, t.sync_scope FROM tasks t JOIN d ON d.id = t.id',
+            [id],
+          );
+    if (descendants.length > 1000) {
+      throw RepositoryException(
+        '$entityType $id has more than 1000 live descendants; delete part of it first',
+      );
+    }
+    final now = _iso();
+    for (final row in descendants) {
+      _db.raw.execute(
+        'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?',
+        [now, now, row['id']],
+      );
+    }
+    _db.raw.execute(
+      'UPDATE $table SET deleted_at = ?, updated_at = ? WHERE id = ?',
+      [now, now, id],
+    );
+    if (root['sync_scope'] != 'synced') {
+      return;
+    }
+    final syncedIds = [
+      for (final row in descendants)
+        if (row['sync_scope'] == 'synced') row['id'] as String,
+    ];
+    if (syncedIds.isEmpty) {
+      _outbox.recordDelete(
+        entityType: entityType,
+        entityId: id,
+        storedVersion: root['version'] as int,
+      );
+    } else {
+      _outbox.recordDeleteTree(
+        entityType: entityType,
+        entityId: id,
+        storedVersion: root['version'] as int,
+        descendantIds: syncedIds,
+      );
+    }
+  }
+
   /// Writes the demo projects and tasks in one transaction, only into an empty
   /// database that was never seeded. Seeded rows are `local_only`: they add no
   /// outbox entries and never synchronize, and neither does anything created
