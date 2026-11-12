@@ -86,6 +86,14 @@ final class WorkspaceState {
         .length;
   }
 
+  /// Number of tasks in the current selection that match the search query,
+  /// including children hidden under collapsed parents.
+  int get resultCount {
+    return tasks.values
+        .where((task) => matchesFilter(task, selection, searchQuery, today))
+        .length;
+  }
+
   WorkspaceState copyWith({
     CalendarDate? today,
     List<Project>? projects,

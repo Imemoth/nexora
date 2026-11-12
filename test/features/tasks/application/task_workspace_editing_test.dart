@@ -448,5 +448,17 @@ void main() {
       expect(ws.state.countFor(const SmartViewSelection(SmartView.today)), 1);
       expect(ws.state.countFor(const SmartViewSelection(SmartView.all)), 5);
     });
+
+    test('result count includes hidden children and applies search', () async {
+      final h = await loadedHarness(tasks: sampleTasks());
+      final ws = h.workspace;
+
+      expect(ws.state.resultCount, 5);
+      ws.requestSearch('offers');
+      expect(ws.state.resultCount, 1);
+      ws.requestSearch('');
+      ws.requestSelectProject('p2');
+      expect(ws.state.resultCount, 1);
+    });
   });
 }
