@@ -4,11 +4,15 @@
 /// `PRAGMA user_version`. A migration that fails rolls back and leaves the file at
 /// its previous version. Never edit a migration that has shipped; add a new one.
 ///
-/// Canonical vocabularies (shared with the Supabase session; see the Phase 2A
-/// plan, section 2): task status `open, in_progress, review, done, archived`;
-/// task priority `none, low, medium, high`. The live Supabase check constraint
-/// does not yet accept `review`, `archived` or `none`. That correction is a
-/// separate, approved Supabase change and is not part of this file.
+/// Canonical vocabularies (shared with the Supabase schema; see
+/// docs/architecture/data-contract.md): task status
+/// `open, in_progress, review, done, archived`; task priority
+/// `none, low, medium, high`. The Supabase check constraints accept the same
+/// sets since the Phase 2B alignment (hosted migration 20261112120132).
+///
+/// Migration 1 is treated as shipped and is frozen: the golden test in
+/// test/features/tasks/data/migration_v1_golden_test.dart fails if its text or
+/// the schema it produces changes. S5 (outbox v2) adds migration 2 beside it.
 const List<List<String>> migrationStatements = [
   // Version 1: the initial local schema.
   [

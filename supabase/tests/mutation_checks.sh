@@ -25,6 +25,10 @@ muts=[
  ("transient errors recorded as rejections", "    else raise;   -- transient or unexpected: abort the whole call, record nothing", "    else v_err := 'invalid_patch';"),
  ("spoofable patch keys accepted", "if not (v_spec ? k) then raise exception 'invalid_patch' using errcode = 'NXO01'; end if;", "null;"),
  ("blocked_by_conflict ignored", "and c.entity_id = p_eid and c.status = 'open') then", "and c.entity_id = p_eid and c.status = 'open' and false) then"),
+ ("version_before always 0", "'version_before', coalesce(v_ver, 0)", "'version_before', 0"),
+ ("conflict detail object dropped", "  if v_cid is not null then\n    -- S5 local conflict mirror", "  if false then\n    -- S5 local conflict mirror"),
+ ("authenticated may execute sync_user directly", "grant usage on schema nexora_private to authenticated;", "grant execute on function nexora_private.sync_user() to authenticated;\ngrant usage on schema nexora_private to authenticated;"),
+ ("authenticated may create objects in nexora_private", "grant usage on schema nexora_private to authenticated;", "grant usage, create on schema nexora_private to authenticated;"),
  ("batch size limit removed", "if n > 100 then raise exception 'batch_too_large' using errcode = 'NX003'; end if;", "null;"),
 ]
 out=[]
@@ -46,7 +50,7 @@ for ((i=0;i<n;i++)); do
     if [[ "$f" == *_nexora_sync_push.sql ]]; then $PS -d "$db" -f /tmp/_mut_$i.sql >/dev/null 2>&1; else $PS -d "$db" -f "$f" >/dev/null 2>&1; fi
   done
   failed=""
-  for t in s2_auth_grants_test s2_device_test s2_apply_test s2_push_test; do
+  for t in s2_auth_grants_test s2_device_test s2_apply_test s2_push_test s2_contract_test s2_security_direct_test; do
     if psql -q -v ON_ERROR_STOP=1 -d "$db" -f tests/$t.sql >/dev/null 2>/tmp/_mut_err; then :; else failed="$failed $t"; fi
   done
   $PS -d postgres -c "drop database if exists $db" >/dev/null 2>&1

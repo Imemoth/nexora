@@ -213,12 +213,19 @@ begin
 
   -- final, immutable result (inserted once)
   if v_status = 'conflict' or v_auto then v_cid := gen_random_uuid(); end if;
-  v_result := jsonb_build_object('operation_id', p_opid, 'status', v_status, 'replayed', false);
+  v_result := jsonb_build_object('operation_id', p_opid, 'status', v_status, 'replayed', false,
+                                 'version_before', coalesce(v_ver, 0));   -- server version before this operation (0: new entity)
   if v_status = 'applied' then
     v_result := v_result || jsonb_build_object('applied_version', v_applied_version, 'row', v_row);
     if v_auto then v_result := v_result || jsonb_build_object('conflict_id', v_cid, 'auto_resolved', true); end if;
   else
     v_result := v_result || jsonb_build_object('conflict_id', v_cid, 'row', v_row);
+  end if;
+  if v_cid is not null then
+    -- S5 local conflict mirror: own-user data only (conflicts exist only on entities the caller owns)
+    v_result := v_result || jsonb_build_object('conflict', jsonb_build_object(
+      'kind', v_kind, 'fields', to_jsonb(v_fields), 'base_version', coalesce(v_base, 0), 'server_version', v_ver,
+      'server_value', v_sv, 'client_value', v_cv, 'status', case when v_auto then 'resolved_server' else 'open' end));
   end if;
   insert into public.sync_operations(user_id, operation_id, device_id, entity_type, entity_id, op_type, base_version, patch,
                                      request_hash, client_created_at, status, result, applied_version, server_seq)
