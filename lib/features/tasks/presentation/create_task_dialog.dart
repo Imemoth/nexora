@@ -9,13 +9,13 @@ import 'tasks_notifier.dart';
 
 /// Opens the create dialog. With [parentId] it creates a subtask under that
 /// task. Without it, it creates a root task in a project.
-Future<void> showCreateTaskDialog(
+Future<bool?> showCreateTaskDialog(
   BuildContext context,
   TasksNotifier notifier, {
   String? parentId,
   String? parentTitle,
 }) {
-  return showDialog<void>(
+  return showDialog<bool>(
     context: context,
     builder: (_) => CreateTaskDialog(
       notifier: notifier,
@@ -95,7 +95,8 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
       case Ok():
         final messenger = ScaffoldMessenger.maybeOf(context);
         final gateOpened = widget.notifier.state.pending != null;
-        Navigator.of(context).pop();
+        // true tells the caller a task was created, so focus can move to it.
+        Navigator.of(context).pop(true);
         if (!gateOpened) {
           messenger?.showSnackBar(
             const SnackBar(content: Text(AppStrings.taskCreated)),
