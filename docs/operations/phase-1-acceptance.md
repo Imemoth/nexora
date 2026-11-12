@@ -1,8 +1,8 @@
 # Phase 1 — Live Acceptance Package
 
-Status: **prepared for owner Live Acceptance. Not accepted.** Automated gates are green on the final code head. The manual checks in section 8 are the owner's to run and record. Nothing in this document claims that manual acceptance has passed.
+Status: **Phase 1 functionally accepted by the owner (2026-11-12). Integrated into `main` through PR #12 by merge commit.** Automated gates are green on the final code head `64d10cb`. The owner made the acceptance decision. The agent did not run the manual checks in section 8, and this document does not tick them.
 
-Scope: a fully offline, in-memory Windows desktop prototype with deterministic demo data. Phase 1 has **no durable storage**. Nothing is saved between runs, and no SQLite, Supabase, network or authentication code exists in the app.
+Scope: a fully offline, in-memory Windows desktop prototype with deterministic demo data. Phase 1 has **no durable storage**. Nothing is saved between runs, and no SQLite, Supabase, network or authentication code exists in the app. Persistence (SAVE-PERSIST-01) is explicitly out of Phase 1 scope and is completed in Phase 2A.
 
 ---
 
@@ -11,20 +11,20 @@ Scope: a fully offline, in-memory Windows desktop prototype with deterministic d
 | Item | Value |
 |---|---|
 | Repository | `Imemoth/nexora` |
-| Final code head (tested) | `682378e18c5047bb89c08d5ba26519e77acadfb0` on branch `feature/phase-1-acceptance` (PR #12) |
-| Final CI run (code head) | [43193981389](https://github.com/Imemoth/nexora/actions/runs/43193981389) — **success** |
-| This document's commit | a documentation-only commit on top of the code head. It changes no code. Its own CI run is recorded in PR #12. |
+| Final code head (tested) | `64d10cb25ed3e6c6180ec38b63b5191dd1da8b44` on branch `feature/phase-1-acceptance` (PR #12) |
+| Final CI run (code head) | [43198018450](https://github.com/Imemoth/nexora/actions/runs/43198018450) — **success** (every step, including format, analyze, 270 tests, release build, portable ZIP and smoke test) |
+| This document's commit | a documentation-only commit on top of `64d10cb`. It changes no code. Its own CI run is recorded in PR #12. |
 | Toolchain | Flutter 3.47.9 (stable), Dart 3.13.7, `windows-latest` GitHub Actions runner |
 
-The code head contains every Phase 1 task (2 through 8) and the fixes from the independent final review (section 9). Every stacked PR head in section 2 is a verified ancestor of it.
+The code head contains every Phase 1 task (2 through 8), the fixes from the independent final review (section 9), and the owner's two-stage Esc decision (`5ba668a`, with its red test `02ffe79`). Every stacked PR head in section 2 is a verified ancestor of it.
 
-Earlier verified heads are kept for traceability: `3be43876f5` (the first full green run, section 3) and the review-fix heads listed in section 2.
+Earlier verified heads are kept for traceability: `3be43876f5` (the first full green run, section 3), `682378e18c` (the previous code head, CI run 43193981389, before the Esc decision), and the review-fix heads listed in section 2.
 
 ---
 
 ## 2. Implementation PRs and dependency order
 
-Execution order is strictly linear. Each PR's base is the PR above it. None is merged into `main` by this work. All are Draft.
+Execution order was strictly linear during review. Each PR's base was the PR above it. All were Draft during review. On integration, PR #12 was retargeted to `main` and merged by merge commit (section 12), and PRs #5 to #11 were closed as superseded.
 
 | Order | PR | Task | Branch | Head at last CI | CI run | Base |
 |---|---|---|---|---|---|---|
@@ -36,18 +36,18 @@ Execution order is strictly linear. Each PR's base is the PR above it. None is m
 | 5 | [#9](https://github.com/Imemoth/nexora/pull/9) | Task 7: responsive overlay, palette, accessibility | `feature/phase-1-responsive-lead` | `14dae11` | 43193959909 | #8 |
 | 6 | [#10](https://github.com/Imemoth/nexora/pull/10) | Tasks 6+7 integration (keyboard merged in) | `feature/phase-1-integration` | `b591545` | 43193967641 | #9 |
 | 7 | [#11](https://github.com/Imemoth/nexora/pull/11) | Task 8: golden tests and baselines | `feature/phase-1-golden` | `ee4c284` | 43193975795 | #10 |
-| 8 | [#12](https://github.com/Imemoth/nexora/pull/12) | Task 9: acceptance package (this document) | `feature/phase-1-acceptance` | `682378e` (code) + docs commit | 43193981389 (code) | #11 |
+| 8 | [#12](https://github.com/Imemoth/nexora/pull/12) | Task 9: acceptance package and full Phase 1 integration (this document) | `feature/phase-1-acceptance` | `64d10cb` (code) + docs commit | 43198018450 (code) | `main` (retargeted from #11 at integration) |
 
 Notes on the stack:
 - Task 6 (keyboard) was developed on `feature/phase-1-keyboard` and merged into the integration branch. It has no separate PR, to avoid running CI twice on the same code.
-- PRs #5 to #11 are Drafts superseded by PR #12 for the final verification. Their heads are verified ancestors of `682378e`.
+- PRs #5 to #11 were Drafts superseded by PR #12. Their heads are verified ancestors of `64d10cb`. They are closed as superseded at integration, and their branches are kept.
 - PR #1 (`docs/phase-0-implementation-plan`, a Phase 0 documentation PR) is still open as a Draft. It is not part of Phase 1.
 
 ---
 
 ## 3. CI results
 
-All gates ran on `windows-latest` with the pinned toolchain. Results for the code head (run 43193981389):
+All gates ran on `windows-latest` with the pinned toolchain. Results for the final code head `64d10cb` (run 43198018450):
 
 | Gate | Result |
 |---|---|
@@ -55,18 +55,19 @@ All gates ran on `windows-latest` with the pinned toolchain. Results for the cod
 | Dependency resolution (`flutter pub get`) | pass |
 | Dart formatting (`dart format --set-exit-if-changed`) | pass |
 | Analyzer (`flutter analyze`) | pass — "No issues found!" |
-| Full real Flutter test suite (`flutter test`) | pass — **266 tests passed**, including architecture, domain, application, widget, keyboard, accessibility, responsive and golden tests |
+| Full real Flutter test suite (`flutter test`) | pass — **270 tests passed**, including architecture, domain, application, widget, keyboard, accessibility, responsive and golden tests |
 | Windows release build (`flutter build windows --release`) | pass |
 | Portable ZIP packaging (`tool/package_windows.ps1`) | pass — "PACKAGE PASS" |
-| Unicode and spaces path smoke test | pass — launched from `…\nexora smoke é测试 51490dbb`, closed cleanly, exit 0 |
+| Unicode and spaces path smoke test | pass — launched from `…\nexora smoke é测试 59561120`, closed cleanly, exit 0 |
 | Artifact upload | pass |
 
-An earlier full green run on `3be43876f5` (run 43188559503, 262 tests) passed the same gates before the independent final review. Its artifact is superseded by the one in section 6.
+The previous code head `682378e` (run 43193981389, 266 tests) passed the same gates before the owner's Esc decision. The Esc change adds tests and raises the count to 270. An earlier full green run on `3be43876f5` (run 43188559503, 262 tests) passed the same gates before the independent final review. Its artifact is superseded by the one in section 6.
 
 ### Repair history (for traceability)
 
 Each item below was fixed with a regression test or a lint correction. None is open.
 
+- Owner decision: two-stage Esc in the search field. Red test `02ffe79`, fix `5ba668a`. Intermediate CI runs on those commits were cancelled by the concurrency rule. The final heads `9e0bc0e` and `64d10cb` ran green.
 - Task 5: analyzer errors on `AppExitResponse`/`AppExitType` (defined in `dart:ui` at this Flutter version) — `10e532a`.
 - Task 5: 22 widget tests broken by an 88 px overflow in the editor action row — `aed8cfd`.
 - Task 5: text-finder ambiguity (indicator and dialog title both "Unsaved changes") — `3bff274`.
@@ -80,7 +81,8 @@ Each item below was fixed with a regression test or a lint correction. None is o
 
 | Source | Count | Status |
 |---|---|---|
-| Real `flutter test` on the code head (CI run 43193981389) | **266 passed, 0 failed** | official |
+| Real `flutter test` on the final code head `64d10cb` (CI run 43198018450) | **270 passed** (CI log: "270 tests passed.") | official |
+| Real `flutter test` on the previous code head `682378e` (CI run 43193981389) | 266 passed, 0 failed | superseded by the final head |
 | Real `flutter test` on the earlier full green run (CI run 43188559503, `3be4387`) | 262 passed, 0 failed | superseded, kept for history |
 
 Local checks used a stand-in for `flutter_test` that cannot run widget tests. Those local counts are not evidence and are not reported here. CI is the only official test run.
@@ -104,7 +106,7 @@ Local checks used a stand-in for `flutter_test` that cannot run widget tests. Th
 | `test/golden/goldens/empty_state.png` | Empty state ("No tasks here yet") at 1280×800 |
 
 - Generated on `windows-latest` with Flutter 3.47.9 by a temporary push-triggered workflow (run 43185260570, commit `d6ef667`). The workflow was removed in the commit that added the baselines.
-- The code head's golden test compares against these committed files and passed (section 3).
+- The final code head's golden test compares against these committed files and passed (section 3). The golden files are unchanged since `682378e`.
 - Demo data is fixed to the date the test runs for (`testToday`), so the output is deterministic. Test font rendering uses Flutter's built-in test font, which draws glyphs as blocks. **The goldens therefore prove layout, colour and structure, not the final typeface.** The real Windows font is a manual check (section 8).
 - The goldens were checked by eye after generation: the selected row is highlighted, and the empty state shows its message.
 
@@ -115,32 +117,33 @@ Local checks used a stand-in for `flutter_test` that cannot run widget tests. Th
 | Item | Value |
 |---|---|
 | Artifact name (GitHub) | `nexora-windows-portable` |
-| Artifact ID | `13931254888` |
-| Produced by | run [43193981389](https://github.com/Imemoth/nexora/actions/runs/43193981389), code head `682378e` |
-| Download (owner) | GitHub Actions run page → Artifacts → `nexora-windows-portable`. Or: `gh run download 43193981389 --repo Imemoth/nexora --name nexora-windows-portable` |
-| Outer artifact size | 12,005,007 bytes |
-| **Outer artifact SHA-256** (GitHub container; matches the API digest `sha256:f999775e…`) | `f999775e4b704ef68654ae9d3ede2da3b4979b648e703d312d0cd1fb30ab0a57` |
+| Artifact ID | `13934960271` |
+| Produced by | run [43198018450](https://github.com/Imemoth/nexora/actions/runs/43198018450), code head `64d10cb` |
+| Download (owner) | GitHub Actions run page → Artifacts → `nexora-windows-portable`. Or: `gh run download 43198018450 --repo Imemoth/nexora --name nexora-windows-portable` |
+| Outer artifact size | 12,005,259 bytes |
+| **Outer artifact SHA-256** (GitHub container; matches the API digest `sha256:7a890b89…`) | `7a890b89c027ddca0ef357ac1cce462f322a72429ebe833ef2a001d9300bf566` |
 | Inner application ZIP name | `nexora-windows-portable.zip` |
-| Inner application ZIP size | 12,011,853 bytes |
-| **Inner application ZIP SHA-256** | `8d00f26a90813bcc94e9a137f819d74d95933ced1f7fcf4015106b12a1334b24` |
+| Inner application ZIP size | 12,011,958 bytes |
+| **Inner application ZIP SHA-256** | `33df9eb553950b9f8b63dbd258b13888691ebe13803ac2ec9f0a9206e12daedc` |
 | Inner ZIP integrity | `unzip -t`: no errors detected |
 | Inner ZIP entries | 14 (listed below) |
+| Superseded artifact (code head `682378e`, run 43193981389) | ID `13931254888`; outer `f999775e4b704ef68654ae9d3ede2da3b4979b648e703d312d0cd1fb30ab0a57`; inner `8d00f26a90813bcc94e9a137f819d74d95933ced1f7fcf4015106b12a1334b24`. Kept for traceability only. |
 
 ### Verification steps (owner)
 
 ```bash
 # 1. Outer container (the GitHub artifact, as downloaded from the API)
-sha256sum nexora-windows-portable-outer.zip   # expect f999775e…0a57
+sha256sum nexora-windows-portable-outer.zip   # expect 7a890b89…f566
 
 # 2. Inner application ZIP
-sha256sum nexora-windows-portable.zip         # expect 8d00f26a…4b24
+sha256sum nexora-windows-portable.zip         # expect 33df9eb5…daed
 unzip -tq nexora-windows-portable.zip         # expect "No errors detected"
 unzip -Z1 nexora-windows-portable.zip | wc -l # expect 14
 ```
 
 PowerShell equivalent: `Get-FileHash -Algorithm SHA256 <file>`.
 
-Note: `gh run download` extracts the artifact, so the file it writes is the inner application ZIP, not the outer container. To hash the outer container, fetch it with `gh api repos/Imemoth/nexora/actions/artifacts/13931254888/zip`.
+Note: `gh run download` extracts the artifact, so the file it writes is the inner application ZIP, not the outer container. To hash the outer container, fetch it with `gh api repos/Imemoth/nexora/actions/artifacts/13934960271/zip`.
 
 ### Inner ZIP contents (14 entries)
 
@@ -165,7 +168,7 @@ Twelve file entries plus two directory entries (`data/flutter_assets/packages/` 
 
 - `OK: ZIP contains 14 entries including all required runtime files`
 - `OK: release bundle complete`
-- `SMOKE PASS: launched from 'C:\Users\runneradmin\AppData\Local\Temp\nexora smoke é测试 51490dbb', closed cleanly (exit 0)`
+- `SMOKE PASS: launched from 'C:\Users\runneradmin\AppData\Local\Temp\nexora smoke é测试 59561120', closed cleanly (exit 0)`
 - `PACKAGE PASS: D:\a\nexora\nexora\dist\nexora-windows-portable.zip`
 
 ---
@@ -236,6 +239,8 @@ Keys reach the shortcuts only when focus is inside the list or the editor. The s
 ---
 
 ## 8. Manual Live Acceptance checklist (owner)
+
+**Owner record.** The owner decided on 2026-11-12 that Phase 1 is functionally accepted. The checkboxes below are the owner's record. This document does not tick any item, because per-item results were not supplied to the agent. The owner should record which build the manual checks ran against: the previous head `682378e` (artifact `13931254888`) or the final head `64d10cb` (artifact `13934960271`, section 6). The Esc items L12 to L14 cover the final-head behaviour only if they were run on the final build.
 
 Run the artifact from section 6 on a Windows 10 x64 machine (or Windows 11). Record a pass or fail and a short note for each item. Use a path with spaces and a non-ASCII character to extract the ZIP, to match the automated smoke test.
 
@@ -362,7 +367,7 @@ An independent reviewer (a fresh agent that did not implement the code) audited 
 - **Document claims** were corrected in this version (section 11 lists what changed).
 
 ### Known limitations (by design in Phase 1)
-- **No persistence.** All data is in memory. Every restart returns to the demo data. Changes are lost on exit. (Phase 2 adds SQLite.)
+- **No persistence (SAVE-PERSIST-01).** All data is in memory. Every restart returns to the demo data, and changes are lost on exit. This is explicitly out of Phase 1 scope. It is completed in Phase 2A (local SQLite persistence, branch `feature/phase-2a-sqlite`). Owner decision: accepted as a Phase 1 limitation.
 - **No delete.** Tasks cannot be removed in Phase 1.
 - **No moves.** A task cannot be moved to another parent or project.
 - **No light theme.** Dark only (decision 7).
@@ -384,11 +389,11 @@ These differ from the wording of the specification or are design gaps the review
 
 ### Unresolved defects
 - None known that block acceptance. The deviations above are recorded for the owner to accept or change.
-- A second independent review of the final head is not performed. The review that was performed covered the code at `3be4387`; the fixes listed above were made after it and are covered by CI on the code head.
+- A second independent review of the final head is not performed. The review that was performed covered the code at `3be4387`. The fixes listed above were made after it and are covered by CI on the final head `64d10cb`. The owner's Esc decision (`5ba668a`) was made after the review, and it is covered by the same CI run.
 
 ### Open items outside Phase 1
-- PR #1 (Phase 0 documentation) remains open as a Draft. It is not part of Phase 1. The owner should close it or keep it.
-- The Draft PRs #5 to #11 are superseded by PR #12 for the final verification. The owner may close them after acceptance, or keep them as the record of stacked review.
+- PR #1 (Phase 0 documentation) remains open as a Draft. It is not part of Phase 1. It is left unchanged pending a separate owner decision.
+- PRs #5 to #11 are superseded by PR #12. They are closed as superseded at integration (section 12). Their branches are kept.
 
 ---
 
@@ -398,7 +403,7 @@ The owner does not need Flutter. CI builds and tests the app. To reproduce the f
 
 ```bash
 git fetch origin
-git checkout 682378e18c5047bb89c08d5ba26519e77acadfb0
+git checkout 64d10cb25ed3e6c6180ec38b63b5191dd1da8b44
 flutter pub get
 dart format --output=none --set-exit-if-changed .
 flutter analyze
@@ -415,15 +420,36 @@ No secrets, service-role keys, Supabase credentials or environment files are nee
 
 ## 11. Attestation boundaries and changes in this version
 
-- Automated gates are green on the final code head (section 3). That is the only verification claimed here.
-- Manual Live Acceptance has **not** been performed. Its pass or fail is the owner's decision, recorded in section 8.
-- **No Phase 1 PR has been merged into `main` by this work.** PR #4 (Task 1, the pure domain) was merged into `main` earlier, at `c1c1557`, by the owner. Everything after it is Draft.
+- Automated gates are green on the final code head `64d10cb` (section 3). That is the only verification claimed by the agent.
+- Owner decision (2026-11-12): Phase 1 is functionally accepted. The manual checks in section 8 were the owner's to run. The agent did not perform them.
+- Phase 1 is integrated into `main` through PR #12 by merge commit, as the owner authorized on 2026-11-12 (section 12). PR #4 (Task 1, the pure domain) was merged into `main` earlier, at `c1c1557`.
 - No production change, Supabase write, migration, deployment or Phase 2 work was made.
 
-Changes in this version, against the previous draft, after the independent review:
+Changes in this version (2026-11-12, owner acceptance and integration):
+- Status changed from "prepared, not accepted" to owner-accepted functional Phase 1.
+- Final code head `64d10cb`: CI run 43198018450, 270 tests, artifact `13934960271` with verified digests (sections 1, 3, 4 and 6).
+- SAVE-PERSIST-01 recorded as out of Phase 1 scope and completed in Phase 2A (scope line and section 9).
+- Section 12 added: the integration record.
+
+Earlier changes, against the previous draft, after the independent review:
 - The code head, PR heads, CI run, test count (266), artifact ID, checksums and smoke-test path were updated to the final run.
 - The statement that nothing had been merged into `main` was corrected (PR #4 is merged).
 - The demo-data description was corrected: the data is built from the launch date, not the build date.
 - The window-title expectation was corrected: the Windows title comes from the native runner, not from the in-app name.
 - The unverified local test count was removed. The contrast figure was corrected to 5.14:1.
 - The deviations found by the review were recorded in section 9, and the fixed defects were listed with their commits.
+
+---
+
+## 12. Integration record
+
+| Item | Value |
+|---|---|
+| Integration PR | [#12](https://github.com/Imemoth/nexora/pull/12), `feature/phase-1-acceptance` into `main` |
+| Merge method | Merge commit. No squash and no rebase, so the 74 Phase 1 commits keep their hashes. |
+| Final code head before integration | `64d10cb25ed3e6c6180ec38b63b5191dd1da8b44` (CI run 43198018450, success) |
+| Documentation commit | The commit that adds this section, on top of `64d10cb`. Its CI run is recorded in PR #12. |
+| Superseded PRs closed | #5 to #11, after their heads were confirmed as ancestors of the integration head |
+| Left unchanged | PR #1 (Phase 0 documentation). Branch `feature/phase-2a-sqlite` is not merged. |
+
+The merge commit hash and the final `main` HEAD are recorded in PR #12 and in the git history of `main`. This document is committed before the merge, so it cannot record them.
