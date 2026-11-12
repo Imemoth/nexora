@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
@@ -90,6 +91,25 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(FocusManager.instance.primaryFocus?.debugLabel, 'task-list');
+    });
+
+    testWidgets('keyboard navigation works after the overlay closes', (
+      tester,
+    ) async {
+      final harness = await loadedHarness(tasks: sampleTasks());
+      await _pump(tester, harness, width: 1000);
+      await _selectRow(tester, 'b');
+
+      await tester.tap(find.byTooltip(AppStrings.closeDetails));
+      await tester.pumpAndSettle();
+      expect(harness.workspace.state.selectedTaskId, isNull);
+
+      // With no selection, Down selects the first visible row. Before the fix
+      // focus sat on a wrapper outside the list keymap, so the key did nothing.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      expect(harness.workspace.state.selectedTaskId, isNotNull);
     });
 
     testWidgets(

@@ -219,6 +219,24 @@ void main() {
       expect(_inDialog(AppStrings.newTaskTitle), findsOneWidget);
     });
 
+    testWidgets('a successful create focuses the details title', (
+      tester,
+    ) async {
+      final harness = await _harness();
+      await _pump(tester, harness);
+
+      await _key(tester, LogicalKeyboardKey.keyN, control: true);
+      await tester.enterText(
+        find.byKey(const ValueKey('create-title')),
+        'Zeta',
+      );
+      await tester.tap(find.byKey(const ValueKey('create-submit')));
+      await tester.pumpAndSettle();
+
+      // Spec 5.5: after a create the details title takes focus.
+      expect(FocusManager.instance.primaryFocus?.debugLabel, 'details-title');
+    });
+
     testWidgets('Ctrl+Shift+N opens the subtask dialog for the selected task', (
       tester,
     ) async {

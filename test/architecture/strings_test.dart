@@ -9,6 +9,11 @@ const _literalPatterns = [
   "labelText: '",
   "tooltip: '",
   "title: '",
+  'Text("',
+  'hintText: "',
+  'labelText: "',
+  'tooltip: "',
+  'title: "',
 ];
 
 /// Directories that contain user-facing widget code.

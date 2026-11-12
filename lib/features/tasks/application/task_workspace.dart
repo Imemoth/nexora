@@ -230,6 +230,12 @@ final class TaskWorkspace {
 
   /// Returns the draft to the saved values. Never gated.
   void revertDraft() {
+    // Refused while a save or transition runs. Otherwise the draft would be reset
+    // to the old base while the save is in flight, and the rebase would keep the
+    // reset values against the saved base.
+    if (_saving || _transitioning) {
+      return;
+    }
     final draft = _state.draft;
     if (draft == null) {
       return;

@@ -7,7 +7,6 @@ import 'package:nexora/features/tasks/domain/task_completion_tree.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
 
-import 'create_task_dialog.dart';
 import 'due_date_field.dart';
 import 'keymap.dart';
 import 'keyboard_actions.dart';
@@ -135,7 +134,7 @@ class _TaskEditor extends StatelessWidget {
             TextButton(
               key: const ValueKey('add-subtask'),
               onPressed: canAddSubtask
-                  ? () => showCreateTaskDialog(
+                  ? () => openCreateTask(
                       context,
                       notifier,
                       parentId: draft.taskId,

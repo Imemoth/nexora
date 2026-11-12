@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:nexora/features/tasks/application/nav_selection.dart';
+import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/application/workspace_state.dart';
 
-import 'create_task_dialog.dart';
 import 'keymap.dart';
 import 'keyboard_actions.dart';
 import 'strings/app_strings.dart';
@@ -53,7 +53,7 @@ class TaskListPane extends StatelessWidget {
                 ),
                 FilledButton.icon(
                   key: const ValueKey('new-task'),
-                  onPressed: () => showCreateTaskDialog(context, notifier),
+                  onPressed: () => openCreateTask(context, notifier),
                   icon: const Icon(Icons.add),
                   label: const Text(AppStrings.newTaskAction),
                 ),
@@ -156,6 +156,10 @@ class _EmptyList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A failed load is reported as an error, not as an empty list.
+    if (state.error == WorkspaceError.loadFailed) {
+      return const Center(child: Text(AppStrings.errorLoadFailed));
+    }
     if (state.searchQuery.isNotEmpty) {
       return Center(
         child: Column(
