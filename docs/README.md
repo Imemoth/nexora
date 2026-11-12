@@ -36,6 +36,9 @@
 | `operations/s5-implementation-record.md` | implementation record | current evidence for S5 | what was built, evidence, deviations, open integration points |
 | `operations/s3-s4-implementation-record.md` | implementation record | current evidence for S3 and S4 | RPC privilege inventory, suites, decisions |
 | `operations/s6-implementation-record.md` | implementation record | current evidence for S6 and the two-device end-to-end suite | components, data-preservation rules, limitations |
+| `operations/hosted-deployment-checklist-s2-s4.md` | checklist (prepared, not executed) | current | exact migration order, rollback, Data API exposure, hosted HTTP/JWT acceptance, 8 s timeout measurement, activation and rollback |
+| `operations/rate-limit-and-log-retention-recommendations.md` | recommendations (O-3) | current | none implemented |
+| `operations/s9-direct-grants-removal-plan.md` | plan (not authorized) | current | removal of direct table-write grants (B-10) |
 | `operations/auth-dashboard-audit.md` | audit | open (D-U) | |
 | `operations/supabase-access.md` | operations note | current | |
 | `operations/supabase-sql-location.md` | operations note | current (where the SQL lives) | |

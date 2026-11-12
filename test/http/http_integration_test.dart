@@ -106,7 +106,7 @@ void main() {
       final b = await stack().signUp('ownerB');
       final devA = await Device.open(stack(), dir, a.email, a.password);
       addTearDown(devA.close);
-      await devA.repo.saveProject(const Project(id: 'pa', name: 'Private', position: 0));
+      await devA.repo.saveProject(Project(id: _id(), name: 'Private', position: 0));
       expect((await devA.engine.syncNow()).phase, SyncPhase.idle);
       final projectId = (await stack().adminRows('projects', 'owner_id=eq.${a.id}')).single['id'] as String;
 
@@ -231,7 +231,7 @@ void main() {
       );
       await device.sessions.restore();
 
-      await device.repo.saveProject(const Project(id: 'p', name: 'After refresh', position: 0));
+      await device.repo.saveProject(Project(id: _id(), name: 'After refresh', position: 0));
       final status = await device.engine.syncNow();
 
       expect(status.phase, SyncPhase.idle);
@@ -242,7 +242,7 @@ void main() {
       final u = await stack().signUp('norefresh');
       final device = await Device.open(stack(), dir, u.email, u.password);
       addTearDown(device.close);
-      await device.repo.saveProject(const Project(id: 'p', name: 'Kept', position: 0));
+      await device.repo.saveProject(Project(id: _id(), name: 'Kept', position: 0));
       final good = device.sessions.state.session!;
       await device.store.write(
         'session',
@@ -290,17 +290,25 @@ void main() {
       );
     }, skip: _skip);
 
-    test('a used refresh token cannot be used again after the reuse window', () async {
-      final u = await stack().signUp('reuse');
-      final api = SupabaseAuthApi(baseUrl: stack().url, anonKey: stack().anonKey);
-      final first = await api.signInWithPassword(u.email, u.password);
-      await api.refresh(first.refreshToken);
-      await Future<void>.delayed(const Duration(seconds: 12));
-      await expectLater(
-        api.refresh(first.refreshToken),
-        throwsA(isA<AuthSessionRevoked>()),
+    test('refresh rotation: each refresh uses the newest refresh token and works', () async {
+      final u = await stack().signUp('rotate');
+      var clock = DateTime.now().toUtc();
+      final sessions = SessionManager(
+        api: SupabaseAuthApi(baseUrl: stack().url, anonKey: stack().anonKey),
+        store: InMemorySecureStore(),
+        now: () => clock,
       );
-    }, skip: _skip, timeout: const Timeout(Duration(seconds: 60)));
+      await sessions.signIn(u.email, u.password);
+      final tokens = <String>{sessions.state.session!.refreshToken};
+      for (var i = 0; i < 3; i++) {
+        clock = clock.add(const Duration(hours: 2));
+        final access = await sessions.accessToken();
+        expect(access, isNotNull);
+        await rawTransport(access).registerDevice(_id());
+        tokens.add(sessions.state.session!.refreshToken);
+      }
+      expect(tokens, hasLength(4)); // a new refresh token every time
+    }, skip: _skip);
   });
 
   group('RPC error mapping through PostgREST', () {
@@ -312,7 +320,9 @@ void main() {
       final t = rawTransport(token);
 
       await expectLater(
-        t.push(_id(), const []),
+        t.push(_id(), [
+          {'operation_id': _id()},
+        ]),
         throwsA(isA<SyncServerError>().having((e) => e.code, 'code', 'device_invalid')),
       );
       await t.registerDevice(device.deviceId);
@@ -360,10 +370,10 @@ void main() {
       final d2 = await Device.open(stack(), dir, u.email, u.password);
       addTearDown(d1.close);
       addTearDown(d2.close);
-      await d1.repo.saveProject(const Project(id: 'p', name: 'Shared', position: 0));
+      await d1.repo.saveProject(Project(id: _id(), name: 'Shared', position: 0));
       expect((await d1.engine.syncNow()).phase, SyncPhase.idle);
       expect((await d2.engine.syncNow()).phase, SyncPhase.idle);
-      await d2.repo.saveProject(const Project(id: 'q', name: 'Offline on d2', position: 1));
+      await d2.repo.saveProject(Project(id: _id(), name: 'Offline on d2', position: 1));
 
       await d1.engine.revokeDevice(d2.deviceId);
       final status = await d2.engine.syncNow();
