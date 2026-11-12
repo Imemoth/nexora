@@ -29,9 +29,9 @@ creates a transport, so the shipped application makes no network call. No hosted
 ## 3. Evidence
 | Evidence | Result |
 |---|---|
-| Engine unit tests with the fake server (`test/features/sync/sync_engine_test.dart`) | see register evidence index |
+| Engine tests with the fake server (`test/features/sync/sync_engine_test.dart`), status bar widget tests (`test/app/sync_status_bar_test.dart`), full suite | Windows CI run 43306627424 on `b90840d`: format, analyze, 447 tests passed, restart check, release build, portable ZIP smoke test, all success |
 | Two-device end-to-end suite on PostgreSQL 17 with the real migrations, two real SQLite databases, the real S5 storage and the real engine (`test/e2e/two_device_sync_test.dart`, workflow `e2e-sync`) | 15 scenarios passed (run 43299291266 on `0c1f84e`); scenario list in section 4 |
-| Windows CI (format, analyze, full tests, restart check, release build) | see register evidence index |
+| Windows CI of the exact final head | recorded in the final acceptance report (documentation commits after `b90840d` do not change code) |
 
 ## 4. End-to-end scenarios (all against the real S1-S4 migrations)
 1 Device A creates a project and tasks, device B receives them. 2 Independent offline edits of different fields reconcile. 3 Same-field edits: conflict evidence stays on the server and locally; server, local and merged resolutions converge; both original values survive resolution. 3b Edit of a deleted task is recreated as a copy while the tombstone stays. 4 Response lost after the server commit: the retry is idempotent (one operation, version 1). 5 Process crash after the push response: restart recovers the in-flight operation. 6 Tree delete is atomic and orphans nothing; 6b a child added elsewhere turns the delete into a conflict and nothing is deleted. 7 Revoked device cannot continue, keeps its edit. 8 Local-only, demo and legacy (unclassified) rows never reach the server. 9 Authentication failures (deleted user, anonymous, expired token) never delete pending work; the same work goes through after sign-in. 10 A server-side rejection is recorded, the client change is preserved and flagged. 11 Pagination over 230 tasks with a page limit of 100. 12 Unknown cursor is reset. 13 Two devices synchronizing at the same time converge.
