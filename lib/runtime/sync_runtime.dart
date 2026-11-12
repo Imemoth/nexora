@@ -191,6 +191,7 @@ final class SyncRuntime {
   Future<SignInOutcome> signIn(String email, String password) async {
     try {
       await sessions.signIn(email, password);
+      await _activate();
       if (autoSyncOnSignIn) {
         unawaited(syncNow().then<void>((_) {}, onError: (Object _) {}));
       }
@@ -210,7 +211,10 @@ final class SyncRuntime {
     }
   }
 
-  Future<void> signOut() => sessions.signOut();
+  Future<void> signOut() async {
+    await sessions.signOut();
+    await _activate();
+  }
 
   /// The manual "Sync now" action. Does nothing (and sends nothing) without an
   /// engine, that is without a signed-in, configured account.
@@ -227,7 +231,9 @@ final class SyncRuntime {
     } else {
       await _runCycle(current);
     }
-    return _lastStatus;
+    // The engine's own status is the truth; the broadcast stream delivers later.
+    _lastStatus = engine.status;
+    return engine.status;
   }
 
   // ---------------------------------------------------------- activation
