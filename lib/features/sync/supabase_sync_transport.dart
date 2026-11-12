@@ -184,6 +184,11 @@ final class SupabaseSyncTransport implements SyncTransport {
     if (sqlstate == '42501' && message == 'anonymous_not_allowed') {
       return const SyncAuthFailure('anonymous_not_allowed', anonymous: true);
     }
+    if (sqlstate == 'NX007' || message == 'rate_limited') {
+      // Throttled by the server: retry later with backoff, never a failure of
+      // the operations themselves.
+      return const SyncNetworkFailure('rate_limited');
+    }
     if (status >= 500 || status == 429 || status == 408) {
       return SyncNetworkFailure('http_$status');
     }
