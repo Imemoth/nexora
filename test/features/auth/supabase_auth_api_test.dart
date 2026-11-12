@@ -85,75 +85,100 @@ void main() {
     expect(session.isAnonymous, isTrue);
   });
 
-  test('wrong credentials, unconfirmed email and throttling are told apart', () async {
-    server
-      ..status = 400
-      ..reply = {'code': 400, 'error_code': 'invalid_credentials', 'msg': 'Invalid login credentials'};
-    await expectLater(
-      api.signInWithPassword('a', 'b'),
-      throwsA(isA<AuthInvalidCredentials>()),
-    );
-    server.reply = {'code': 400, 'error_code': 'email_not_confirmed', 'msg': 'Email not confirmed'};
-    await expectLater(
-      api.signInWithPassword('a', 'b'),
-      throwsA(isA<AuthUnconfirmed>()),
-    );
-    server
-      ..status = 429
-      ..reply = {'code': 429, 'error_code': 'over_request_rate_limit'};
-    await expectLater(
-      api.signInWithPassword('a', 'b'),
-      throwsA(isA<AuthRateLimited>()),
-    );
-    server
-      ..status = 503
-      ..reply = null;
-    await expectLater(
-      api.signInWithPassword('a', 'b'),
-      throwsA(isA<AuthNetworkFailure>()),
-    );
-  });
+  test(
+    'wrong credentials, unconfirmed email and throttling are told apart',
+    () async {
+      server
+        ..status = 400
+        ..reply = {
+          'code': 400,
+          'error_code': 'invalid_credentials',
+          'msg': 'Invalid login credentials',
+        };
+      await expectLater(
+        api.signInWithPassword('a', 'b'),
+        throwsA(isA<AuthInvalidCredentials>()),
+      );
+      server.reply = {
+        'code': 400,
+        'error_code': 'email_not_confirmed',
+        'msg': 'Email not confirmed',
+      };
+      await expectLater(
+        api.signInWithPassword('a', 'b'),
+        throwsA(isA<AuthUnconfirmed>()),
+      );
+      server
+        ..status = 429
+        ..reply = {'code': 429, 'error_code': 'over_request_rate_limit'};
+      await expectLater(
+        api.signInWithPassword('a', 'b'),
+        throwsA(isA<AuthRateLimited>()),
+      );
+      server
+        ..status = 503
+        ..reply = null;
+      await expectLater(
+        api.signInWithPassword('a', 'b'),
+        throwsA(isA<AuthNetworkFailure>()),
+      );
+    },
+  );
 
-  test('refresh posts the refresh grant; a refused token means revoked', () async {
-    server.reply = _session(userA);
-    await api.refresh('old-refresh');
-    final r = server.requests.single;
-    expect(r.path, '/auth/v1/token?grant_type=refresh_token');
-    expect(r.body, {'refresh_token': 'old-refresh'});
+  test(
+    'refresh posts the refresh grant; a refused token means revoked',
+    () async {
+      server.reply = _session(userA);
+      await api.refresh('old-refresh');
+      final r = server.requests.single;
+      expect(r.path, '/auth/v1/token?grant_type=refresh_token');
+      expect(r.body, {'refresh_token': 'old-refresh'});
 
-    server
-      ..status = 400
-      ..reply = {'code': 400, 'error_code': 'refresh_token_not_found', 'msg': 'Invalid Refresh Token'};
-    await expectLater(
-      api.refresh('old-refresh'),
-      throwsA(isA<AuthSessionRevoked>()),
-    );
-    server
-      ..status = 403
-      ..reply = {'code': 403, 'error_code': 'user_not_found', 'msg': 'User from sub claim in JWT does not exist'};
-    await expectLater(
-      api.refresh('old-refresh'),
-      throwsA(isA<AuthSessionRevoked>()),
-    );
-    server
-      ..status = 500
-      ..reply = null;
-    await expectLater(
-      api.refresh('old-refresh'),
-      throwsA(isA<AuthNetworkFailure>()),
-    );
-  });
+      server
+        ..status = 400
+        ..reply = {
+          'code': 400,
+          'error_code': 'refresh_token_not_found',
+          'msg': 'Invalid Refresh Token',
+        };
+      await expectLater(
+        api.refresh('old-refresh'),
+        throwsA(isA<AuthSessionRevoked>()),
+      );
+      server
+        ..status = 403
+        ..reply = {
+          'code': 403,
+          'error_code': 'user_not_found',
+          'msg': 'User from sub claim in JWT does not exist',
+        };
+      await expectLater(
+        api.refresh('old-refresh'),
+        throwsA(isA<AuthSessionRevoked>()),
+      );
+      server
+        ..status = 500
+        ..reply = null;
+      await expectLater(
+        api.refresh('old-refresh'),
+        throwsA(isA<AuthNetworkFailure>()),
+      );
+    },
+  );
 
-  test('sign-out sends the bearer token and tolerates an already ended session', () async {
-    server
-      ..status = 204
-      ..reply = null;
-    await api.signOut('access');
-    expect(server.requests.single.path, '/auth/v1/logout?scope=local');
-    expect(server.requests.single.headers['authorization'], 'Bearer access');
-    server.status = 401;
-    await api.signOut('access');
-  });
+  test(
+    'sign-out sends the bearer token and tolerates an already ended session',
+    () async {
+      server
+        ..status = 204
+        ..reply = null;
+      await api.signOut('access');
+      expect(server.requests.single.path, '/auth/v1/logout?scope=local');
+      expect(server.requests.single.headers['authorization'], 'Bearer access');
+      server.status = 401;
+      await api.signOut('access');
+    },
+  );
 
   test('an unreachable service is a network failure', () async {
     await server.http.close(force: true);
