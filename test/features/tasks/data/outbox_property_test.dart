@@ -210,7 +210,7 @@ Future<void> _scenario(int seed, Directory dir) async {
         return;
       }
       expect(
-        db
+        db.raw
             .select(
               "SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'in_flight'",
             )
@@ -264,7 +264,7 @@ Future<void> _scenario(int seed, Directory dir) async {
     }
 
     Map<String, Object?> local() {
-      final row = db
+      final row = db.raw
           .select("SELECT name, sort_order FROM projects WHERE id = 'p1'")
           .single;
       return {'name': row['name'], 'sort_order': row['sort_order']};
@@ -299,7 +299,7 @@ Future<void> _scenario(int seed, Directory dir) async {
 
     expect(server.violations, isEmpty, reason: 'seed $seed');
     expect(
-      db
+      db.raw
           .select(
             "SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'in_flight'",
           )
