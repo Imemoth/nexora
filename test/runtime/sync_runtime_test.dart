@@ -53,10 +53,7 @@ void main() {
       transportFactory: (c, token) {
         factoryCalls++;
         final user = sessionsUser(sessions);
-        return TokenGate(
-          servers.putIfAbsent(user, FakeSyncServer.new),
-          token,
-        );
+        return TokenGate(servers.putIfAbsent(user, FakeSyncServer.new), token);
       },
     );
   }
