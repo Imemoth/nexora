@@ -27,10 +27,13 @@ jobs:
 
       - name: Verify versions
         shell: bash
+        # No pipes into head: a pipe closed early makes the Flutter tool retry its
+        # own pub upgrade forever (the stall seen in run 43179596429).
         run: |
           set -euo pipefail
-          flutter --version | head -n 1
-          dart --version 2>&1 | head -n 1
+          flutter --version > flutter-version.txt 2>&1
+          dart --version > dart-version.txt 2>&1
+          cat flutter-version.txt dart-version.txt
 
       - name: Resolve dependencies
         run: flutter pub get
