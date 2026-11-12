@@ -22,6 +22,10 @@ final class InMemoryTaskRepository implements TaskRepository {
   /// When true, the next save throws once and stores nothing.
   bool failNextSave = false;
 
+  /// Runs inside [saveTask] before the write. Lets tests simulate a user
+  /// edit arriving while a save is in flight.
+  void Function()? beforeSave;
+
   /// Every successful save, in order.
   List<Task> get savedTasks => List<Task>.unmodifiable(_savedTasks);
 
@@ -43,6 +47,7 @@ final class InMemoryTaskRepository implements TaskRepository {
       failNextSave = false;
       throw const RepositoryException('simulated save failure');
     }
+    beforeSave?.call();
     _tasks[task.id] = task;
     _savedTasks.add(task);
   }

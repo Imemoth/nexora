@@ -61,6 +61,23 @@ final class EditDraft {
     );
   }
 
+  /// Rebases this draft after a successful save of [snapshot], the draft as it
+  /// was when the save started. A field the user changed after the snapshot
+  /// keeps the edited value; every other field takes the saved value.
+  EditDraft rebaseAfterSave({
+    required EditDraft snapshot,
+    required Task savedTask,
+  }) {
+    return EditDraft(
+      base: savedTask,
+      title: title == snapshot.title ? savedTask.title : title,
+      status: status == snapshot.status ? savedTask.status : status,
+      priority: priority == snapshot.priority ? savedTask.priority : priority,
+      dueDate: dueDate == snapshot.dueDate ? savedTask.dueDate : dueDate,
+      notes: notes == snapshot.notes ? savedTask.notes : notes,
+    );
+  }
+
   /// The task as it would be stored, using the draft's fields as written.
   Task toTask() {
     return base.copyWith(
