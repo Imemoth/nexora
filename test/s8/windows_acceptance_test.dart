@@ -19,6 +19,7 @@ import 'package:nexora/runtime/sync_runtime.dart';
 import '../support/fake_auth.dart';
 import '../support/fake_sync_server.dart';
 import '../support/task_fixtures.dart';
+import '../support/token_gate_transport.dart';
 import '../support/v1_database.dart';
 
 /// S8: acceptance scenarios at application level, with real SQLite files, the real
@@ -88,7 +89,10 @@ void main() {
       hook: hook,
       transportFactory: (c, token) {
         final user = sessions.userId ?? 'none';
-        final server = servers.putIfAbsent(user, FakeSyncServer.new);
+        final server = TokenGate(
+          servers.putIfAbsent(user, FakeSyncServer.new),
+          token,
+        );
         return wrap == null ? server : wrap(server);
       },
     );

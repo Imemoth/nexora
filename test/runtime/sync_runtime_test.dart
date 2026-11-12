@@ -18,6 +18,7 @@ import 'package:nexora/runtime/sync_runtime.dart';
 import '../support/fake_auth.dart';
 import '../support/fake_sync_server.dart';
 import '../support/task_fixtures.dart';
+import '../support/token_gate_transport.dart';
 
 final class _FixedClock implements Clock {
   @override
@@ -52,7 +53,10 @@ void main() {
       transportFactory: (c, token) {
         factoryCalls++;
         final user = sessionsUser(sessions);
-        return servers.putIfAbsent(user, FakeSyncServer.new);
+        return TokenGate(
+          servers.putIfAbsent(user, FakeSyncServer.new),
+          token,
+        );
       },
     );
   }
