@@ -169,21 +169,39 @@ void main() {
     }, skip: _skip);
 
     test(
-      'S9 probe: direct writes by the owner (recorded, still granted until S9)',
+      'S9: direct table writes by the owner are refused; the RPC path still works',
       () async {
         final a = await stack().signUp('direct');
         final token = await tokenFor(a.email, a.password);
+        final id = _id();
         final r = await stack().request(
           'POST',
           '/rest/v1/projects',
           token: token,
-          body: {'id': _id(), 'owner_id': a.id, 'name': 'direct write'},
+          body: {'id': id, 'owner_id': a.id, 'name': 'direct write'},
         );
-        // ignore: avoid_print
-        print(
-          'S9 PROBE direct INSERT into projects as the owner: HTTP ${r.status}',
+        expect(r.status, anyOf(401, 403), reason: 'INSERT must be denied');
+        final u = await stack().request(
+          'PATCH',
+          '/rest/v1/projects?id=eq.$id',
+          token: token,
+          body: {'name': 'x'},
         );
-        expect(r.status, isNotNull);
+        expect(u.status, anyOf(401, 403), reason: 'UPDATE must be denied');
+        final d = await stack().request(
+          'DELETE',
+          '/rest/v1/projects?id=eq.$id',
+          token: token,
+        );
+        expect(d.status, anyOf(401, 403), reason: 'DELETE must be denied');
+        expect(await stack().adminRows('projects', 'id=eq.$id'), isEmpty);
+        // reads stay allowed
+        final read = await stack().request(
+          'GET',
+          '/rest/v1/projects?select=id',
+          token: token,
+        );
+        expect(read.status, 200);
       },
       skip: _skip,
     );
