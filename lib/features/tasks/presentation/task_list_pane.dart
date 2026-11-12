@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexora/features/tasks/application/nav_selection.dart';
 import 'package:nexora/features/tasks/application/workspace_state.dart';
 
+import 'create_task_dialog.dart';
 import 'strings/app_strings.dart';
 import 'sort_menu.dart';
 import 'task_row.dart';
@@ -24,19 +25,32 @@ class TaskListPane extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                _titleFor(state),
-                key: const ValueKey('list-title'),
-                style: textTheme.headlineSmall,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _titleFor(state),
+                      key: const ValueKey('list-title'),
+                      style: textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      AppStrings.taskCount(state.resultCount),
+                      key: const ValueKey('list-count'),
+                      style: textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                AppStrings.taskCount(state.resultCount),
-                key: const ValueKey('list-count'),
-                style: textTheme.bodyMedium,
+              FilledButton.icon(
+                key: const ValueKey('new-task'),
+                onPressed: () => showCreateTaskDialog(context, notifier),
+                icon: const Icon(Icons.add),
+                label: const Text(AppStrings.newTaskAction),
               ),
             ],
           ),

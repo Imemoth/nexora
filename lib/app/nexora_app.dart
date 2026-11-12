@@ -8,9 +8,12 @@ import 'app_shell.dart';
 /// Application root: dark theme, the task workspace scope and the shell.
 /// No network, no persistence and no configuration.
 class NexoraApp extends StatelessWidget {
-  const NexoraApp({super.key, required this.notifier});
+  const NexoraApp({super.key, required this.notifier, this.onExitApp});
 
   final TasksNotifier notifier;
+
+  /// Test seam for the exit action. Production uses the platform exit.
+  final void Function()? onExitApp;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +25,7 @@ class NexoraApp extends StatelessWidget {
         themeMode: ThemeMode.dark,
         theme: ThemeData(brightness: Brightness.light, useMaterial3: true),
         darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: true),
-        home: const AppShell(),
+        home: AppShell(onExitApp: onExitApp),
       ),
     );
   }

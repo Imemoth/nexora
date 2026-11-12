@@ -1,3 +1,4 @@
+import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task_ordering.dart';
@@ -26,6 +27,48 @@ abstract final class AppStrings {
   static const fieldNotes = 'Notes';
   static const noDueDate = 'No due date';
   static const noNotes = 'No notes';
+  static const fieldTitle = 'Title';
+  static const fieldProject = 'Project';
+  static const fieldParent = 'Parent';
+  static const unsavedIndicator = 'Unsaved changes';
+  static const saveAction = 'Save';
+  static const revertAction = 'Revert';
+  static const addSubtaskAction = 'Add subtask';
+  static const clearDueDate = 'Clear due date';
+  static const pickDueDate = 'Pick date';
+  static const newTaskAction = 'New task';
+  static const createAction = 'Create';
+  static const cancelAction = 'Cancel';
+  static const discardAction = 'Discard';
+  static const newTaskTitle = 'New task';
+  static const newSubtaskTitle = 'New subtask';
+  static const taskCreated = 'Task created';
+  static const unsavedChangesTitle = 'Unsaved changes';
+  static const unsavedChangesBody =
+      'Save or discard your changes, or cancel to keep editing.';
+  static const titleRequired = 'Enter a title.';
+  static const titleTooLong = 'Use 200 characters or fewer.';
+  static const errorUnknownProject = 'That project no longer exists.';
+  static const errorUnknownParent = 'That task no longer exists.';
+  static const errorParentArchived = 'An archived task cannot get subtasks.';
+  static const errorSaveFailed = 'Could not save. Your changes are kept.';
+  static const errorLoadFailed = 'Could not load tasks.';
+  static const errorGatePending = 'Save, discard or cancel your changes first.';
+  static const desktopOnlyNotice =
+      'Nexora needs a window at least 900 px wide.';
+
+  static String errorMessage(WorkspaceError error) {
+    return switch (error) {
+      WorkspaceError.titleRequired => titleRequired,
+      WorkspaceError.titleTooLong => titleTooLong,
+      WorkspaceError.unknownProject => errorUnknownProject,
+      WorkspaceError.unknownParent => errorUnknownParent,
+      WorkspaceError.parentArchived => errorParentArchived,
+      WorkspaceError.saveFailed => errorSaveFailed,
+      WorkspaceError.loadFailed => errorLoadFailed,
+      WorkspaceError.unsavedChangesPending => errorGatePending,
+    };
+  }
 
   static String smartViewLabel(SmartView view) {
     return switch (view) {
