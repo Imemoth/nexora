@@ -34,17 +34,21 @@ jobs:
         run: |
           v=$(psql -d postgres -tAc "select current_setting('server_version_num')::int")
           echo "server_version_num=$v"; test "$v" -ge 170000 -a "$v" -lt 180000
-      - name: Migrations plus rollback suites (Phase 2B regression and S1)
+      - name: Migrations, legacy suites before S9, S9, then every current suite (throttle, response bound, S9 direct writes)
         run: supabase/tests/run_local.sh nx_ci
       - name: Standalone guard_row fix is isolated and composes with S1
         run: supabase/tests/verify_minimal_fix.sh nx_fix
-      - name: Multi-session lock discipline with negative control
+      - name: Multi-session lock discipline with negative control (pre-S9 databases, direct writes)
         run: supabase/tests/concurrency/lock_discipline.sh nx_ci
       - name: S2 multi-session duplicate push with negative control
         run: supabase/tests/concurrency/s2_duplicate_push.sh nx_ci
-      - name: S2 mutation checks (every deliberate break must be caught)
+      - name: Mutation checks (S2-S4, throttle, response bound, S9; every deliberate break must be caught)
         run: supabase/tests/mutation_checks.sh nx_mut
       - name: S3/S4 multi-session tests (pull never skips, concurrent resolutions, revoke vs push)
         run: supabase/tests/concurrency/s3_s4_concurrency.sh nx_ci
-      - name: S3 and S4 rollbacks restore the catalog exactly
+      - name: Throttle concurrency (exactly the limit succeeds, refusals leave the counter exact)
+        run: supabase/tests/concurrency/s10_throttle_concurrency.sh nx_ci
+      - name: S3, S4, throttle, response-bound and S9 rollbacks restore the catalog exactly
         run: supabase/tests/verify_rollbacks.sh nx_rb
+      - name: Limit measurements (100-op push, 500-row pull, resolve, 1000-descendant tree delete, largest response)
+        run: supabase/tests/measure_limits.sh nx_meas

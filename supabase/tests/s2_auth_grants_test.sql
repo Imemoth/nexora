@@ -94,7 +94,8 @@ begin
           -- S4
           ('nexora_sync_pull(uuid,bigint,integer)','postgres'),('nexora_sync_pull(uuid,bigint,integer)','authenticated'),
           ('nexora_private.pull(uuid,bigint,integer)','postgres'),('nexora_private.pull(uuid,bigint,integer)','authenticated'),
-          ('nexora_private.guard_conflict_seq()','postgres')) v(fn, g))));
+          ('nexora_private.guard_conflict_seq()','postgres'),
+          ('nexora_private.throttle(uuid,text,integer)','postgres')) v(fn, g))));
   perform pg_temp.assert('every_expected_execute_grant_exists',
     (select count(*) from pg_proc p, lateral aclexplode(p.proacl) a2
       where p.pronamespace in ('public'::regnamespace,'nexora_private'::regnamespace) and a2.privilege_type='EXECUTE'
@@ -109,10 +110,18 @@ begin
   perform pg_temp.assert('public_function_set_is_exactly_the_reviewed_seven',
     (select array_agg(proname::text order by proname) from pg_proc where pronamespace='public'::regnamespace)
       = array['nexora_register_device','nexora_resolve_conflict','nexora_revoke_device','nexora_set_updated_at','nexora_sync_pull','nexora_sync_push','rls_auto_enable']);
-  perform pg_temp.assert('direct_table_grants_unchanged_by_s2_s3_s4',
+  -- S9 final state: no client write privilege on the synchronized tables (the pre-S9 state is asserted by s2_pre_s9_grants_test.sql)
+  perform pg_temp.assert('direct_table_grants_after_s9',
     (select string_agg(table_name || ':' || privilege_type, ',' order by table_name, privilege_type)
        from information_schema.role_table_grants where table_schema='public' and grantee='authenticated')
-    = 'devices:SELECT,profiles:INSERT,profiles:SELECT,profiles:UPDATE,projects:INSERT,projects:SELECT,projects:UPDATE,sync_conflicts:SELECT,sync_operations:SELECT,tasks:INSERT,tasks:SELECT,tasks:UPDATE');
+    = 'devices:SELECT,profiles:INSERT,profiles:SELECT,profiles:UPDATE,projects:SELECT,sync_conflicts:SELECT,sync_operations:SELECT,tasks:SELECT');
+  perform pg_temp.assert('no_client_write_privilege_on_synchronized_tables',
+    not exists (select 1 from information_schema.role_table_grants
+                 where table_schema='public' and table_name in ('projects','tasks','project_members')
+                   and grantee in ('authenticated','anon','PUBLIC') and privilege_type <> 'SELECT'));
+  perform pg_temp.assert('rate_limit_tables_have_no_client_privileges',
+    not exists (select 1 from information_schema.role_table_grants where table_schema='nexora_private' and grantee in ('authenticated','anon','PUBLIC','service_role'))
+    and (select count(*) from pg_class where relnamespace='nexora_private'::regnamespace and relkind='r' and not relrowsecurity) = 0);
   perform pg_temp.assert('anon_has_no_table_grants',
     not exists (select 1 from information_schema.role_table_grants where table_schema='public' and grantee='anon'));
   perform pg_temp.assert('rls_still_enabled_everywhere',

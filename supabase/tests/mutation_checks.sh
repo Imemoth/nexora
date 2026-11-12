@@ -10,7 +10,7 @@ python3 - <<'PY'
 import re,json
 import glob
 def read(key): return open(glob.glob(f'migrations/*_nexora_{key}.sql')[0]).read()
-srcs={k: read(k) for k in ('sync_push','sync_resolve_revoke','sync_pull')}
+srcs={k: read(k) for k in ('sync_push','sync_resolve_revoke','sync_pull','sync_throttle','sync_response_bound','s9_revoke_direct_writes')}
 muts=[
  ("anonymous identities accepted", "'is_anonymous', 'false')) = 'true'", "'is_anonymous', 'false')) = 'never'"),
  ("update ignores the owner filter", "where t.id = $1 and t.owner_id = $2 for update", "where t.id = $1 and $2 is not null for update"),
@@ -50,14 +50,30 @@ muts=[
  ("conflicts are not stamped into the change stream", "new.change_seq := nextval('nexora_private.change_seq');", "new.change_seq := 0;", "sync_pull"),
  ("pull skips the limit", "(s.rn <= v_limit and", "(true and", "sync_pull"),
  ("batch size limit removed", "if n > 100 then raise exception 'batch_too_large' using errcode = 'NX003'; end if;", "null;"),
+ # ---- S10 throttle, response bound; S9 direct-write revocation
+ ("throttle never refuses", "if v_calls > v_lim or (p_kind = 'write' and v_ops > v_pol.write_ops_per_minute) then", "if false then", "sync_throttle"),
+ ("operation budget ignored", " or (p_kind = 'write' and v_ops > v_pol.write_ops_per_minute)", "", "sync_throttle"),
+ ("pull and write calls share one counter", "values (p_user, v_b, p_kind, 1,", "values (p_user, v_b, 'write', 1,", "sync_throttle"),
+ ("pull is not throttled", "perform nexora_private.throttle(v_user, 'pull', 0);", "null;", "sync_throttle"),
+ ("push is not throttled", "perform nexora_private.throttle(v_user, 'write', n);", "null;", "sync_throttle"),
+ ("push throttle weighs zero operations", "perform nexora_private.throttle(v_user, 'write', n);", "perform nexora_private.throttle(v_user, 'write', 0);", "sync_throttle"),
+ ("resolve is not throttled", "perform nexora_private.throttle(v_user, 'write', 1);", "null;", "sync_throttle"),
+ ("throttle is callable by authenticated", "revoke all on function nexora_private.throttle(uuid, text, int) from public, anon, authenticated, service_role;", "grant execute on function nexora_private.throttle(uuid, text, int) to authenticated;", "sync_throttle"),
+ ("rate policy writable by authenticated", "revoke all on nexora_private.rate_policy, nexora_private.rate_bucket from public, anon, authenticated, service_role;", "revoke all on nexora_private.rate_policy, nexora_private.rate_bucket from public, anon, authenticated, service_role;\ngrant select, insert, update on nexora_private.rate_policy, nexora_private.rate_bucket to authenticated;", "sync_throttle"),
+ ("response bound removed", "if n > 1 and octet_length(jsonb_build_object('results', v_results)::text) > 2097152 then", "if false then", "sync_response_bound"),
+ ("response bound far too high", "> 2097152 then", "> 2097152000 then", "sync_response_bound"),
+ ("S9 forgets the tasks table", "on public.projects, public.tasks, public.project_members", "on public.projects, public.project_members", "s9_revoke_direct_writes"),
+ ("S9 leaves UPDATE granted", "revoke insert, update, delete, truncate, references, trigger", "revoke insert, delete, truncate, references, trigger", "s9_revoke_direct_writes"),
+ ("S9 leaves INSERT granted", "revoke insert, update, delete, truncate, references, trigger", "revoke update, delete, truncate, references, trigger", "s9_revoke_direct_writes"),
+ ("S9 also revokes SELECT", "revoke insert, update, delete, truncate, references, trigger", "revoke select, insert, update, delete, truncate, references, trigger", "s9_revoke_direct_writes"),
 ]
 out=[]
 files=[]
 for i,m in enumerate(muts):
     name,old,new=m[0],m[1],m[2]
     # a mutation applies to every migration that contains the text exactly once (apply_core lives in S2 and, replaced, in S3)
-    keys=[m[3]] if len(m)>3 else [k for k in srcs if srcs[k].count(old)>=1]
-    assert keys and (len(m)>3 or all(srcs['sync_push'].count(old)==1 or k!='sync_push' for k in keys)),(name,[(k,srcs[k].count(old)) for k in srcs])
+    keys=[k for k in srcs if srcs[k].count(old)>=1]
+    assert keys and (len(m)<=3 or m[3] in keys),(name,[(k,srcs[k].count(old)) for k in srcs])
     assert all(srcs[k].count(old)>=1 for k in keys),(name,)
     for k in keys: open(f'/tmp/_mut_{i}_{k}.sql','w').write(srcs[k].replace(old,new))   # every occurrence
     out.append(name); files.append(keys)
@@ -77,7 +93,7 @@ for ((i=0;i<n;i++)); do
     if [[ -f /tmp/_mut_${i}_${key}.sql ]]; then $PS -d "$db" -f /tmp/_mut_${i}_${key}.sql >/dev/null 2>&1; else $PS -d "$db" -f "$f" >/dev/null 2>&1; fi
   done
   failed=""
-  for t in s2_auth_grants_test s2_device_test s2_apply_test s2_push_test s2_contract_test s2_security_direct_test s3_resolve_test s3_tree_delete_test s3_revoke_test s4_pull_test; do
+  for t in s2_auth_grants_test s2_device_test s2_apply_test s2_push_test s2_contract_test s2_security_direct_test s3_resolve_test s3_tree_delete_test s3_revoke_test s4_pull_test s10_throttle_test s10_response_bound_test s9_direct_writes_test; do
     if psql -q -v ON_ERROR_STOP=1 -d "$db" -f tests/$t.sql >/dev/null 2>/tmp/_mut_err; then :; else failed="$failed $t"; fi
   done
   $PS -d postgres -c "drop database if exists $db" >/dev/null 2>&1

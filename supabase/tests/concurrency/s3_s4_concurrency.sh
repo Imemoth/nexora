@@ -21,10 +21,12 @@ build_control() {
   for f in migrations/*.sql; do
     case "$f" in
       *_nexora_sync_protocol_schema.sql) sed 's/perform nexora_private.lock_user(new.owner_id);/null;/; s/perform nexora_private.lock_user(old.owner_id);/null;/' "$f" | $PS -d "$CTRL" >/dev/null;;
-      *_nexora_sync_push.sql) sed 's/perform nexora_private.lock_user(v_user);/null;/' "$f" | $PS -d "$CTRL" >/dev/null;;
+      *_nexora_sync_push.sql|*_nexora_sync_throttle.sql|*_nexora_sync_response_bound.sql) sed 's/perform nexora_private.lock_user(v_user);/null;/' "$f" | $PS -d "$CTRL" >/dev/null;;
       *) $PS -d "$CTRL" -f "$f" >/dev/null;;
     esac
   done
+  # the throttle's counter row lock would serialize writers too; neutralize it so only the per-user lock is under test
+  $PS -d "$CTRL" -c "create or replace function nexora_private.throttle(p_user uuid, p_kind text, p_ops int) returns void language sql security definer set search_path = '' as 'select 1'" >/dev/null
 }
 setup_user() { $PS -d "$1" -c "insert into auth.users(id) values ('$2');" >/dev/null; $PS -d "$1" -c "$(claims "$2") select public.nexora_register_device('$3', null);" >/dev/null; }
 reg() { $PS -d "$1" -c "$(claims "$2") select public.nexora_register_device('$3', null);" >/dev/null; }

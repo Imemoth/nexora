@@ -1,6 +1,6 @@
 # Rate-limit and operation-log retention: recommendations (decision O-3)
 
-**Everything here is a recommendation. Nothing is implemented, applied or approved.** Decision O-3 stays open in `docs/coordination/status-register.md`. Background: risks R1 to R3 in `docs/operations/security-hardening-decision-record.md` and finding 5 in `docs/operations/s2-implementation-record.md`. Hosted state: none of the S2 to S4 functions is applied, so no traffic exists today.
+**Update (V1 release-candidate package): the per-user throttle (section 2 item 3) is now implemented in `supabase/migrations/20261112185000_nexora_sync_throttle.sql` and tested locally; numbers and mechanics are in `docs/architecture/s3-s4-wire-contract.md` section 7. It is not applied to any hosted project. Operation-log retention (section 3 and the DESIGN in section 3a) is a design only: nothing is implemented. Everything not named here as implemented remains a recommendation, not applied or approved.** Decision O-3 stays open in `docs/coordination/status-register.md`. Background: risks R1 to R3 in `docs/operations/security-hardening-decision-record.md` and finding 5 in `docs/operations/s2-implementation-record.md`. Hosted state: none of the S2 to S4 functions is applied, so no traffic exists today.
 
 ## 1. What grows and what can be abused
 | Surface | Cost per call | Why it matters |
@@ -28,6 +28,43 @@ Design recommendation, to be approved before any migration:
 4. **Rejected operations: store the hash, not the payload (R1 to R3).** For `rejected` and oversized operations keep `request_hash`, `error` code and metadata, and store an empty `patch`. The replay answer for a rejected operation is the error code, which needs no payload. This cuts the worst-case growth (up to 262,144 bytes per rejected operation) without touching accepted history. Needs a migration that changes what `push` writes for rejected operations.
 5. **Purge path:** a narrowly scoped SECURITY DEFINER function owned by `postgres`, executable by no client role, running as a scheduled job (the extension `pg_cron` is available but not installed; installing it is a separate owner decision) or by an owner-run procedure. It temporarily passes the append-only guard only for rows matching the purge rule (for example through a session setting checked inside the guard, readable only by the definer function) and writes a summary row of what it removed (counts per user, horizon). Alternative: monthly time partitioning with detach of old partitions (extension `pg_partman` is not installed). Recommendation: the function, because it keeps the guard intact for every other path and needs no extension beyond the optional scheduler.
 6. **Tests required before approval:** a purge cannot remove a referenced operation, an open conflict's evidence or the latest operation of an entity; it cannot run as `authenticated`; a replay of an operation inside the horizon still returns the stored result; mutation checks that break each rule are caught (`supabase/tests/mutation_checks.sh` pattern).
+
+## 3a. Retention DESIGN (not implemented; refines section 3)
+**Status: design for owner review. No migration exists. Nothing is purged today and nothing may be purged before the checks in "Before enabling" pass.**
+
+What may be purged, and when (horizon H = 180 days after `created_at`, configurable; chosen above the longest offline window the product
+supports and above the 90 days recommended in section 3):
+| Row class | Rule |
+|---|---|
+| `applied` operation, not the latest operation of its entity, not referenced by any conflict (`operation_id`, `resolution_operation_id`) | purge after H |
+| `rejected` operation (any age beyond H) | purge after H; before that, at write time, store only `request_hash`, `error_code` and metadata with an empty `patch` (hash-only) |
+| latest operation of each entity | never purged |
+| operation referenced by an open conflict, or by a conflict resolved less than H ago | never purged |
+| conflict rows, devices, tombstoned entities | not part of this purge |
+
+Why the idempotency and replay guarantees survive. Replay protection means "the same `operation_id` is never applied twice." After a
+purge the id is simply unknown, so a replay is evaluated as a new operation against the **current** server state:
+* a replayed `create` finds the entity (an entity row is never purged; tombstones are permanent) and yields a `exists` conflict or a rejection;
+* a replayed `update` or `delete` carries the `base_version` of the original attempt; the original application raised the entity (and the
+  touched fields) above that base, so the server sees a stale base and returns a field conflict or `edit_deleted`, never a second application;
+* the latest operation per entity is kept, so the most recent replay of every entity still receives its exact stored answer.
+The only observable effect of a very late replay is a conflict the user resolves, not a double write. That is why H must exceed the longest
+offline window: inside H, replays are exact. (This is a design argument from the current apply rules; it is not covered by a test in this
+package, and the purge tests listed below must include it.)
+
+Purge function shape: `nexora_private.purge_sync_operations(p_horizon interval, p_batch int default 1000) returns int`, SECURITY DEFINER,
+owner `postgres`, `search_path = ''`, `revoke all from public, anon, authenticated, service_role`; deletes at most `p_batch` rows per
+call ordered by `created_at` and returns the count, so a scheduler (or the owner) loops until it returns 0. It takes
+`pg_try_advisory_xact_lock` on a purge key and returns 0 when another purge runs, and takes **no** per-user lock (it only removes rows no
+live protocol decision can read: older than H, unreferenced, not latest). The append-only guard needs a narrow, transaction-local bypass
+readable only by this function (a `set_config('nexora.purge', ...)` checked inside the guard with the definer as the only role that can
+set it successfully), and every call writes one summary row (counts per class, horizon, time) to a private audit table.
+
+Before enabling (all required): purge tests (cannot remove a referenced operation, open-conflict evidence, the latest operation of an
+entity, or anything younger than H; cannot run as `authenticated`, `anon` or `service_role`; concurrent pushes during a purge neither
+block longer than the lock timeout nor lose rows; replay of a purged `create`, `update` and `delete` yields conflict or rejection and never a
+second application); mutation checks for each rule; a catalog-snapshot rollback proof; hosted size measurement showing growth justifies it
+(sections 4 and 5); owner approval of H and of the scheduler (`pg_cron` or an owner-run procedure).
 
 ## 4. Growth estimates (order of magnitude, no measurements exist)
 Assumptions, to be replaced by measurements after the hosted gate: a typical accepted operation stores a patch under 1 KB and a result with the entity row of about 1 KB, so about 2 to 4 KB per operation including indexes; a heavy user performs 200 operations per day; ten users.

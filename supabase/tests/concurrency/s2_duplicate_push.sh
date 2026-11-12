@@ -15,9 +15,11 @@ build_control() {
   sed '/^create role/d' tests/00_bootstrap_local.sql > /tmp/_boot_s2.sql
   $PS -d "$CTRL" -f /tmp/_boot_s2.sql >/dev/null
   for f in migrations/*.sql; do
-    case "$f" in *_nexora_sync_push.sql) sed 's/perform nexora_private.lock_user(v_user);/null;/' "$f" | $PS -d "$CTRL" >/dev/null;;
+    case "$f" in *_nexora_sync_push.sql|*_nexora_sync_throttle.sql|*_nexora_sync_response_bound.sql) sed 's/perform nexora_private.lock_user(v_user);/null;/' "$f" | $PS -d "$CTRL" >/dev/null;;
                  *) $PS -d "$CTRL" -f "$f" >/dev/null;; esac
   done
+  # the throttle's counter row lock would serialize writers too; neutralize it so only the per-user lock is under test
+  $PS -d "$CTRL" -c "create or replace function nexora_private.throttle(p_user uuid, p_kind text, p_ops int) returns void language sql security definer set search_path = '' as 'select 1'" >/dev/null
   [[ "$($PS -d "$CTRL" -c "select count(*) from pg_proc where proname='push' and prosrc like '%lock_user%'")" == "0" ]] || { echo "control not built"; exit 3; }
 }
 

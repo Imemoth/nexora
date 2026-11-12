@@ -8,15 +8,23 @@
 set -euo pipefail
 case "${PGHOST:-}" in /*|localhost|127.0.0.1) ;; *) echo "refusing: local server only" >&2; exit 2;; esac
 cd "$(dirname "$0")/../.."
-REAL="${1:-nx_s1}"; CTRL="${REAL}_nolock"
+REAL="${1:-nx_s1}_pre9"; CTRL="${REAL}_nolock"   # direct table writes: both databases are built WITHOUT the S9 revocation
 A=00000000-0000-0000-0000-0000000000a1; B=00000000-0000-0000-0000-0000000000b1
 PS="psql -q -v ON_ERROR_STOP=1 -tA"
 
+S9=migrations/20261112190000_nexora_s9_revoke_direct_writes.sql
+build_real() {
+  $PS -d postgres -c "drop database if exists $REAL" -c "create database $REAL"
+  sed '/^create role/d' tests/00_bootstrap_local.sql > /tmp/_boot_r.sql
+  $PS -d "$REAL" -f /tmp/_boot_r.sql
+  for f in migrations/*.sql; do [[ "$f" == "$S9" ]] || $PS -d "$REAL" -f "$f"; done
+}
 build_control() {
   $PS -d postgres -c "drop database if exists $CTRL" -c "create database $CTRL"
   sed '/^create role/d' tests/00_bootstrap_local.sql > /tmp/_boot_c.sql
   $PS -d "$CTRL" -f /tmp/_boot_c.sql
   for f in migrations/*.sql; do
+    [[ "$f" == "$S9" ]] && continue
     # negative control: remove only the lock acquisition from guard_row
     sed 's/perform nexora_private.lock_user(\(new\|old\).owner_id);/null;/' "$f" | $PS -d "$CTRL"
   done
@@ -48,6 +56,7 @@ SQL
   if [[ "$seen" == *w1* && "$seen" == *w2* ]]; then echo COMPLETE; else echo GAP; fi
 }
 
+build_real
 echo "== Scenario A: real schema (expect COMPLETE)"
 outA=$(scenario "$REAL"); echo "$outA"
 [[ "$outA" == *COMPLETE* ]] || { echo "FAIL: gap with lock in place"; exit 1; }

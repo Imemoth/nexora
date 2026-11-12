@@ -65,11 +65,42 @@ Result: `{"changes": [{"entity_type": "project"|"task", "row": {...}}], "conflic
 | NX001 | `device_invalid` | unknown, foreign or revoked device | re-register once; if refused, pause as device revoked |
 | NX002 | `device_limit` | ten active devices | surface to the user |
 | NX003 | `batch_too_large` | more than 100 operations | halve the batch |
-| NX004 | `payload_too_large` | over the size bounds | halve the batch; a single oversize operation stays pending with an error |
+| NX004 | `payload_too_large` | request over 1,048,576 bytes, or the push response would exceed 2,097,152 bytes (more than one operation) | halve the batch; a single oversize operation stays pending with an error |
 | NX005 | `invalid_request` | malformed arguments | defect, surface |
 | NX006 | `invalid_cursor` | cursor not acceptable | reset the cursor to 0 once and pull again |
+| NX007 | `rate_limited` | the per-user per-minute call or operation budget is spent (section 7) | retry later with backoff (the same schedule as transient errors); never data loss; nothing was recorded |
 | 40xxx, 53xxx, 55xxx, 57xxx | transient | retry with backoff; replay is exact by `operation_id` |
 
-## 6. Not covered
+## 6. Push response bound
+`push` answers a batch of more than one operation only when the serialized `{"results": [...]}` is at most 2,097,152 bytes; otherwise the
+whole call is refused with NX004 `payload_too_large` and **nothing is recorded** (the refusal rolls the call back). Reason: an applied
+result echoes the entity row, so 100 tiny updates of tasks holding about 200 KiB of notes would answer about 20 MB. A single-operation
+batch is always answered (its result is bounded by the 262,144-byte patch limit plus the row). The client already halves the
+batch on NX004, so a refused batch converges to a size that fits. Measured by `supabase/tests/measure_limits.sh` (largest accepted
+response ~2.0 MB for ten echoed rows) and proven by `supabase/tests/s10_response_bound_test.sql`.
+
+## 7. Limits (all enforced server-side)
+| Limit | Value | Enforced by | Refusal |
+|---|---|---|---|
+| operations per push | 100 | `push` | NX003 |
+| one operation (`patch`) | 262,144 bytes server-side (the client keeps each operation at or below 224 KiB, and a batch at or below 896 KiB) | `apply_operation` | rejected `payload_too_large` |
+| push request (`p_ops` text) | 1,048,576 bytes (the client keeps batches at 896 KiB) | `push` | NX004 |
+| push response (batches of more than one operation) | 2,097,152 bytes | `push` | NX004, nothing recorded |
+| pull page | 500 rows or 1,048,576 bytes of row JSON, whichever comes first (the first item is always returned) | `pull` | paging (`has_more`) |
+| tree-delete manifest | 1,000 entries | `apply_operation` | rejected `invalid_patch` |
+| active devices | 10 | trigger | NX002 |
+| calls per user per minute, pull | 120 | `throttle` (`nexora_private.rate_policy`) | NX007 |
+| calls per user per minute, write (push, resolve, register, revoke) | 120 | `throttle` | NX007 |
+| operations per user per minute (push weighs n, resolve 1, register and revoke 0) | 6,000 | `throttle` | NX007 |
+
+Throttle mechanics: fixed one-minute buckets per (user, kind) in the private table `nexora_private.rate_bucket`; the increment and the
+check are one atomic upsert, a refused call raises NX007 and so rolls its own increment back, which makes exactly `limit` calls succeed
+per bucket (proved under 16 concurrent sessions by `supabase/tests/concurrency/s10_throttle_concurrency.sh`). A burst straddling a minute
+boundary can reach twice the limit. The numbers are rows of `nexora_private.rate_policy` and can be changed with one `update` by the
+owner (service role / SQL editor); no client role can read or change either table. Batch-size and payload validation (NX003, NX004
+on the request) run before the throttle, so an oversized request consumes no budget; invalid arguments (NX005, NX006, NX001) also roll
+back and consume none. A replayed push weighs its operations again (the server cannot know it is a replay before processing it).
+
+## 8. Not covered
 PostgREST and JWT verification are not exercised by any automated test in this repository (the integration harness sets the JWT
 claims per transaction like PostgREST does). End-to-end HTTP acceptance on the hosted project remains an open gate in the register.
