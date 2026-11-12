@@ -1,11 +1,9 @@
-import 'dart:ui' show Size;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
-import 'package:nexora/features/tasks/presentation/unsaved_changes_host.dart';
 
 import '../../../support/workspace_harness.dart';
 
