@@ -351,7 +351,13 @@ Dialogs (presentation only, open from intents):
 3. `resolvePending(save)`: call `saveDraft()`.
    - Success: clear the draft, apply the pending transition, clear `pending`.
    - Failure (`RepositoryException` or validation error): **keep the draft, keep `pending`, set `error`** (`saveFailed` or the validation code). The transition does **not** happen. The dialog stays open with the error line, so the user can retry, discard explicitly, or cancel.
-4. `resolvePending(discard)`: drop the draft and apply the pending transition.
+4. `resolvePending(discard)`: **transactional, owner-approved exception (2026-11-12).** The Discard choice is committed only when the pending transition succeeds.
+   - Success (pending create): the previous draft is discarded, the new task is committed, selection moves to it, and `pending` is cleared.
+   - Failure (persistence error, or the parent was archived in the draft and re-checked at commit): the dirty draft, the selection and `pending` are all preserved, `error` is set, and nothing is added to `tasks`. The dialog shows the error and offers retry (Discard again) or Cancel.
+   - Cancel after a failure restores the previous editing context with every edit kept.
+   - Duplicate and concurrent use is refused, not executed twice: while a transition or save is running, a second resolution, save, create or edit returns `operationInProgress` (or is ignored for edits).
+   - For non-create pending transitions (selection, search, exit) Discard has no persistence step and always succeeds.
+   - Save path: `save` persists the draft first, because that is the user's explicit request. If the pending transition then fails, the saved draft stays saved and the pending transition is kept for retry or Cancel. No edit is lost.
 5. `resolvePending(cancel)`: clear `pending`; nothing else changes.
 6. `requestExit()` while the gate would be needed: sets `pending` to `TransitionExit`, returns `false`. `AppLifecycleListener.onExitRequested` returns `AppExitResponse.cancel`, the dialog shows, and on resolution `save` or `discard` the workspace returns `true` and the presentation calls `exit` / lets the exit proceed.
 

@@ -42,6 +42,14 @@ final class TaskWorkspace {
       StreamController<WorkspaceState>.broadcast();
   WorkspaceState _state;
 
+  /// Set while a save runs. A second save or a create is refused meanwhile.
+  bool _saving = false;
+
+  /// Set while a gate resolution or a create commit runs. Edits, navigation,
+  /// saves, creates and a second resolution are refused meanwhile, so a
+  /// transition is never executed twice or interleaved.
+  bool _transitioning = false;
+
   /// Emits the new state after every change.
   Stream<WorkspaceState> get states => _controller.stream;
 
@@ -135,6 +143,11 @@ final class TaskWorkspace {
         WorkspaceError.unsavedChangesPending,
       );
     }
+    if (_saving || _transitioning) {
+      return const Err<Task, WorkspaceError>(
+        WorkspaceError.operationInProgress,
+      );
+    }
     final projects = {
       for (final project in _state.projects) project.id: project,
     };
@@ -164,6 +177,11 @@ final class TaskWorkspace {
         WorkspaceError.unsavedChangesPending,
       );
     }
+    if (_saving || _transitioning) {
+      return const Err<Task, WorkspaceError>(
+        WorkspaceError.operationInProgress,
+      );
+    }
     final created = createSubtask(
       title: title,
       parentId: parentId,
@@ -188,6 +206,9 @@ final class TaskWorkspace {
     bool clearDueDate = false,
     String? notes,
   }) {
+    if (_transitioning) {
+      return;
+    }
     final draft = _state.draft;
     if (draft == null) {
       return;
@@ -220,6 +241,22 @@ final class TaskWorkspace {
 
   /// Validates and persists the draft. On failure the draft is kept as is.
   Future<Result<void, WorkspaceError>> saveDraft() async {
+    if (_saving || _transitioning) {
+      return const Err<void, WorkspaceError>(
+        WorkspaceError.operationInProgress,
+      );
+    }
+    _saving = true;
+    try {
+      return await _saveDraftUnsafe();
+    } finally {
+      _saving = false;
+    }
+  }
+
+  /// The save itself. Callers hold the guard: [saveDraft], or [resolvePending]
+  /// during the save step of a transition.
+  Future<Result<void, WorkspaceError>> _saveDraftUnsafe() async {
     final draft = _state.draft;
     if (draft == null || !draft.isDirty) {
       return const Ok<void, WorkspaceError>(null);
@@ -244,30 +281,37 @@ final class TaskWorkspace {
   /// closes the decision.
   Future<void> resolvePending(PendingResolution resolution) async {
     final pending = _state.pending;
-    if (pending == null) {
+    if (pending == null || _saving || _transitioning) {
       return;
     }
-    switch (resolution) {
-      case PendingResolution.cancel:
-        _publish(_state.copyWith(clearPending: true, clearError: true));
-      case PendingResolution.save:
-        final saved = await saveDraft();
+    if (resolution == PendingResolution.cancel) {
+      // Cancel restores the editing context. The draft and selection are kept.
+      _publish(_state.copyWith(clearPending: true, clearError: true));
+      return;
+    }
+    _transitioning = true;
+    try {
+      if (resolution == PendingResolution.save) {
+        final saved = await _saveDraftUnsafe();
         if (saved is Err<void, WorkspaceError>) {
           return;
         }
         if (!identical(_state.pending, pending)) {
           return;
         }
-        await _completeTransition(pending.transition);
-      case PendingResolution.discard:
-        await _completeTransition(pending.transition);
+      }
+      // Discard and save commit the transition only when it succeeds. A failed
+      // create keeps the draft, the selection and the pending transition.
+      await _completeTransition(pending.transition);
+    } finally {
+      _transitioning = false;
     }
   }
 
   /// Returns true when the app may exit now. Returns false and opens the gate
   /// when there is a dirty draft.
   Future<bool> requestExit() async {
-    if (_state.pending != null) {
+    if (_transitioning || _state.pending != null) {
       return false;
     }
     if (!_isDirty) {
@@ -287,7 +331,7 @@ final class TaskWorkspace {
   bool get _isDirty => _state.draft?.isDirty ?? false;
 
   void _request(WorkspaceTransition transition) {
-    if (_state.pending != null) {
+    if (_state.pending != null || _transitioning) {
       // The gate is modal: navigation waits until the decision is made.
       return;
     }
@@ -435,7 +479,12 @@ final class TaskWorkspace {
       );
       return Ok<Task, WorkspaceError>(candidate);
     }
-    return _commitCreate(candidate, expandParentId: expandParentId);
+    _transitioning = true;
+    try {
+      return await _commitCreate(candidate, expandParentId: expandParentId);
+    } finally {
+      _transitioning = false;
+    }
   }
 
   /// Persists [candidate] and selects it. On failure nothing changes; the

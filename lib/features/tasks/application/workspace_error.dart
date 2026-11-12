@@ -10,4 +10,7 @@ enum WorkspaceError {
 
   /// A creation was requested while an unsaved-change decision is open.
   unsavedChangesPending,
+
+  /// Another save, creation or gate decision is already running.
+  operationInProgress,
 }
