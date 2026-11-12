@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:nexora/features/tasks/application/nav_selection.dart';
 import 'package:nexora/features/tasks/application/workspace_state.dart';
-import 'package:nexora/features/tasks/application/visible_task_row.dart';
 
 import 'strings/app_strings.dart';
+import 'sort_menu.dart';
+import 'task_row.dart';
+import 'task_search_field.dart';
+import 'tasks_notifier.dart';
 import 'tasks_scope.dart';
 
-/// Center pane: header with the current selection and result count, then the
-/// visible task rows. The recursive tree and search field arrive in Task 4.
+/// Center pane: header, search and sort controls, then the task tree.
 class TaskListPane extends StatelessWidget {
   const TaskListPane({super.key});
 
@@ -40,16 +42,47 @@ class TaskListPane extends StatelessWidget {
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: TaskSearchField(
+                  query: state.searchQuery,
+                  onChanged: notifier.search,
+                ),
+              ),
+              const SizedBox(width: 8),
+              SortMenu(sort: state.sort, onSelected: notifier.sort),
+            ],
+          ),
+        ),
+        if (state.selectedTaskHidden)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text(
+              AppStrings.selectedTaskHidden,
+              key: const ValueKey('hidden-notice'),
+              style: textTheme.bodySmall,
+            ),
+          ),
         Expanded(
           child: rows.isEmpty
-              ? const Center(child: Text(AppStrings.noTasksHere))
+              ? _EmptyList(
+                  state: state,
+                  onClearSearch: () => notifier.search(''),
+                )
               : ListView.builder(
                   itemCount: rows.length,
-                  itemBuilder: (context, index) => _TaskRowTile(
-                    row: rows[index],
-                    selected: rows[index].task.id == state.selectedTaskId,
-                    onTap: () => notifier.selectTask(rows[index].task.id),
-                  ),
+                  itemBuilder: (context, index) {
+                    final row = rows[index];
+                    return TaskRow(
+                      row: row,
+                      selected: row.task.id == state.selectedTaskId,
+                      onSelect: () => notifier.selectTask(row.task.id),
+                      onToggle: () => notifier.toggleExpanded(row.task.id),
+                    );
+                  },
                 ),
         ),
       ],
@@ -73,26 +106,31 @@ class TaskListPane extends StatelessWidget {
   }
 }
 
-class _TaskRowTile extends StatelessWidget {
-  const _TaskRowTile({
-    required this.row,
-    required this.selected,
-    required this.onTap,
-  });
+class _EmptyList extends StatelessWidget {
+  const _EmptyList({required this.state, required this.onClearSearch});
 
-  final VisibleTaskRow row;
-  final bool selected;
-  final VoidCallback onTap;
+  final WorkspaceState state;
+  final VoidCallback onClearSearch;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      key: ValueKey('row-${row.task.id}'),
-      selected: selected,
-      contentPadding: EdgeInsets.only(left: 24 + row.depth * 20.0, right: 24),
-      title: Text(row.task.title),
-      subtitle: Text(AppStrings.statusLabel(row.task.status)),
-      onTap: onTap,
-    );
+    if (state.searchQuery.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(AppStrings.noSearchMatches),
+            TextButton(
+              onPressed: onClearSearch,
+              child: const Text(AppStrings.clearSearch),
+            ),
+          ],
+        ),
+      );
+    }
+    if (state.selection is ProjectSelection) {
+      return const Center(child: Text(AppStrings.emptyProject));
+    }
+    return const Center(child: Text(AppStrings.noTasksHere));
   }
 }
