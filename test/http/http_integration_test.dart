@@ -706,7 +706,7 @@ void main() {
 
       final result = Map<String, Object?>.from(results.single! as Map);
       expect(result['status'], 'rejected');
-      expect(result['error'], 'invalid_patch');
+      expect(result['error_code'], 'invalid_patch');
       final rows = await stack().adminRows('tasks', 'id=eq.$root');
       expect(rows.single['deleted_at'], isNull);
     }, skip: _skip);
