@@ -211,10 +211,25 @@ final class TaskCommands {
     }
   }
 
-  /// From the details pane, or with the search field focused, returns focus
-  /// to the list. In the list it clears the selection, through the gate.
+  /// Esc, in order (owner decision, Phase 1):
+  /// - In a non-empty search field it clears the query and keeps focus there.
+  /// - In an empty search field, or in the details editor, it returns focus to
+  ///   the list.
+  /// - In the list it clears the selection, through the unsaved-change gate.
+  /// Clearing the query only widens the list, so it never hides a dirty draft and
+  /// never gates. The unsaved-change dialog is not affected: while it has focus
+  /// the list keymap does not receive keys, and the dialog cannot be dismissed
+  /// with Esc.
   void _escape() {
-    if (inEditor || focus.search.hasPrimaryFocus) {
+    if (focus.search.hasPrimaryFocus) {
+      if (notifier.state.searchQuery.isNotEmpty) {
+        notifier.search('');
+        return;
+      }
+      focus.list.requestFocus();
+      return;
+    }
+    if (inEditor) {
       focus.list.requestFocus();
       return;
     }
