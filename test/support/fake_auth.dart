@@ -51,11 +51,7 @@ final class FakeAuthApi implements AuthApi {
     validRefreshTokens.add(refresh);
     _owner[refresh] = user;
     return AuthSession(
-      accessToken: fakeJwt(
-        sub: user,
-        expiresAt: expires,
-        anonymous: anonymous,
-      ),
+      accessToken: fakeJwt(sub: user, expiresAt: expires, anonymous: anonymous),
       refreshToken: refresh,
       expiresAt: expires,
       userId: user,

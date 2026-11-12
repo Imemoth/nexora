@@ -34,36 +34,46 @@ void main() {
     expect(server.log, contains('register'));
   });
 
-  test('a different signed-in account stops the call before anything is sent', () async {
-    final server = FakeSyncServer();
-    final tokens = _Tokens()..userId = userB;
-    final transport = AuthenticatedTransport(
-      inner: server,
-      tokens: tokens,
-      boundUserId: userA,
-    );
-    await expectLater(
-      transport.push('d1', const []),
-      throwsA(
-        isA<SyncAuthFailure>().having((e) => e.message, 'message', 'account_mismatch'),
-      ),
-    );
-    expect(server.log, isEmpty);
-  });
+  test(
+    'a different signed-in account stops the call before anything is sent',
+    () async {
+      final server = FakeSyncServer();
+      final tokens = _Tokens()..userId = userB;
+      final transport = AuthenticatedTransport(
+        inner: server,
+        tokens: tokens,
+        boundUserId: userA,
+      );
+      await expectLater(
+        transport.push('d1', const []),
+        throwsA(
+          isA<SyncAuthFailure>().having(
+            (e) => e.message,
+            'message',
+            'account_mismatch',
+          ),
+        ),
+      );
+      expect(server.log, isEmpty);
+    },
+  );
 
-  test('signed out is an authentication failure, not a network failure', () async {
-    final server = FakeSyncServer();
-    final tokens = _Tokens()..userId = null;
-    final transport = AuthenticatedTransport(
-      inner: server,
-      tokens: tokens,
-      boundUserId: userA,
-    );
-    await expectLater(
-      transport.pull('d1', 0),
-      throwsA(isA<SyncAuthFailure>()),
-    );
-  });
+  test(
+    'signed out is an authentication failure, not a network failure',
+    () async {
+      final server = FakeSyncServer();
+      final tokens = _Tokens()..userId = null;
+      final transport = AuthenticatedTransport(
+        inner: server,
+        tokens: tokens,
+        boundUserId: userA,
+      );
+      await expectLater(
+        transport.pull('d1', 0),
+        throwsA(isA<SyncAuthFailure>()),
+      );
+    },
+  );
 
   test('an unauthenticated answer refreshes once and retries once', () async {
     final server = FakeSyncServer();
@@ -96,7 +106,9 @@ void main() {
 
   test('an anonymous identity is never retried', () async {
     final faulty = FaultyTransport(FakeSyncServer())
-      ..pullFaults.add(const SyncAuthFailure('anonymous_not_allowed', anonymous: true));
+      ..pullFaults.add(
+        const SyncAuthFailure('anonymous_not_allowed', anonymous: true),
+      );
     final tokens = _Tokens();
     final transport = AuthenticatedTransport(
       inner: faulty,

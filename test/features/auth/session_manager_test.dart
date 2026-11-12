@@ -16,8 +16,7 @@ void main() {
   late InMemorySecureStore store;
   late SessionManager manager;
 
-  SessionManager build() =>
-      SessionManager(api: api, store: store, now: now);
+  SessionManager build() => SessionManager(api: api, store: store, now: now);
 
   setUp(() {
     clock = DateTime.utc(2026, 11, 12, 12);
@@ -43,7 +42,10 @@ void main() {
     test('garbage is not a token', () {
       expect(JwtClaims.parse('nope'), isNull);
       expect(JwtClaims.parse('a.b.c'), isNull);
-      expect(JwtClaims.parse('a.${base64Url.encode(utf8.encode('[]'))}.c'), isNull);
+      expect(
+        JwtClaims.parse('a.${base64Url.encode(utf8.encode('[]'))}.c'),
+        isNull,
+      );
     });
   });
 
@@ -117,21 +119,24 @@ void main() {
   });
 
   group('refresh', () {
-    test('a token about to expire is refreshed and the rotation stored', () async {
-      await manager.signIn('a@example.test', 'pw');
-      final first = manager.state.session!;
-      clock = clock.add(const Duration(minutes: 59, seconds: 30));
+    test(
+      'a token about to expire is refreshed and the rotation stored',
+      () async {
+        await manager.signIn('a@example.test', 'pw');
+        final first = manager.state.session!;
+        clock = clock.add(const Duration(minutes: 59, seconds: 30));
 
-      final token = await manager.accessToken();
+        final token = await manager.accessToken();
 
-      expect(api.refreshes, 1);
-      expect(token, isNot(first.accessToken));
-      final stored = AuthSession.fromJson(
-        jsonDecode((await store.read('session'))!),
-      )!;
-      expect(stored.refreshToken, manager.state.session!.refreshToken);
-      expect(stored.refreshToken, isNot(first.refreshToken));
-    });
+        expect(api.refreshes, 1);
+        expect(token, isNot(first.accessToken));
+        final stored = AuthSession.fromJson(
+          jsonDecode((await store.read('session'))!),
+        )!;
+        expect(stored.refreshToken, manager.state.session!.refreshToken);
+        expect(stored.refreshToken, isNot(first.refreshToken));
+      },
+    );
 
     test('concurrent callers share one refresh', () async {
       await manager.signIn('a@example.test', 'pw');
@@ -171,24 +176,27 @@ void main() {
       expect(await store.read('session'), isNotNull);
     });
 
-    test('a revoked session needs a new sign-in and keeps the account id', () async {
-      await manager.signIn('a@example.test', 'pw');
-      clock = clock.add(const Duration(hours: 2));
-      api.refreshFailures.add(const AuthSessionRevoked('session_not_found'));
+    test(
+      'a revoked session needs a new sign-in and keeps the account id',
+      () async {
+        await manager.signIn('a@example.test', 'pw');
+        clock = clock.add(const Duration(hours: 2));
+        api.refreshFailures.add(const AuthSessionRevoked('session_not_found'));
 
-      expect(await manager.accessToken(), isNull);
+        expect(await manager.accessToken(), isNull);
 
-      expect(manager.state.phase, AuthPhase.reauthRequired);
-      expect(manager.state.userId, userA);
-      expect(manager.userId, isNull);
-      expect(await store.read('session'), isNull);
-      expect(await store.read('last_user'), userA);
+        expect(manager.state.phase, AuthPhase.reauthRequired);
+        expect(manager.state.userId, userA);
+        expect(manager.userId, isNull);
+        expect(await store.read('session'), isNull);
+        expect(await store.read('last_user'), userA);
 
-      final restarted = build();
-      final restored = await restarted.restore();
-      expect(restored.phase, AuthPhase.reauthRequired);
-      expect(restored.userId, userA);
-    });
+        final restarted = build();
+        final restored = await restarted.restore();
+        expect(restored.phase, AuthPhase.reauthRequired);
+        expect(restored.userId, userA);
+      },
+    );
 
     test('a refresh that returns another account is refused', () async {
       await manager.signIn('a@example.test', 'pw');
@@ -200,13 +208,16 @@ void main() {
       expect(manager.state.userId, userA);
     });
 
-    test('refreshAfterRejection refreshes once and reports the result', () async {
-      await manager.signIn('a@example.test', 'pw');
-      expect(await manager.refreshAfterRejection(), isTrue);
-      api.refreshFailures.add(const AuthSessionRevoked('revoked'));
-      expect(await manager.refreshAfterRejection(), isFalse);
-      expect(manager.state.phase, AuthPhase.reauthRequired);
-    });
+    test(
+      'refreshAfterRejection refreshes once and reports the result',
+      () async {
+        await manager.signIn('a@example.test', 'pw');
+        expect(await manager.refreshAfterRejection(), isTrue);
+        api.refreshFailures.add(const AuthSessionRevoked('revoked'));
+        expect(await manager.refreshAfterRejection(), isFalse);
+        expect(manager.state.phase, AuthPhase.reauthRequired);
+      },
+    );
   });
 
   group('sign out', () {

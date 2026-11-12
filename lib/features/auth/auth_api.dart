@@ -76,7 +76,8 @@ final class SupabaseAuthApi implements AuthApi {
     if (response.status == 401 || response.status == 403) {
       return; // already gone on the server
     }
-    throw _transient(response) ?? AuthServerFailure('logout_${response.status}');
+    throw _transient(response) ??
+        AuthServerFailure('logout_${response.status}');
   }
 
   AuthSession _session(Object? body) {

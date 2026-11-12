@@ -12,7 +12,8 @@ import '../../support/fake_auth.dart';
 /// and lets each test choose the answer.
 final class _Server {
   late HttpServer http;
-  final requests = <({String path, Map<String, String> headers, Object? body})>[];
+  final requests =
+      <({String path, Map<String, String> headers, Object? body})>[];
   int status = 200;
   Object? reply;
 

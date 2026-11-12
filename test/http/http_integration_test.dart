@@ -80,39 +80,68 @@ void main() {
       expect((r.body as Map)['code'], 'PGRST106');
     }, skip: _skip);
 
-    test('the OpenAPI document lists exactly the five sync RPCs for a user', () async {
-      final user = await stack().signUp('openapi');
-      final token = await tokenFor(user.email, user.password);
-      final r = await stack().request('GET', '/rest/v1/', token: token);
-      expect(r.status, 200);
-      final paths = ((r.body as Map)['paths'] as Map).keys.cast<String>();
-      final rpcs = paths.where((p) => p.startsWith('/rpc/')).toSet();
-      expect(
-        rpcs.containsAll({
-          '/rpc/nexora_register_device',
-          '/rpc/nexora_sync_push',
-          '/rpc/nexora_sync_pull',
-          '/rpc/nexora_resolve_conflict',
-          '/rpc/nexora_revoke_device',
-        }),
-        isTrue,
-        reason: '$rpcs',
-      );
-      expect(rpcs.where((p) => p.contains('private') || p.contains('apply') || p.contains('guard')), isEmpty);
-    }, skip: _skip);
+    test(
+      'the OpenAPI document lists exactly the five sync RPCs for a user',
+      () async {
+        final user = await stack().signUp('openapi');
+        final token = await tokenFor(user.email, user.password);
+        final r = await stack().request('GET', '/rest/v1/', token: token);
+        expect(r.status, 200);
+        final paths = ((r.body as Map)['paths'] as Map).keys.cast<String>();
+        final rpcs = paths.where((p) => p.startsWith('/rpc/')).toSet();
+        expect(
+          rpcs.containsAll({
+            '/rpc/nexora_register_device',
+            '/rpc/nexora_sync_push',
+            '/rpc/nexora_sync_pull',
+            '/rpc/nexora_resolve_conflict',
+            '/rpc/nexora_revoke_device',
+          }),
+          isTrue,
+          reason: '$rpcs',
+        );
+        expect(
+          rpcs.where(
+            (p) =>
+                p.contains('private') ||
+                p.contains('apply') ||
+                p.contains('guard'),
+          ),
+          isEmpty,
+        );
+      },
+      skip: _skip,
+    );
 
     test('another user cannot read or change what an account owns, and cannot write as it', () async {
       final a = await stack().signUp('ownerA');
       final b = await stack().signUp('ownerB');
       final devA = await Device.open(stack(), dir, a.email, a.password);
       addTearDown(devA.close);
-      await devA.repo.saveProject(Project(id: _id(), name: 'Private', position: 0));
+      await devA.repo.saveProject(
+        Project(id: _id(), name: 'Private', position: 0),
+      );
       expect((await devA.engine.syncNow()).phase, SyncPhase.idle);
-      final projectId = (await stack().adminRows('projects', 'owner_id=eq.${a.id}')).single['id'] as String;
+      final projectId =
+          (await stack().adminRows(
+                'projects',
+                'owner_id=eq.${a.id}',
+              )).single['id']
+              as String;
 
       final tokenB = await tokenFor(b.email, b.password);
-      for (final table in ['projects', 'tasks', 'devices', 'sync_operations', 'sync_conflicts']) {
-        final r = await stack().request('GET', '/rest/v1/$table?select=*', token: tokenB);
+      for (final table in [
+        'projects',
+        'tasks',
+        'devices',
+        'sync_operations',
+        'sync_conflicts',
+      ]) {
+        final r = await stack().request(
+          'GET',
+          '/rest/v1/$table?select=*',
+          token: tokenB,
+        );
         // either denied outright or filtered to nothing: never A's rows
         expect(r.status, anyOf(200, 401, 403), reason: table);
         if (r.status == 200) {
@@ -139,54 +168,79 @@ void main() {
       expect(await stack().adminRows('projects', 'name=eq.planted'), isEmpty);
     }, skip: _skip);
 
-    test('S9 probe: direct writes by the owner (recorded, still granted until S9)', () async {
-      final a = await stack().signUp('direct');
-      final token = await tokenFor(a.email, a.password);
-      final r = await stack().request(
-        'POST',
-        '/rest/v1/projects',
-        token: token,
-        body: {'id': _id(), 'owner_id': a.id, 'name': 'direct write'},
-      );
-      // ignore: avoid_print
-      print('S9 PROBE direct INSERT into projects as the owner: HTTP ${r.status}');
-      expect(r.status, isNotNull);
-    }, skip: _skip);
+    test(
+      'S9 probe: direct writes by the owner (recorded, still granted until S9)',
+      () async {
+        final a = await stack().signUp('direct');
+        final token = await tokenFor(a.email, a.password);
+        final r = await stack().request(
+          'POST',
+          '/rest/v1/projects',
+          token: token,
+          body: {'id': _id(), 'owner_id': a.id, 'name': 'direct write'},
+        );
+        // ignore: avoid_print
+        print(
+          'S9 PROBE direct INSERT into projects as the owner: HTTP ${r.status}',
+        );
+        expect(r.status, isNotNull);
+      },
+      skip: _skip,
+    );
   });
 
   group('authentication', () {
-    test('sign-in yields a real token for the right account, not anonymous', () async {
-      final u = await stack().signUp('claims');
-      final session = await SupabaseAuthApi(
-        baseUrl: stack().url,
-        anonKey: stack().anonKey,
-      ).signInWithPassword(u.email, u.password);
-      expect(session.userId, u.id);
-      expect(session.isAnonymous, isFalse);
-      expect(session.expiresAt.isAfter(DateTime.now().toUtc()), isTrue);
-    }, skip: _skip);
+    test(
+      'sign-in yields a real token for the right account, not anonymous',
+      () async {
+        final u = await stack().signUp('claims');
+        final session = await SupabaseAuthApi(
+          baseUrl: stack().url,
+          anonKey: stack().anonKey,
+        ).signInWithPassword(u.email, u.password);
+        expect(session.userId, u.id);
+        expect(session.isAnonymous, isFalse);
+        expect(session.expiresAt.isAfter(DateTime.now().toUtc()), isTrue);
+      },
+      skip: _skip,
+    );
 
     test('wrong password is an invalid-credentials failure', () async {
       final u = await stack().signUp('wrongpw');
       await expectLater(
-        SupabaseAuthApi(baseUrl: stack().url, anonKey: stack().anonKey)
-            .signInWithPassword(u.email, 'not-the-password'),
+        SupabaseAuthApi(
+          baseUrl: stack().url,
+          anonKey: stack().anonKey,
+        ).signInWithPassword(u.email, 'not-the-password'),
         throwsA(isA<AuthInvalidCredentials>()),
       );
     }, skip: _skip);
 
-    test('an anonymous identity is rejected by the client and by the server', () async {
-      final anon = await stack().anonymousSession();
-      expect(anon.isAnonymous, isTrue);
-      await expectLater(
-        rawTransport(anon.accessToken).registerDevice(_id()),
-        throwsA(isA<SyncAuthFailure>().having((e) => e.anonymous, 'anonymous', isTrue)),
-      );
-    }, skip: _skip);
+    test(
+      'an anonymous identity is rejected by the client and by the server',
+      () async {
+        final anon = await stack().anonymousSession();
+        expect(anon.isAnonymous, isTrue);
+        await expectLater(
+          rawTransport(anon.accessToken).registerDevice(_id()),
+          throwsA(
+            isA<SyncAuthFailure>().having(
+              (e) => e.anonymous,
+              'anonymous',
+              isTrue,
+            ),
+          ),
+        );
+      },
+      skip: _skip,
+    );
 
     test('an expired token (correctly signed) is refreshed with the real refresh token', () async {
       final u = await stack().signUp('expired');
-      final api = SupabaseAuthApi(baseUrl: stack().url, anonKey: stack().anonKey);
+      final api = SupabaseAuthApi(
+        baseUrl: stack().url,
+        anonKey: stack().anonKey,
+      );
       final real = await api.signInWithPassword(u.email, u.password);
       final expired = stack().mintToken(
         sub: u.id,
@@ -204,7 +258,12 @@ void main() {
         jsonEncode({
           ...real.toJson(),
           'access_token': expired,
-          'expires_at': DateTime.now().toUtc().subtract(const Duration(minutes: 5)).millisecondsSinceEpoch ~/ 1000,
+          'expires_at':
+              DateTime.now()
+                  .toUtc()
+                  .subtract(const Duration(minutes: 5))
+                  .millisecondsSinceEpoch ~/
+              1000,
         }),
       );
       await store.write('last_user', u.id);
@@ -221,9 +280,24 @@ void main() {
       addTearDown(device.close);
       final good = device.sessions.state.session!;
       // a future expiry, a wrong signature: only the server can tell
-      final head = base64Url.encode(utf8.encode('{"alg":"HS256","typ":"JWT"}')).replaceAll('=', '');
+      final head = base64Url
+          .encode(utf8.encode('{"alg":"HS256","typ":"JWT"}'))
+          .replaceAll('=', '');
       final body = base64Url
-          .encode(utf8.encode(jsonEncode({'sub': u.id, 'role': 'authenticated', 'exp': DateTime.now().toUtc().add(const Duration(hours: 1)).millisecondsSinceEpoch ~/ 1000})))
+          .encode(
+            utf8.encode(
+              jsonEncode({
+                'sub': u.id,
+                'role': 'authenticated',
+                'exp':
+                    DateTime.now()
+                        .toUtc()
+                        .add(const Duration(hours: 1))
+                        .millisecondsSinceEpoch ~/
+                    1000,
+              }),
+            ),
+          )
           .replaceAll('=', '');
       await device.store.write(
         'session',
@@ -231,25 +305,37 @@ void main() {
       );
       await device.sessions.restore();
 
-      await device.repo.saveProject(Project(id: _id(), name: 'After refresh', position: 0));
+      await device.repo.saveProject(
+        Project(id: _id(), name: 'After refresh', position: 0),
+      );
       final status = await device.engine.syncNow();
 
       expect(status.phase, SyncPhase.idle);
-      expect(await stack().adminRows('projects', 'owner_id=eq.${u.id}'), hasLength(1));
+      expect(
+        await stack().adminRows('projects', 'owner_id=eq.${u.id}'),
+        hasLength(1),
+      );
     }, skip: _skip);
 
     test('expired and no longer refreshable: pending work is kept, nothing is sent', () async {
       final u = await stack().signUp('norefresh');
       final device = await Device.open(stack(), dir, u.email, u.password);
       addTearDown(device.close);
-      await device.repo.saveProject(Project(id: _id(), name: 'Kept', position: 0));
+      await device.repo.saveProject(
+        Project(id: _id(), name: 'Kept', position: 0),
+      );
       final good = device.sessions.state.session!;
       await device.store.write(
         'session',
         jsonEncode({
           ...good.toJson(),
           'refresh_token': 'not-a-real-refresh-token',
-          'expires_at': DateTime.now().toUtc().subtract(const Duration(minutes: 1)).millisecondsSinceEpoch ~/ 1000,
+          'expires_at':
+              DateTime.now()
+                  .toUtc()
+                  .subtract(const Duration(minutes: 1))
+                  .millisecondsSinceEpoch ~/
+              1000,
         }),
       );
       await device.sessions.restore();
@@ -259,29 +345,42 @@ void main() {
       expect(status.phase, SyncPhase.authRequired);
       expect(device.sessions.state.phase, AuthPhase.reauthRequired);
       expect(device.state.counts().pending, greaterThan(0));
-      expect(await stack().adminRows('projects', 'owner_id=eq.${u.id}'), isEmpty);
-    }, skip: _skip);
-
-    test('a deleted user with a still-valid token is refused, and cannot refresh', () async {
-      final u = await stack().signUp('deleted');
-      final api = SupabaseAuthApi(baseUrl: stack().url, anonKey: stack().anonKey);
-      final session = await api.signInWithPassword(u.email, u.password);
-      await rawTransport(session.accessToken).registerDevice(_id());
-      await stack().adminDeleteUser(u.id);
-
-      await expectLater(
-        rawTransport(session.accessToken).registerDevice(_id()),
-        throwsA(isA<SyncAuthFailure>()),
-      );
-      await expectLater(
-        api.refresh(session.refreshToken),
-        throwsA(isA<AuthSessionRevoked>()),
+      expect(
+        await stack().adminRows('projects', 'owner_id=eq.${u.id}'),
+        isEmpty,
       );
     }, skip: _skip);
+
+    test(
+      'a deleted user with a still-valid token is refused, and cannot refresh',
+      () async {
+        final u = await stack().signUp('deleted');
+        final api = SupabaseAuthApi(
+          baseUrl: stack().url,
+          anonKey: stack().anonKey,
+        );
+        final session = await api.signInWithPassword(u.email, u.password);
+        await rawTransport(session.accessToken).registerDevice(_id());
+        await stack().adminDeleteUser(u.id);
+
+        await expectLater(
+          rawTransport(session.accessToken).registerDevice(_id()),
+          throwsA(isA<SyncAuthFailure>()),
+        );
+        await expectLater(
+          api.refresh(session.refreshToken),
+          throwsA(isA<AuthSessionRevoked>()),
+        );
+      },
+      skip: _skip,
+    );
 
     test('sign-out ends the refresh token', () async {
       final u = await stack().signUp('logout');
-      final api = SupabaseAuthApi(baseUrl: stack().url, anonKey: stack().anonKey);
+      final api = SupabaseAuthApi(
+        baseUrl: stack().url,
+        anonKey: stack().anonKey,
+      );
       final session = await api.signInWithPassword(u.email, u.password);
       await api.signOut(session.accessToken);
       await expectLater(
@@ -290,25 +389,29 @@ void main() {
       );
     }, skip: _skip);
 
-    test('refresh rotation: each refresh uses the newest refresh token and works', () async {
-      final u = await stack().signUp('rotate');
-      var clock = DateTime.now().toUtc();
-      final sessions = SessionManager(
-        api: SupabaseAuthApi(baseUrl: stack().url, anonKey: stack().anonKey),
-        store: InMemorySecureStore(),
-        now: () => clock,
-      );
-      await sessions.signIn(u.email, u.password);
-      final tokens = <String>{sessions.state.session!.refreshToken};
-      for (var i = 0; i < 3; i++) {
-        clock = clock.add(const Duration(hours: 2));
-        final access = await sessions.accessToken();
-        expect(access, isNotNull);
-        await rawTransport(access).registerDevice(_id());
-        tokens.add(sessions.state.session!.refreshToken);
-      }
-      expect(tokens, hasLength(4)); // a new refresh token every time
-    }, skip: _skip);
+    test(
+      'refresh rotation: each refresh uses the newest refresh token and works',
+      () async {
+        final u = await stack().signUp('rotate');
+        var clock = DateTime.now().toUtc();
+        final sessions = SessionManager(
+          api: SupabaseAuthApi(baseUrl: stack().url, anonKey: stack().anonKey),
+          store: InMemorySecureStore(),
+          now: () => clock,
+        );
+        await sessions.signIn(u.email, u.password);
+        final tokens = <String>{sessions.state.session!.refreshToken};
+        for (var i = 0; i < 3; i++) {
+          clock = clock.add(const Duration(hours: 2));
+          final access = await sessions.accessToken();
+          expect(access, isNotNull);
+          await rawTransport(access).registerDevice(_id());
+          tokens.add(sessions.state.session!.refreshToken);
+        }
+        expect(tokens, hasLength(4)); // a new refresh token every time
+      },
+      skip: _skip,
+    );
   });
 
   group('RPC error mapping through PostgREST', () {
@@ -323,24 +426,56 @@ void main() {
         t.push(_id(), [
           {'operation_id': _id()},
         ]),
-        throwsA(isA<SyncServerError>().having((e) => e.code, 'code', 'device_invalid')),
+        throwsA(
+          isA<SyncServerError>().having(
+            (e) => e.code,
+            'code',
+            'device_invalid',
+          ),
+        ),
       );
       await t.registerDevice(device.deviceId);
       await expectLater(
         t.pull(device.deviceId, -5),
-        throwsA(isA<SyncServerError>().having((e) => e.code, 'code', 'invalid_cursor')),
+        throwsA(
+          isA<SyncServerError>().having(
+            (e) => e.code,
+            'code',
+            'invalid_cursor',
+          ),
+        ),
       );
       await expectLater(
         t.pull(device.deviceId, 999999999),
-        throwsA(isA<SyncServerError>().having((e) => e.code, 'code', 'invalid_cursor')),
+        throwsA(
+          isA<SyncServerError>().having(
+            (e) => e.code,
+            'code',
+            'invalid_cursor',
+          ),
+        ),
       );
       await expectLater(
         t.pull(device.deviceId, 0, limit: 0),
-        throwsA(isA<SyncServerError>().having((e) => e.code, 'code', 'invalid_request')),
+        throwsA(
+          isA<SyncServerError>().having(
+            (e) => e.code,
+            'code',
+            'invalid_request',
+          ),
+        ),
       );
       await expectLater(
-        t.push(device.deviceId, [for (var i = 0; i < 101; i++) <String, Object?>{}]),
-        throwsA(isA<SyncServerError>().having((e) => e.code, 'code', 'batch_too_large')),
+        t.push(device.deviceId, [
+          for (var i = 0; i < 101; i++) <String, Object?>{},
+        ]),
+        throwsA(
+          isA<SyncServerError>().having(
+            (e) => e.code,
+            'code',
+            'batch_too_large',
+          ),
+        ),
       );
       final page = await t.pull(device.deviceId, 0);
       expect(page['has_more'], isFalse);
@@ -356,11 +491,23 @@ void main() {
 
       await expectLater(
         rawTransport(tokenB).pull(devA.deviceId, 0),
-        throwsA(isA<SyncServerError>().having((e) => e.code, 'code', 'device_invalid')),
+        throwsA(
+          isA<SyncServerError>().having(
+            (e) => e.code,
+            'code',
+            'device_invalid',
+          ),
+        ),
       );
       await expectLater(
         rawTransport(tokenB).revokeDevice(devA.deviceId, devA.deviceId),
-        throwsA(isA<SyncServerError>().having((e) => e.code, 'code', 'device_invalid')),
+        throwsA(
+          isA<SyncServerError>().having(
+            (e) => e.code,
+            'code',
+            'device_invalid',
+          ),
+        ),
       );
     }, skip: _skip);
 
@@ -370,101 +517,167 @@ void main() {
       final d2 = await Device.open(stack(), dir, u.email, u.password);
       addTearDown(d1.close);
       addTearDown(d2.close);
-      await d1.repo.saveProject(Project(id: _id(), name: 'Shared', position: 0));
+      await d1.repo.saveProject(
+        Project(id: _id(), name: 'Shared', position: 0),
+      );
       expect((await d1.engine.syncNow()).phase, SyncPhase.idle);
       expect((await d2.engine.syncNow()).phase, SyncPhase.idle);
-      await d2.repo.saveProject(Project(id: _id(), name: 'Offline on d2', position: 1));
+      await d2.repo.saveProject(
+        Project(id: _id(), name: 'Offline on d2', position: 1),
+      );
 
       await d1.engine.revokeDevice(d2.deviceId);
       final status = await d2.engine.syncNow();
 
       expect(status.phase, SyncPhase.deviceRevoked);
       expect(d2.state.counts().pending, greaterThan(0));
-      expect(await stack().adminRows('projects', 'owner_id=eq.${u.id}&name=eq.Offline on d2'), isEmpty);
+      expect(
+        await stack().adminRows(
+          'projects',
+          'owner_id=eq.${u.id}&name=eq.Offline on d2',
+        ),
+        isEmpty,
+      );
     }, skip: _skip);
   });
 
   group('synchronization over HTTP', () {
-    test('a response lost after the server committed is replayed idempotently', () async {
-      final u = await stack().signUp('replay');
-      DropResponseAfterCommit? drop;
-      final d = await Device.open(
-        stack(),
-        dir,
-        u.email,
-        u.password,
-        wrap: (inner) => drop = DropResponseAfterCommit(inner),
-      );
-      addTearDown(d.close);
-      await d.repo.saveProject(Project(id: _id(), name: 'Once', position: 0));
+    test(
+      'a response lost after the server committed is replayed idempotently',
+      () async {
+        final u = await stack().signUp('replay');
+        DropResponseAfterCommit? drop;
+        final d = await Device.open(
+          stack(),
+          dir,
+          u.email,
+          u.password,
+          wrap: (inner) => drop = DropResponseAfterCommit(inner),
+        );
+        addTearDown(d.close);
+        await d.repo.saveProject(Project(id: _id(), name: 'Once', position: 0));
 
-      final first = await d.engine.syncNow();
-      expect(first.phase, SyncPhase.retrying);
-      expect(drop!.dropped, 1);
-      expect(await stack().adminRows('projects', 'owner_id=eq.${u.id}'), hasLength(1)); // committed
-      final second = await d.engine.syncNow();
+        final first = await d.engine.syncNow();
+        expect(first.phase, SyncPhase.retrying);
+        expect(drop!.dropped, 1);
+        expect(
+          await stack().adminRows('projects', 'owner_id=eq.${u.id}'),
+          hasLength(1),
+        ); // committed
+        final second = await d.engine.syncNow();
 
-      expect(second.phase, SyncPhase.idle);
-      final project = (await stack().adminRows('projects', 'owner_id=eq.${u.id}')).single;
-      expect(project['version'], 1);
-      expect(await stack().adminRows('sync_operations', 'user_id=eq.${u.id}&entity_type=eq.project'), hasLength(1));
-    }, skip: _skip);
+        expect(second.phase, SyncPhase.idle);
+        final project = (await stack().adminRows(
+          'projects',
+          'owner_id=eq.${u.id}',
+        )).single;
+        expect(project['version'], 1);
+        expect(
+          await stack().adminRows(
+            'sync_operations',
+            'user_id=eq.${u.id}&entity_type=eq.project',
+          ),
+          hasLength(1),
+        );
+      },
+      skip: _skip,
+    );
 
-    test('two devices: create, receive, independent edits, conflict, resolve, tree delete', () async {
-      final u = await stack().signUp('twodev');
-      final a = await Device.open(stack(), dir, u.email, u.password);
-      final b = await Device.open(stack(), dir, u.email, u.password);
-      addTearDown(a.close);
-      addTearDown(b.close);
-      Future<void> converge() async {
-        for (var i = 0; i < 2; i++) {
-          for (final d in [a, b]) {
-            final s = await d.engine.syncNow();
-            expect(s.phase, SyncPhase.idle, reason: s.code);
+    test(
+      'two devices: create, receive, independent edits, conflict, resolve, tree delete',
+      () async {
+        final u = await stack().signUp('twodev');
+        final a = await Device.open(stack(), dir, u.email, u.password);
+        final b = await Device.open(stack(), dir, u.email, u.password);
+        addTearDown(a.close);
+        addTearDown(b.close);
+        Future<void> converge() async {
+          for (var i = 0; i < 2; i++) {
+            for (final d in [a, b]) {
+              final s = await d.engine.syncNow();
+              expect(s.phase, SyncPhase.idle, reason: s.code);
+            }
           }
         }
-      }
 
-      final p = _id(), t1 = _id(), t2 = _id(), t3 = _id();
-      await a.repo.saveProject(Project(id: p, name: 'Home', position: 0));
-      await a.repo.saveTask(makeTask(id: t1, projectId: p, title: 'Root', notes: 'n'));
-      await a.repo.saveTask(makeTask(id: t2, projectId: p, parentId: t1, title: 'Child'));
-      await a.repo.saveTask(makeTask(id: t3, projectId: p, title: 'Contested'));
-      await converge();
-      expect(b.rows('SELECT COUNT(*) AS n FROM tasks').single['n'], 3);
+        final p = _id(), t1 = _id(), t2 = _id(), t3 = _id();
+        await a.repo.saveProject(Project(id: p, name: 'Home', position: 0));
+        await a.repo.saveTask(
+          makeTask(id: t1, projectId: p, title: 'Root', notes: 'n'),
+        );
+        await a.repo.saveTask(
+          makeTask(id: t2, projectId: p, parentId: t1, title: 'Child'),
+        );
+        await a.repo.saveTask(
+          makeTask(id: t3, projectId: p, title: 'Contested'),
+        );
+        await converge();
+        expect(b.rows('SELECT COUNT(*) AS n FROM tasks').single['n'], 3);
 
-      // independent edits of different fields reconcile
-      await a.repo.saveTask(makeTask(id: t1, projectId: p, title: 'Root (A)', notes: 'n'));
-      await b.repo.saveTask(makeTask(id: t1, projectId: p, title: 'Root', notes: 'notes (B)'));
-      await converge();
-      for (final d in [a, b]) {
-        final row = d.rows('SELECT title, notes FROM tasks WHERE id = ?', [t1]).single;
-        expect(row['title'], 'Root (A)');
-        expect(row['notes'], 'notes (B)');
-      }
+        // independent edits of different fields reconcile
+        await a.repo.saveTask(
+          makeTask(id: t1, projectId: p, title: 'Root (A)', notes: 'n'),
+        );
+        await b.repo.saveTask(
+          makeTask(id: t1, projectId: p, title: 'Root', notes: 'notes (B)'),
+        );
+        await converge();
+        for (final d in [a, b]) {
+          final row = d.rows('SELECT title, notes FROM tasks WHERE id = ?', [
+            t1,
+          ]).single;
+          expect(row['title'], 'Root (A)');
+          expect(row['notes'], 'notes (B)');
+        }
 
-      // the same field on both: conflict evidence, then a decision through HTTP
-      await a.repo.saveTask(makeTask(id: t3, projectId: p, title: 'A says'));
-      await b.repo.saveTask(makeTask(id: t3, projectId: p, title: 'B says'));
-      await a.engine.syncNow();
-      await b.engine.syncNow();
-      expect(await stack().adminRows('sync_conflicts', 'user_id=eq.${u.id}&status=eq.open'), hasLength(1));
-      final conflict = b.outbox.conflictsNeedingAction().single;
-      await b.engine.resolveConflict(conflict['id']! as String, ConflictChoice.keepLocal);
-      await converge();
-      expect(a.rows('SELECT title FROM tasks WHERE id = ?', [t3]).single['title'], 'B says');
-      expect(
-        (await stack().adminRows('sync_conflicts', 'user_id=eq.${u.id}')).single['status'],
-        'resolved_client',
-      );
+        // the same field on both: conflict evidence, then a decision through HTTP
+        await a.repo.saveTask(makeTask(id: t3, projectId: p, title: 'A says'));
+        await b.repo.saveTask(makeTask(id: t3, projectId: p, title: 'B says'));
+        await a.engine.syncNow();
+        await b.engine.syncNow();
+        expect(
+          await stack().adminRows(
+            'sync_conflicts',
+            'user_id=eq.${u.id}&status=eq.open',
+          ),
+          hasLength(1),
+        );
+        final conflict = b.outbox.conflictsNeedingAction().single;
+        await b.engine.resolveConflict(
+          conflict['id']! as String,
+          ConflictChoice.keepLocal,
+        );
+        await converge();
+        expect(
+          a.rows('SELECT title FROM tasks WHERE id = ?', [t3]).single['title'],
+          'B says',
+        );
+        expect(
+          (await stack().adminRows(
+            'sync_conflicts',
+            'user_id=eq.${u.id}',
+          )).single['status'],
+          'resolved_client',
+        );
 
-      // an atomic tree delete leaves no orphan
-      await a.repo.softDeleteTaskTree(t1);
-      await converge();
-      final deleted = await stack().adminRows('tasks', 'owner_id=eq.${u.id}&deleted_at=not.is.null');
-      expect(deleted.map((r) => r['id']).toSet(), {t1, t2});
-      expect(b.rows('SELECT deleted_at FROM tasks WHERE id = ?', [t2]).single['deleted_at'], isNotNull);
-    }, skip: _skip, timeout: const Timeout(Duration(minutes: 3)));
+        // an atomic tree delete leaves no orphan
+        await a.repo.softDeleteTaskTree(t1);
+        await converge();
+        final deleted = await stack().adminRows(
+          'tasks',
+          'owner_id=eq.${u.id}&deleted_at=not.is.null',
+        );
+        expect(deleted.map((r) => r['id']).toSet(), {t1, t2});
+        expect(
+          b.rows('SELECT deleted_at FROM tasks WHERE id = ?', [
+            t2,
+          ]).single['deleted_at'],
+          isNotNull,
+        );
+      },
+      skip: _skip,
+      timeout: const Timeout(Duration(minutes: 3)),
+    );
 
     test('a tree-delete manifest over the size limit is refused and nothing is deleted', () async {
       final u = await stack().signUp('treelimit');
@@ -502,9 +715,13 @@ void main() {
       final u = await stack().signUp('cursor');
       final d = await Device.open(stack(), dir, u.email, u.password);
       addTearDown(d.close);
-      await d.repo.saveProject(Project(id: _id(), name: 'Keep me', position: 0));
+      await d.repo.saveProject(
+        Project(id: _id(), name: 'Keep me', position: 0),
+      );
       expect((await d.engine.syncNow()).phase, SyncPhase.idle);
-      d.db.raw.execute('UPDATE sync_state SET cursor = 9000000000 WHERE singleton = 1');
+      d.db.raw.execute(
+        'UPDATE sync_state SET cursor = 9000000000 WHERE singleton = 1',
+      );
 
       final status = await d.engine.syncNow();
 

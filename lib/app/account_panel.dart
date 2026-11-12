@@ -192,7 +192,9 @@ class _SignInDialogState extends State<_SignInDialog> {
               controller: _email,
               enabled: !_busy,
               autofocus: true,
-              decoration: const InputDecoration(labelText: AppStrings.emailLabel),
+              decoration: const InputDecoration(
+                labelText: AppStrings.emailLabel,
+              ),
             ),
             TextField(
               key: const ValueKey('sign-in-password'),

@@ -294,11 +294,7 @@ final class SessionManager {
       return next;
     }
     _set(
-      AuthState(
-        phase: AuthPhase.signedIn,
-        session: next,
-        userId: next.userId,
-      ),
+      AuthState(phase: AuthPhase.signedIn, session: next, userId: next.userId),
     );
     return next;
   }

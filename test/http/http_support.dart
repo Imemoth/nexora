@@ -96,7 +96,11 @@ final class Stack {
       throw StateError('signup failed: ${r.status} ${r.body}');
     }
     final user = (r.body! as Map)['user'] as Map? ?? r.body! as Map;
-    return (id: (user['id'] as String).toLowerCase(), email: email, password: password);
+    return (
+      id: (user['id'] as String).toLowerCase(),
+      email: email,
+      password: password,
+    );
   }
 
   /// An anonymous GoTrue session (needs `enable_anonymous_sign_ins`).
@@ -130,7 +134,10 @@ final class Stack {
   }
 
   /// Rows read past RLS with the service-role key (harness only).
-  Future<List<Map<String, Object?>>> adminRows(String table, [String query = '']) async {
+  Future<List<Map<String, Object?>>> adminRows(
+    String table, [
+    String query = '',
+  ]) async {
     final r = await request(
       'GET',
       '/rest/v1/$table?$query',
@@ -140,7 +147,9 @@ final class Stack {
     if (r.status != 200) {
       throw StateError('adminRows $table: ${r.status} ${r.body}');
     }
-    return [for (final row in r.body! as List) Map<String, Object?>.from(row as Map)];
+    return [
+      for (final row in r.body! as List) Map<String, Object?>.from(row as Map),
+    ];
   }
 
   /// A correctly signed HS256 token with the stack's own secret: the one thing a
@@ -164,7 +173,9 @@ final class Stack {
       'is_anonymous': false,
     });
     final signature = base64Url
-        .encode(hmacSha256(utf8.encode(jwtSecret), utf8.encode('$head.$payload')))
+        .encode(
+          hmacSha256(utf8.encode(jwtSecret), utf8.encode('$head.$payload')),
+        )
         .replaceAll('=', '');
     return '$head.$payload.$signature';
   }
@@ -201,8 +212,12 @@ final class Device {
 
   String get deviceId => outbox.deviceId();
 
-  List<Map<String, Object?>> rows(String sql, [List<Object?> params = const []]) => [
-    for (final r in db.raw.select(sql, params)) {for (final k in r.keys) k: r[k]},
+  List<Map<String, Object?>> rows(
+    String sql, [
+    List<Object?> params = const [],
+  ]) => [
+    for (final r in db.raw.select(sql, params))
+      {for (final k in r.keys) k: r[k]},
   ];
 
   /// Opens a database file, signs in, and builds the engine. [wrap] can decorate
@@ -217,7 +232,9 @@ final class Device {
     SecureStore? store,
     bool signIn = true,
   }) async {
-    final file = path ?? '${dir.path}${Platform.pathSeparator}d${RandomIdGenerator().nextId().substring(0, 6)}.db';
+    final file =
+        path ??
+        '${dir.path}${Platform.pathSeparator}d${RandomIdGenerator().nextId().substring(0, 6)}.db';
     final db = LocalDatabase.open(file);
     final secure = (store as InMemorySecureStore?) ?? InMemorySecureStore();
     final sessions = SessionManager(
@@ -262,7 +279,11 @@ final class Device {
       stack: stack,
       path: file,
       db: db,
-      repo: SqliteTaskRepository(db, ownerId: 'local-${RandomIdGenerator().nextId()}', ids: ids),
+      repo: SqliteTaskRepository(
+        db,
+        ownerId: 'local-${RandomIdGenerator().nextId()}',
+        ids: ids,
+      ),
       outbox: outbox,
       state: syncState,
       sessions: sessions,
@@ -284,11 +305,16 @@ final class DropResponseAfterCommit implements SyncTransport {
   int dropped = 0;
 
   @override
-  Future<Map<String, Object?>> registerDevice(String deviceId, {String? label}) =>
-      inner.registerDevice(deviceId, label: label);
+  Future<Map<String, Object?>> registerDevice(
+    String deviceId, {
+    String? label,
+  }) => inner.registerDevice(deviceId, label: label);
 
   @override
-  Future<List<Object?>> push(String deviceId, List<Map<String, Object?>> operations) async {
+  Future<List<Object?>> push(
+    String deviceId,
+    List<Map<String, Object?>> operations,
+  ) async {
     final result = await inner.push(deviceId, operations);
     if (drops > 0) {
       drops--;
@@ -299,8 +325,11 @@ final class DropResponseAfterCommit implements SyncTransport {
   }
 
   @override
-  Future<Map<String, Object?>> pull(String deviceId, int cursor, {int limit = 200}) =>
-      inner.pull(deviceId, cursor, limit: limit);
+  Future<Map<String, Object?>> pull(
+    String deviceId,
+    int cursor, {
+    int limit = 200,
+  }) => inner.pull(deviceId, cursor, limit: limit);
 
   @override
   Future<Map<String, Object?>> resolveConflict({
@@ -318,6 +347,8 @@ final class DropResponseAfterCommit implements SyncTransport {
   );
 
   @override
-  Future<Map<String, Object?>> revokeDevice(String deviceId, String targetDeviceId) =>
-      inner.revokeDevice(deviceId, targetDeviceId);
+  Future<Map<String, Object?>> revokeDevice(
+    String deviceId,
+    String targetDeviceId,
+  ) => inner.revokeDevice(deviceId, targetDeviceId);
 }

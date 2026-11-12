@@ -36,28 +36,37 @@ void main() {
       final raw = File('${dir.path}${Platform.pathSeparator}session.dpapi')
           .readAsStringSync();
       expect(raw.contains('second'), isFalse);
-      expect(Directory(dir.path).listSync().whereType<File>().map((f) => f.path.split(Platform.pathSeparator).last), ['session.dpapi']);
+      expect(
+        Directory(dir.path)
+            .listSync()
+            .whereType<File>()
+            .map((f) => f.path.split(Platform.pathSeparator).last),
+        ['session.dpapi'],
+      );
 
       await store.delete('session');
       expect(await store.read('session'), isNull);
     });
 
-    test('the secret goes to the program on stdin, never on the command line', () async {
-      final seen = <List<String>>[];
-      final stdins = <String>[];
-      final store = DpapiSecureStore(
-        dir,
-        runner: (exe, args, stdin) {
-          seen.add(args);
-          stdins.add(stdin);
-          return fake(exe, args, stdin);
-        },
-      );
-      await store.write('session', 'sekret');
-      expect(seen.expand((a) => a).any((a) => a.contains('sekret')), isFalse);
-      expect(stdins.single.contains('sekret'), isFalse); // Base64, not raw
-      expect(base64.decode(stdins.single.trim()), utf8.encode('sekret'));
-    });
+    test(
+      'the secret goes to the program on stdin, never on the command line',
+      () async {
+        final seen = <List<String>>[];
+        final stdins = <String>[];
+        final store = DpapiSecureStore(
+          dir,
+          runner: (exe, args, stdin) {
+            seen.add(args);
+            stdins.add(stdin);
+            return fake(exe, args, stdin);
+          },
+        );
+        await store.write('session', 'sekret');
+        expect(seen.expand((a) => a).any((a) => a.contains('sekret')), isFalse);
+        expect(stdins.single.contains('sekret'), isFalse); // Base64, not raw
+        expect(base64.decode(stdins.single.trim()), utf8.encode('sekret'));
+      },
+    );
 
     test('a failing protector is reported and nothing is written', () async {
       final store = DpapiSecureStore(
@@ -68,7 +77,10 @@ void main() {
         store.write('session', 'x'),
         throwsA(isA<AuthStorageFailure>()),
       );
-      expect(File('${dir.path}${Platform.pathSeparator}session.dpapi').existsSync(), isFalse);
+      expect(
+        File('${dir.path}${Platform.pathSeparator}session.dpapi').existsSync(),
+        isFalse,
+      );
     });
 
     test('unsafe keys are refused', () async {

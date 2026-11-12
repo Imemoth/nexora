@@ -11,7 +11,9 @@ final class RuntimeConfig {
   final String supabaseUrl;
   final String anonKey;
 
-  static const String _urlDefine = String.fromEnvironment('NEXORA_SUPABASE_URL');
+  static const String _urlDefine = String.fromEnvironment(
+    'NEXORA_SUPABASE_URL',
+  );
   static const String _keyDefine = String.fromEnvironment(
     'NEXORA_SUPABASE_ANON_KEY',
   );
@@ -35,9 +37,7 @@ final class RuntimeConfig {
       return null;
     }
     final local =
-        uri.host == 'localhost' ||
-        uri.host == '127.0.0.1' ||
-        uri.host == '::1';
+        uri.host == 'localhost' || uri.host == '127.0.0.1' || uri.host == '::1';
     // Tokens and passwords never travel over plain HTTP except to this machine.
     if (uri.scheme != 'https' && !(uri.scheme == 'http' && local)) {
       return null;

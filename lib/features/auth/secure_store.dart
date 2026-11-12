@@ -130,10 +130,7 @@ final class DpapiSecureStore implements SecureStore {
   @override
   Future<void> write(String key, String value) async {
     final file = _file(key);
-    final blob = await _call(
-      _protectScript,
-      base64.encode(utf8.encode(value)),
-    );
+    final blob = await _call(_protectScript, base64.encode(utf8.encode(value)));
     if (blob.isEmpty) {
       throw const AuthStorageFailure('dpapi_empty');
     }

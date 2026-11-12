@@ -28,11 +28,10 @@ import 'session_token_source.dart';
 import 'sync_scheduler.dart';
 
 /// Builds the real transport for a signed-in account. Replaced in tests.
-typedef TransportFactory =
-    SyncTransport Function(
-      RuntimeConfig config,
-      Future<String?> Function() accessToken,
-    );
+typedef TransportFactory = SyncTransport Function(
+  RuntimeConfig config,
+  Future<String?> Function() accessToken,
+);
 
 SyncTransport _httpTransport(
   RuntimeConfig config,
@@ -395,6 +394,5 @@ final class SyncRuntime {
   }
 
   /// For tests: the database folder of an account.
-  Directory accountFolder(String userId) =>
-      paths.databaseFor(userId).parent;
+  Directory accountFolder(String userId) => paths.databaseFor(userId).parent;
 }

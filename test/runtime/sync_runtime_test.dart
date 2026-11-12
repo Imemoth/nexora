@@ -73,19 +73,25 @@ void main() {
     }
   });
 
-  test('signed out: the local workspace, no engine, no transport, no traffic', () async {
-    final runtime = build();
-    final active = await runtime.start();
-    addTearDown(runtime.dispose);
+  test(
+    'signed out: the local workspace, no engine, no transport, no traffic',
+    () async {
+      final runtime = build();
+      final active = await runtime.start();
+      addTearDown(runtime.dispose);
 
-    expect(active.userId, isNull);
-    expect(active.engine, isNull);
-    expect(active.scheduler, isNull);
-    expect(factoryCalls, 0);
-    expect((await runtime.syncNow()).phase, SyncPhase.authRequired);
-    expect(api.signIns + api.refreshes, 0);
-    expect(File('${dir.path}${Platform.pathSeparator}nexora.db').existsSync(), isTrue);
-  });
+      expect(active.userId, isNull);
+      expect(active.engine, isNull);
+      expect(active.scheduler, isNull);
+      expect(factoryCalls, 0);
+      expect((await runtime.syncNow()).phase, SyncPhase.authRequired);
+      expect(api.signIns + api.refreshes, 0);
+      expect(
+        File('${dir.path}${Platform.pathSeparator}nexora.db').existsSync(),
+        isTrue,
+      );
+    },
+  );
 
   test('without project settings nothing is ever built', () async {
     final runtime = build(noConfig: true);
@@ -97,113 +103,141 @@ void main() {
     expect(runtime.syncPanel().initial.phase, isNot(SyncPhase.idle));
   });
 
-  test('sign-in opens the account database, builds the engine and synchronizes', () async {
-    final runtime = build();
-    await runtime.start();
-    addTearDown(runtime.dispose);
-    await runtime.signIn('a@example.test', 'pw');
-    final active = runtime.active;
-    expect(active.userId, userA);
-    expect(active.db.raw.select('PRAGMA database_list').first['file'].toString().contains('accounts'), isTrue);
+  test(
+    'sign-in opens the account database, builds the engine and synchronizes',
+    () async {
+      final runtime = build();
+      await runtime.start();
+      addTearDown(runtime.dispose);
+      await runtime.signIn('a@example.test', 'pw');
+      final active = runtime.active;
+      expect(active.userId, userA);
+      expect(
+        active.db.raw
+            .select('PRAGMA database_list')
+            .first['file']
+            .toString()
+            .contains('accounts'),
+        isTrue,
+      );
 
-    await active.repository.saveProject(
-      const Project(id: 'p1', name: 'Home', position: 0),
-    );
-    await active.repository.saveTask(
-      makeTask(id: 't1', projectId: 'p1', title: 'Synced'),
-    );
-    final status = await runtime.syncNow();
+      await active.repository.saveProject(
+        const Project(id: 'p1', name: 'Home', position: 0),
+      );
+      await active.repository.saveTask(
+        makeTask(id: 't1', projectId: 'p1', title: 'Synced'),
+      );
+      final status = await runtime.syncNow();
 
-    expect(status.phase, SyncPhase.idle);
-    expect(servers[userA]!.rows.keys, containsAll(['project:p1', 'task:t1']));
-    expect(runtime.active.scheduler!.running, isTrue);
-  });
+      expect(status.phase, SyncPhase.idle);
+      expect(servers[userA]!.rows.keys, containsAll(['project:p1', 'task:t1']));
+      expect(runtime.active.scheduler!.running, isTrue);
+    },
+  );
 
-  test('sign-out returns to the local workspace and stops everything', () async {
-    final runtime = build();
-    await runtime.start();
-    addTearDown(runtime.dispose);
-    await runtime.signIn('a@example.test', 'pw');
-    await runtime.signOut();
+  test(
+    'sign-out returns to the local workspace and stops everything',
+    () async {
+      final runtime = build();
+      await runtime.start();
+      addTearDown(runtime.dispose);
+      await runtime.signIn('a@example.test', 'pw');
+      await runtime.signOut();
 
-    expect(runtime.active.userId, isNull);
-    expect(runtime.active.engine, isNull);
-    final calls = factoryCalls;
-    await runtime.syncNow();
-    expect(factoryCalls, calls);
-    expect(await store.read('session'), isNull);
-  });
+      expect(runtime.active.userId, isNull);
+      expect(runtime.active.engine, isNull);
+      final calls = factoryCalls;
+      await runtime.syncNow();
+      expect(factoryCalls, calls);
+      expect(await store.read('session'), isNull);
+    },
+  );
 
-  test('account switching: each account has its own file and data never crosses', () async {
-    final runtime = build();
-    await runtime.start();
-    addTearDown(runtime.dispose);
+  test(
+    'account switching: each account has its own file and data never crosses',
+    () async {
+      final runtime = build();
+      await runtime.start();
+      addTearDown(runtime.dispose);
 
-    await runtime.signIn('a@example.test', 'pw');
-    await runtime.active.repository.saveProject(
-      const Project(id: 'pa', name: 'A only', position: 0),
-    );
-    await runtime.syncNow();
-    await runtime.signOut();
+      await runtime.signIn('a@example.test', 'pw');
+      await runtime.active.repository.saveProject(
+        const Project(id: 'pa', name: 'A only', position: 0),
+      );
+      await runtime.syncNow();
+      await runtime.signOut();
 
-    await runtime.signIn('b@example.test', 'pw');
-    expect(runtime.active.userId, userB);
-    expect(await runtime.active.repository.loadProjects(), isEmpty);
-    await runtime.active.repository.saveProject(
-      const Project(id: 'pb', name: 'B only', position: 0),
-    );
-    await runtime.syncNow();
+      await runtime.signIn('b@example.test', 'pw');
+      expect(runtime.active.userId, userB);
+      expect(await runtime.active.repository.loadProjects(), isEmpty);
+      await runtime.active.repository.saveProject(
+        const Project(id: 'pb', name: 'B only', position: 0),
+      );
+      await runtime.syncNow();
 
-    expect(servers[userA]!.rows.keys, contains('project:pa'));
-    expect(servers[userA]!.rows.keys, isNot(contains('project:pb')));
-    expect(servers[userB]!.rows.keys, contains('project:pb'));
-    expect(servers[userB]!.rows.keys, isNot(contains('project:pa')));
+      expect(servers[userA]!.rows.keys, contains('project:pa'));
+      expect(servers[userA]!.rows.keys, isNot(contains('project:pb')));
+      expect(servers[userB]!.rows.keys, contains('project:pb'));
+      expect(servers[userB]!.rows.keys, isNot(contains('project:pa')));
 
-    await runtime.signOut();
-    await runtime.signIn('a@example.test', 'pw');
-    expect((await runtime.active.repository.loadProjects()).map((p) => p.id), ['pa']);
-  });
+      await runtime.signOut();
+      await runtime.signIn('a@example.test', 'pw');
+      expect(
+        (await runtime.active.repository.loadProjects()).map((p) => p.id),
+        ['pa'],
+      );
+    },
+  );
 
-  test('an expired session keeps the account database usable and sends nothing', () async {
-    final runtime = build();
-    await runtime.start();
-    addTearDown(runtime.dispose);
-    await runtime.signIn('a@example.test', 'pw');
-    await runtime.active.repository.saveProject(
-      const Project(id: 'p1', name: 'Offline work', position: 0),
-    );
-    clock = clock.add(const Duration(hours: 3));
-    api.refreshFailures.add(const AuthSessionRevoked('session_not_found'));
+  test(
+    'an expired session keeps the account database usable and sends nothing',
+    () async {
+      final runtime = build();
+      await runtime.start();
+      addTearDown(runtime.dispose);
+      await runtime.signIn('a@example.test', 'pw');
+      await runtime.active.repository.saveProject(
+        const Project(id: 'p1', name: 'Offline work', position: 0),
+      );
+      clock = clock.add(const Duration(hours: 3));
+      api.refreshFailures.add(const AuthSessionRevoked('session_not_found'));
 
-    final status = await runtime.syncNow();
+      final status = await runtime.syncNow();
 
-    expect(status.phase, SyncPhase.authRequired);
-    expect(runtime.active.userId, userA);
-    expect((await runtime.active.repository.loadProjects()).single.name, 'Offline work');
-    expect(servers[userA]!.rows, isEmpty);
-    final view = runtime.accountPanel().initial;
-    expect(view.phase, AccountPhase.reauthRequired);
-  });
+      expect(status.phase, SyncPhase.authRequired);
+      expect(runtime.active.userId, userA);
+      expect(
+        (await runtime.active.repository.loadProjects()).single.name,
+        'Offline work',
+      );
+      expect(servers[userA]!.rows, isEmpty);
+      final view = runtime.accountPanel().initial;
+      expect(view.phase, AccountPhase.reauthRequired);
+    },
+  );
 
-  test('restart restores the account offline without any network call', () async {
-    final first = build();
-    await first.start();
-    await first.signIn('a@example.test', 'pw');
-    await first.active.repository.saveProject(
-      const Project(id: 'p1', name: 'Mine', position: 0),
-    );
-    await first.dispose();
-    final signIns = api.signIns;
+  test(
+    'restart restores the account offline without any network call',
+    () async {
+      final first = build();
+      await first.start();
+      await first.signIn('a@example.test', 'pw');
+      await first.active.repository.saveProject(
+        const Project(id: 'p1', name: 'Mine', position: 0),
+      );
+      await first.dispose();
+      final signIns = api.signIns;
 
-    final second = build();
-    final active = await second.start();
-    addTearDown(second.dispose);
+      final second = build();
+      final active = await second.start();
+      addTearDown(second.dispose);
 
-    expect(active.userId, userA);
-    expect((await active.repository.loadProjects()).single.name, 'Mine');
-    expect(api.signIns, signIns);
-    expect(api.refreshes, 0);
-  });
+      expect(active.userId, userA);
+      expect((await active.repository.loadProjects()).single.name, 'Mine');
+      expect(api.signIns, signIns);
+      expect(api.refreshes, 0);
+    },
+  );
 
   test('a bad sign-in maps to an outcome the dialog can show', () async {
     final runtime = build();
