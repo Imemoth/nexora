@@ -532,6 +532,8 @@ final class OutboxStore {
     required String? source,
   }) {
     final kind = detail?['kind'];
+    final detailBase = detail?['base_version'];
+    final detailServerVersion = detail?['server_version'];
     final now = _iso();
     _raw.execute(
       'INSERT INTO sync_conflicts_local (id, operation_id, entity_type, entity_id, '
@@ -545,10 +547,10 @@ final class OutboxStore {
         op['entity_id'],
         conflictKinds.contains(kind) ? kind : 'field',
         jsonEncode(detail?['fields'] ?? <Object?>[]),
-        detail?['base_version'] is int
-            ? detail!['base_version']
+        detailBase is int
+            ? detailBase
             : (op['base_version'] ?? op['observed_base_version']),
-        detail?['server_version'] is int ? detail!['server_version'] : null,
+        detailServerVersion is int ? detailServerVersion : null,
         jsonEncode(detail?['server_value'] ?? <String, Object?>{}),
         jsonEncode(detail?['client_value'] ?? <String, Object?>{}),
         status,
