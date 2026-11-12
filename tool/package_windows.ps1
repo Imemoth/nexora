@@ -26,9 +26,12 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $releaseDir = Join-Path $repoRoot 'build\windows\x64\runner\Release'
 
 # Runtime files a release bundle must contain (relative to the Release folder).
+# sqlite3.dll is the native asset of the sqlite3 package (Phase 2A local
+# persistence). Without it the app cannot open its database.
 $requiredFiles = @(
     'nexora.exe',
     'flutter_windows.dll',
+    'sqlite3.dll',
     'data\app.so',
     'data\icudtl.dat'
 )
