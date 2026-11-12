@@ -1,5 +1,3 @@
-import 'dart:ui' show Size;
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/app/nexora_app.dart';
@@ -41,7 +39,7 @@ Finder _inRow(String taskId, Finder matching) {
 List<String> _rowIds(WidgetTester tester) {
   final keys = tester
       .widgetList<Widget>(
-        find.byWhere(
+        find.byWidgetPredicate(
           (widget) =>
               widget.key is ValueKey<String> &&
               (widget.key! as ValueKey<String>).value.startsWith('row-'),

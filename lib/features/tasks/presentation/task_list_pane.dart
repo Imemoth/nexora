@@ -6,7 +6,6 @@ import 'strings/app_strings.dart';
 import 'sort_menu.dart';
 import 'task_row.dart';
 import 'task_search_field.dart';
-import 'tasks_notifier.dart';
 import 'tasks_scope.dart';
 
 /// Center pane: header, search and sort controls, then the task tree.
