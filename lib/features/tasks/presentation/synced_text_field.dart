@@ -11,6 +11,7 @@ class SyncedTextField extends StatefulWidget {
     this.errorText,
     this.minLines = 1,
     this.maxLines = 1,
+    this.focusNode,
   });
 
   final String value;
@@ -19,6 +20,9 @@ class SyncedTextField extends StatefulWidget {
   final String? errorText;
   final int minLines;
   final int maxLines;
+
+  /// Owned by the caller so keyboard commands can focus the field.
+  final FocusNode? focusNode;
 
   @override
   State<SyncedTextField> createState() => _SyncedTextFieldState();
@@ -47,6 +51,7 @@ class _SyncedTextFieldState extends State<SyncedTextField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _controller,
+      focusNode: widget.focusNode,
       onChanged: widget.onChanged,
       minLines: widget.minLines,
       maxLines: widget.maxLines,
