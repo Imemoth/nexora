@@ -26,7 +26,15 @@ final class PsqlResult {
 }
 
 Future<PsqlResult> runPsql(String database, String script) async {
-  final process = await Process.start('psql', ['-X', '-q', '-tA', '-v', 'ON_ERROR_STOP=1', '-d', database]);
+  final process = await Process.start('psql', [
+    '-X',
+    '-q',
+    '-tA',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-d',
+    database,
+  ]);
   final out = process.stdout.transform(utf8.decoder).join();
   final err = process.stderr.transform(utf8.decoder).join();
   process.stdin.write(script);
@@ -46,19 +54,30 @@ Future<String> mustPsql(String database, String script) async {
 /// A fresh database with every migration applied. Returns its name.
 Future<String> createE2eDatabase() async {
   final name = 'nx_e2e_${Random().nextInt(1 << 30)}';
-  await mustPsql('postgres', 'drop database if exists $name;\ncreate database $name;');
-  final roles = await mustPsql('postgres', "select 1 from pg_roles where rolname = 'anon';");
-  var bootstrap = File('supabase/tests/00_bootstrap_local.sql').readAsStringSync();
+  await mustPsql(
+    'postgres',
+    'drop database if exists $name;\ncreate database $name;',
+  );
+  final roles = await mustPsql(
+    'postgres',
+    "select 1 from pg_roles where rolname = 'anon';",
+  );
+  var bootstrap = File('supabase/tests/00_bootstrap_local.sql')
+      .readAsStringSync();
   if (roles == '1') {
-    bootstrap = bootstrap.split('\n').where((l) => !l.startsWith('create role')).join('\n');
+    bootstrap = bootstrap
+        .split('\n')
+        .where((l) => !l.startsWith('create role'))
+        .join('\n');
   }
   await mustPsql(name, bootstrap);
-  final files = Directory('supabase/migrations')
-      .listSync()
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.sql'))
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final files =
+      Directory('supabase/migrations')
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.sql'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
   for (final file in files) {
     await mustPsql(name, file.readAsStringSync());
   }
@@ -79,8 +98,14 @@ final class PsqlTransport implements SyncTransport {
   final String userId;
 
   Future<Object?> _call(String expression) async {
-    final claims = jsonEncode({'sub': userId, 'role': 'authenticated', 'aud': 'authenticated', 'is_anonymous': false});
-    final script = '\\set VERBOSITY verbose\n'
+    final claims = jsonEncode({
+      'sub': userId,
+      'role': 'authenticated',
+      'aud': 'authenticated',
+      'is_anonymous': false,
+    });
+    final script =
+        '\\set VERBOSITY verbose\n'
         'begin;\n'
         'do \$\$ begin perform set_config(\'request.jwt.claims\', ${_lit(claims)}, true); end \$\$;\n'
         'set local role authenticated;\n'
@@ -95,7 +120,10 @@ final class PsqlTransport implements SyncTransport {
     if (result.exitCode != 0) {
       throw _classify(result.stderr);
     }
-    final line = result.stdout.split('\n').where((l) => l.trim().isNotEmpty).lastOrNull;
+    final line = result.stdout
+        .split('\n')
+        .where((l) => l.trim().isNotEmpty)
+        .lastOrNull;
     return line == null ? null : jsonDecode(line);
   }
 
@@ -112,27 +140,49 @@ final class PsqlTransport implements SyncTransport {
     if (state == '42501' && message == 'anonymous_not_allowed') {
       return const SyncAuthFailure('anonymous_not_allowed', anonymous: true);
     }
-    if (state.startsWith('40') || state.startsWith('53') || state.startsWith('55') || state.startsWith('57')) {
+    if (state.startsWith('40') ||
+        state.startsWith('53') ||
+        state.startsWith('55') ||
+        state.startsWith('57')) {
       return SyncNetworkFailure('transient_$state');
     }
     return SyncServerError(message);
   }
 
-  Map<String, Object?> _object(Object? value) => Map<String, Object?>.from(value! as Map);
+  Map<String, Object?> _object(Object? value) =>
+      Map<String, Object?>.from(value! as Map);
 
   @override
-  Future<Map<String, Object?>> registerDevice(String deviceId, {String? label}) async =>
-      _object(await _call("public.nexora_register_device('$deviceId'::uuid, ${label == null ? 'null' : _lit(label)})"));
+  Future<Map<String, Object?>> registerDevice(
+    String deviceId, {
+    String? label,
+  }) async => _object(
+    await _call(
+      "public.nexora_register_device('$deviceId'::uuid, ${label == null ? 'null' : _lit(label)})",
+    ),
+  );
 
   @override
-  Future<List<Object?>> push(String deviceId, List<Map<String, Object?>> operations) async {
-    final body = _object(await _call("public.nexora_sync_push('$deviceId'::uuid, ${_lit(jsonEncode(operations))}::jsonb)"));
+  Future<List<Object?>> push(
+    String deviceId,
+    List<Map<String, Object?>> operations,
+  ) async {
+    final body = _object(
+      await _call(
+        "public.nexora_sync_push('$deviceId'::uuid, ${_lit(jsonEncode(operations))}::jsonb)",
+      ),
+    );
     return body['results']! as List<Object?>;
   }
 
   @override
-  Future<Map<String, Object?>> pull(String deviceId, int cursor, {int limit = 200}) async =>
-      _object(await _call("public.nexora_sync_pull('$deviceId'::uuid, $cursor, $limit)"));
+  Future<Map<String, Object?>> pull(
+    String deviceId,
+    int cursor, {
+    int limit = 200,
+  }) async => _object(
+    await _call("public.nexora_sync_pull('$deviceId'::uuid, $cursor, $limit)"),
+  );
 
   @override
   Future<Map<String, Object?>> resolveConflict({
@@ -141,13 +191,20 @@ final class PsqlTransport implements SyncTransport {
     required String conflictId,
     required String resolution,
     Map<String, Object?>? values,
-  }) async =>
-      _object(await _call(
-        "public.nexora_resolve_conflict('$deviceId'::uuid, '$operationId'::uuid, '$conflictId'::uuid, '$resolution', "
-        '${values == null ? 'null' : '${_lit(jsonEncode(values))}::jsonb'})',
-      ));
+  }) async => _object(
+    await _call(
+      "public.nexora_resolve_conflict('$deviceId'::uuid, '$operationId'::uuid, '$conflictId'::uuid, '$resolution', "
+      '${values == null ? 'null' : '${_lit(jsonEncode(values))}::jsonb'})',
+    ),
+  );
 
   @override
-  Future<Map<String, Object?>> revokeDevice(String deviceId, String targetDeviceId) async =>
-      _object(await _call("public.nexora_revoke_device('$deviceId'::uuid, '$targetDeviceId'::uuid)"));
+  Future<Map<String, Object?>> revokeDevice(
+    String deviceId,
+    String targetDeviceId,
+  ) async => _object(
+    await _call(
+      "public.nexora_revoke_device('$deviceId'::uuid, '$targetDeviceId'::uuid)",
+    ),
+  );
 }
