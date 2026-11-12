@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: APPROVED by the owner on 2026-11-12 (see `docs/architecture/decisions/0002-sync-protocol.md` for conditions). S0 and S1 are authorized; S1 is implemented locally and NOT applied to the hosted project. S2 onward needs separate approval.** No hosted change, no user or data creation, no sharing, no merge, no deploy.
+**Status: APPROVED by the owner on 2026-11-12 (see `docs/architecture/decisions/0002-sync-protocol.md` for conditions). S0 and S1 are authorized; S1 and the standalone `guard_row` fix (`20261112125000`) are implemented on the dev branch, pass PostgreSQL 17 CI (runs 43217510081, 43219771092) and are NOT applied to the hosted project. S2 onward needs separate approval.** No hosted change, no user or data creation, no sharing, no merge, no deploy.
 
 **Goal:** Two or more devices of one user converge on the same projects and tasks through Supabase, with no lost edit, no duplicate application and no cross-user access.
 
@@ -39,6 +39,7 @@
 | Phase 2A outbox has `upsert`/`delete`, `base_version >= 0`, states `pending/sent/acked/failed`, no device id, no cursor, no conflict table, no ordering column | `migrations.dart` on `feature/phase-2a-sqlite` |
 | Phase 2A plan §2 predates 2B: it still says the server rejects `review`, `archived`, `none` and has nullable notes. All four are now resolved server-side | contract vs 2A §2.1 |
 | Phase 2A plans a local `+1 per committed update` version. That conflicts with server-owned versions (see §4.1) | 2A §2.1 |
+| Update (2026-11-12): at `c970d61` (PR #13, Draft) Phase 2A implements REQ-1 (no local version bump), REQ-7 and REQ-8 and the transaction half of REQ-5. Not implemented: outbox v2, `sync_state`, conflict mirror, leaf-first tombstones, patch-only payloads | `phase-2a-data-contract-alignment.md` on `feature/phase-2a-sqlite` |
 
 ## 2. Protocol
 All RPCs are called by `authenticated` only. The user is always `auth.uid()`; a null or anonymous JWT is rejected. Nothing user-supplied names an owner.
@@ -77,6 +78,7 @@ Result: `{operation_id, status: applied|conflict|rejected, applied_version, row,
 - Local `version` means "last server version known", changed only by pull or by an ack. A local edit does not bump it. `base_version` of an op is that stored value.
 - Local dirty fields are derived from pending outbox ops. A pull never overwrites a field that has a pending op; the server row is stored and the field conflict is detected at push time.
 - The domain change and its outbox row are written in one SQLite transaction (already planned in 2A §5.4). A failure leaves neither.
+- An entity with an unacknowledged create has all its operations at `base_version = 0`; the engine re-bases each from the create's ack. Update operations carry only changed fields.
 
 ### 4.2 Outbox v2 (proposed forward migration; owner of 2A decides)
 `sync_outbox`: add `seq INTEGER PRIMARY KEY AUTOINCREMENT` (strict send order), map `upsert` to server `create|update` by `base_version = 0`, states `pending → in_flight → applied | conflict | rejected` (crash recovery returns `in_flight` to `pending`), `request_id`, `sent_at`, `server_result_json`. New tables: `sync_state(singleton: user_id, device_id, cursor, state)`, `sync_conflicts_local` (mirror). `meta.user_id` binds the database to one user.

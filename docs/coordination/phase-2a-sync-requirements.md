@@ -6,8 +6,24 @@
 | From | Phase 2B/3 server stream (`claude/affectionate-turing-unzmd2`) |
 | Reviewed state | `origin/feature/phase-2a-sqlite` @ `9f71c15` (plan, `migrations.dart`, `sqlite_task_repository.dart`) |
 | Server contract | `docs/architecture/data-contract.md` ("Phase 3 additions"), `docs/architecture/decisions/0002-sync-protocol.md`, `docs/superpowers/plans/2026-11-12-nexora-phase-3-sync.md` |
-| Status | **Request. Nothing on the Phase 2A branch was changed or will be changed by the server stream.** Each item needs the Phase 2A owner's acceptance before implementation. |
+| Status | **Request, answered in part (see "Phase 2A response").** Nothing on the Phase 2A branch was changed or will be changed by the server stream. |
 | Blocks | Phase 3 slices S5 (outbox v2) and S6 (sync engine). Does **not** block Phase 2A's own acceptance (SAVE-PERSIST-01). |
+
+## Phase 2A response (read 2026-11-12 at `c970d61`, PR #13 Draft, CI run 43219760973 success)
+Source: `docs/architecture/phase-2a-data-contract-alignment.md` on `feature/phase-2a-sqlite`.
+
+| ID | Phase 2A status | Still open |
+|---|---|---|
+| REQ-1 | **Implemented** (task update, project update, soft delete never change `version`) | none |
+| REQ-2 | Not implemented; deferred to Phase 3 S5 | owner approval of outbox v2 |
+| REQ-3 | Encoded only: creates and edits after a pending create carry base 0; no mapping to server types | **Patch-only update payloads are not acknowledged**: the payload is still the whole row. Required before S6 |
+| REQ-4 | Partial: `meta.owner_id` created once | name (`owner_id` vs `user_id`); `sync_state`, conflict mirror in S5 |
+| REQ-5 | Transaction half implemented | pull rule is Phase 3 |
+| REQ-6 | Deferred (no delete UI; single-row soft delete) | Phase 3 |
+| REQ-7 | **Implemented** (`''` notes, vocabulary, title refused above 200) | table CHECK still 500 (their D-3) |
+| REQ-8 | Generator is UUIDv4; validation on push is Phase 3 | Phase 3 |
+
+Owner decisions they raised: outbox v2 approval; stored version of a pending create (D-1); title CHECK (D-3); owner binding name.
 
 ## 0. Critical requirement (REQ-1)
 **A local edit must never change `version`.** `version` is owned by the server. Locally it means "the last server version I know of", and only a pull or an acknowledgement may change it.
@@ -33,7 +49,7 @@
 ### Acceptance tests (Phase 2A side)
 - `local_edit_does_not_change_version`: save a synced task (version 5) twice; `version` stays 5; two outbox rows both carry `base_version = 5`.
 - `soft_delete_does_not_change_version`.
-- `new_row_has_version_0_until_acked`: a locally created, never-synced row stores `version = 0` and its create op has `base_version = 0` (the v1 CHECK `version > 0` must be relaxed, see REQ-2).
+- `pending_create_ops_carry_base_version_0`: the create op, and any edit made before the create is acknowledged, carry `base_version = 0`. How the row stores `version` meanwhile is open (Phase 2A D-1: stored `0` with the CHECK relaxed in migration v2, or stored `1` with the base derived from the outbox); both satisfy this test.
 - `ack_sets_version_from_server`.
 
 ## 1. Requirements REQ-1 to REQ-8

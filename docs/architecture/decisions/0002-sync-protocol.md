@@ -24,3 +24,13 @@ Status: accepted by the owner on 2026-11-12 (conditions below). Plan: `docs/supe
 ## Consequences
 - Direct write privileges are unchanged until the S9 activation gate. Synchronization stays disabled and the flag stays OFF.
 - Hosted migrations need separate owner approval; S1 is not applied.
+
+## Implementation status (2026-11-12)
+| Decision | Status |
+|---|---|
+| D-V | Implemented in Phase 2A (PR #13, Draft). Server side applied |
+| D-C, D-L, D-O, D-D | Prepared in S1 (PostgreSQL 17 CI green), not applied |
+| D-A, D-P, D-T, D-E, D-N | Server enforcement in S2-S3, not built. Tombstone revert block is applied |
+| D-R | S2 gate, not built |
+| D-S, D-U, D-F | Not started / unaudited. Synchronization is disabled |
+See the status table in `docs/architecture/data-contract.md`.

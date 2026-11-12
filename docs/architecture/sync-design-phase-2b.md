@@ -14,4 +14,4 @@ One operation = one transaction: lock entity row `FOR UPDATE`, check `base_versi
 Replay returns the stored `result` verbatim. Network loss after commit is therefore safe. Conflicts are results, not errors.
 
 ## Remaining Phase 3 decisions
-Field-level merge rules; parent-delete handling; tombstone compaction; pull safety window; device registration/revocation flow; Realtime (not needed for V1). Required tests before activation: two-device replay, conflict preservation, cross-user operation_id probing, expired token, out-of-order pagination.
+Field-level merge rules; parent-delete handling; tombstone compaction (decided: none in V1); device registration/revocation flow; Realtime (not needed for V1). Pull safety is decided (D-L, per-user advisory lock; see `data-contract.md`). Required tests before activation: two-device replay, conflict preservation, cross-user operation_id probing, expired token, out-of-order pagination.
