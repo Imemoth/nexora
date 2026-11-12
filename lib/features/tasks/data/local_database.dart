@@ -34,7 +34,7 @@ final class LocalDatabase {
       raw.execute('PRAGMA synchronous = FULL;');
       final version = raw.userVersion;
       if (version > currentVersion) {
-        raw.dispose();
+        raw.close();
         throw RepositoryException(
           'database schema $version is newer than supported $currentVersion',
         );
@@ -42,14 +42,14 @@ final class LocalDatabase {
       _migrate(raw, from: version);
       return LocalDatabase._(raw, currentVersion);
     } on SqliteException catch (error) {
-      raw.dispose();
+      raw.close();
       throw RepositoryException('migration failed: ${error.message}');
     }
   }
 
   /// Closes the file. The object must not be used afterwards.
   void close() {
-    raw.dispose();
+    raw.close();
   }
 
   static void _migrate(Database raw, {required int from}) {

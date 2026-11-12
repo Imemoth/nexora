@@ -94,7 +94,7 @@ void main() {
         LocalDatabase.open(path).close();
         final raw = sqlite3.open(path);
         raw.userVersion = LocalDatabase.currentVersion + 1;
-        raw.dispose();
+        raw.close();
 
         expect(
           () => LocalDatabase.open(path),
@@ -102,7 +102,7 @@ void main() {
         );
 
         final check = sqlite3.open(path);
-        addTearDown(check.dispose);
+        addTearDown(check.close);
         expect(check.userVersion, LocalDatabase.currentVersion + 1);
       },
     );
@@ -225,20 +225,24 @@ void main() {
       );
     });
 
-    test('an edit updates the stored row and advances its version', () async {
-      final db = LocalDatabase.open(_newPath());
-      addTearDown(db.close);
-      final repo = _repo(db);
-      await repo.saveProject(
-        const Project(id: 'p1', name: 'Home', position: 0),
-      );
-      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'Old'));
+    test(
+      'an edit updates the stored row and keeps the server-owned version',
+      () async {
+        final db = LocalDatabase.open(_newPath());
+        addTearDown(db.close);
+        final repo = _repo(db);
+        await repo.saveProject(
+          const Project(id: 'p1', name: 'Home', position: 0),
+        );
+        await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'Old'));
 
-      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'New'));
+        await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'New'));
 
-      expect((await repo.loadTasks()).single.title, 'New');
-      expect(_rows(db, 'tasks', 'id', 't1').single['version'], 2);
-    });
+        expect((await repo.loadTasks()).single.title, 'New');
+        // Decision D-V: a local edit never changes the server-owned version.
+        expect(_rows(db, 'tasks', 'id', 't1').single['version'], 1);
+      },
+    );
 
     test('repeated save of identical content is idempotent', () async {
       final db = LocalDatabase.open(_newPath());
@@ -364,7 +368,7 @@ void main() {
         expect(await repo.loadTasks(), isEmpty);
         final row = _rows(db, 'tasks', 'id', 't1').single;
         expect(row['deleted_at'], isNotNull);
-        expect(row['version'], 2);
+        expect(row['version'], 1);
       },
     );
 
@@ -436,10 +440,102 @@ void main() {
       expect(operationIds, hasLength(3));
       final update = rows.last;
       expect(update['entity_id'], 't1');
-      expect(update['base_version'], 1);
+      // The create is still pending, so the edit's base is 0 (D-V).
+      expect(update['base_version'], 0);
       expect(update['state'], 'pending');
       expect(update['created_at_utc'], '2026-11-12T10:00:00.000Z');
     });
+
+    test('once the create is acknowledged, an edit carries the stored server version', () async {
+      final db = LocalDatabase.open(_newPath());
+      addTearDown(db.close);
+      final repo = _repo(db);
+      await repo.saveProject(
+        const Project(id: 'p1', name: 'Home', position: 0),
+      );
+      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'A'));
+      // Phase 3 acknowledges the create with server version 3.
+      db.raw.execute(
+        "UPDATE sync_outbox SET state = 'acked' WHERE entity_id = 't1'",
+      );
+      db.raw.execute("UPDATE tasks SET version = 3 WHERE id = 't1'");
+
+      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'B'));
+
+      expect(_outbox(db).last['base_version'], 3);
+      expect(_rows(db, 'tasks', 'id', 't1').single['version'], 3);
+    });
+
+    test('a project edit leaves its stored version unchanged', () async {
+      final db = LocalDatabase.open(_newPath());
+      addTearDown(db.close);
+      final repo = _repo(db);
+      await repo.saveProject(
+        const Project(id: 'p1', name: 'Home', position: 0),
+      );
+
+      await repo.saveProject(
+        const Project(id: 'p1', name: 'Home 2', position: 0),
+      );
+
+      expect(_rows(db, 'projects', 'id', 'p1').single['version'], 1);
+      expect(_rows(db, 'projects', 'id', 'p1').single['name'], 'Home 2');
+      expect(_outbox(db).last['base_version'], 0);
+    });
+
+    test(
+      'a delete keeps the stored version and records the tombstone intent',
+      () async {
+        final db = LocalDatabase.open(_newPath());
+        addTearDown(db.close);
+        final repo = _repo(db);
+        await repo.saveProject(
+          const Project(id: 'p1', name: 'Home', position: 0),
+        );
+        await repo.saveTask(makeTask(id: 't1', projectId: 'p1'));
+
+        await repo.softDeleteTask('t1');
+
+        final row = _rows(db, 'tasks', 'id', 't1').single;
+        expect(row['version'], 1);
+        expect(row['deleted_at'], isNotNull);
+        expect(_outbox(db).last['operation_type'], 'delete');
+      },
+    );
+
+    test('empty notes are written as empty text, never NULL', () async {
+      final db = LocalDatabase.open(_newPath());
+      addTearDown(db.close);
+      final repo = _repo(db);
+      await repo.saveProject(
+        const Project(id: 'p1', name: 'Home', position: 0),
+      );
+
+      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', notes: ''));
+
+      expect(_rows(db, 'tasks', 'id', 't1').single['notes'], '');
+    });
+
+    test(
+      'a title over 200 characters is refused and nothing is written',
+      () async {
+        final db = LocalDatabase.open(_newPath());
+        addTearDown(db.close);
+        final repo = _repo(db);
+        await repo.saveProject(
+          const Project(id: 'p1', name: 'Home', position: 0),
+        );
+        final longTitle = 'x' * 201;
+
+        await expectLater(
+          repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: longTitle)),
+          throwsA(isA<RepositoryException>()),
+        );
+
+        expect(_rows(db, 'tasks', 'id', 't1'), isEmpty);
+        expect(_outbox(db), hasLength(1)); // only the project create
+      },
+    );
   });
 
   group('restart', () {

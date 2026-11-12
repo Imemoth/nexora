@@ -9,6 +9,7 @@ import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
+import 'package:nexora/features/tasks/domain/task_validation.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'local_database.dart';
@@ -22,15 +23,16 @@ import 'local_database.dart';
 final class SqliteTaskRepository implements TaskRepository {
   SqliteTaskRepository(
     this._db, {
-    required String ownerId,
+    required this.ownerId,
     DateTime Function()? now,
     IdGenerator? ids,
-  }) : _ownerId = ownerId,
-       _now = now ?? (() => DateTime.now().toUtc()),
+  }) : _now = now ?? (() => DateTime.now().toUtc()),
        _ids = ids ?? RandomIdGenerator();
 
   final LocalDatabase _db;
-  final String _ownerId;
+
+  /// The owning user. Written to every local row.
+  final String ownerId;
   final DateTime Function() _now;
   final IdGenerator _ids;
 
@@ -83,6 +85,11 @@ final class SqliteTaskRepository implements TaskRepository {
 
   @override
   Future<void> saveTask(Task task) async {
+    if (task.title.length > maxTitleLength) {
+      // The server accepts at most 200 UTF-16 units. Refuse here so the local
+      // database never holds a title that could not be pushed later.
+      throw RepositoryException('title exceeds $maxTitleLength characters');
+    }
     _run(() => _transaction(() => _upsertTask(task)));
   }
 
@@ -91,8 +98,9 @@ final class SqliteTaskRepository implements TaskRepository {
     _run(() => _transaction(() => _upsertProject(project)));
   }
 
-  /// Marks a task deleted. The row is kept, its version advances, and a delete
-  /// operation is queued. Deleting an unknown or already deleted task is an error.
+  /// Marks a task deleted. The row is kept and a delete operation is queued. The
+  /// server-owned version is not changed by a local edit. Deleting an unknown or
+  /// already deleted task is an error.
   Future<void> softDeleteTask(String id) async {
     _run(
       () => _transaction(() {
@@ -103,14 +111,14 @@ final class SqliteTaskRepository implements TaskRepository {
         final version = row['version'] as int;
         final now = _iso();
         _db.raw.execute(
-          'UPDATE tasks SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?',
-          [now, version + 1, now, id],
+          'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?',
+          [now, now, id],
         );
         _enqueue(
           entityType: 'task',
           entityId: id,
           operationType: 'delete',
-          baseVersion: version,
+          baseVersion: _baseVersionFor('task', id, version),
           payload: {'id': id, 'deleted_at': now},
         );
       }),
@@ -134,7 +142,7 @@ final class SqliteTaskRepository implements TaskRepository {
           _db.raw.execute(
             'INSERT INTO projects (id, owner_id, name, sort_order, version, '
             'created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)',
-            [project.id, _ownerId, project.name, project.position, now, now],
+            [project.id, ownerId, project.name, project.position, now, now],
           );
         }
         for (final task in tasks) {
@@ -195,18 +203,17 @@ final class SqliteTaskRepository implements TaskRepository {
     _db.raw.execute(
       'UPDATE tasks SET project_id = ?, parent_id = ?, title = ?, notes = ?, '
       'status = ?, priority = ?, due_date = ?, completed_at = ?, sort_order = ?, '
-      'version = ?, updated_at = ? WHERE id = ?',
+      'updated_at = ? WHERE id = ?',
       [
         task.projectId,
         task.parentId,
         task.title,
-        _notesColumn(task.notes),
+        task.notes,
         _statusColumn(task.status),
         _priorityColumn(task.priority),
         task.dueDate?.toIsoString(),
         completedAt,
         task.position,
-        version + 1,
         now,
         task.id,
       ],
@@ -215,7 +222,7 @@ final class SqliteTaskRepository implements TaskRepository {
       entityType: 'task',
       entityId: task.id,
       operationType: 'upsert',
-      baseVersion: version,
+      baseVersion: _baseVersionFor('task', task.id, version),
       payload: _taskPayload(task),
     );
   }
@@ -228,10 +235,10 @@ final class SqliteTaskRepository implements TaskRepository {
       [
         task.id,
         task.projectId,
-        _ownerId,
+        ownerId,
         task.parentId,
         task.title,
-        _notesColumn(task.notes),
+        task.notes,
         _statusColumn(task.status),
         _priorityColumn(task.priority),
         task.dueDate?.toIsoString(),
@@ -253,7 +260,7 @@ final class SqliteTaskRepository implements TaskRepository {
       _db.raw.execute(
         'INSERT INTO projects (id, owner_id, name, sort_order, version, created_at, '
         'updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)',
-        [project.id, _ownerId, project.name, project.position, now, now],
+        [project.id, ownerId, project.name, project.position, now, now],
       );
       _enqueue(
         entityType: 'project',
@@ -270,21 +277,35 @@ final class SqliteTaskRepository implements TaskRepository {
     }
     final version = existing.single['version'] as int;
     _db.raw.execute(
-      'UPDATE projects SET name = ?, sort_order = ?, version = ?, updated_at = ? '
+      'UPDATE projects SET name = ?, sort_order = ?, updated_at = ? '
       'WHERE id = ?',
-      [project.name, project.position, version + 1, now, project.id],
+      [project.name, project.position, now, project.id],
     );
     _enqueue(
       entityType: 'project',
       entityId: project.id,
       operationType: 'upsert',
-      baseVersion: version,
+      baseVersion: _baseVersionFor('project', project.id, version),
       payload: {
         'id': project.id,
         'name': project.name,
         'sort_order': project.position,
       },
     );
+  }
+
+  /// The `base_version` for a new operation on an entity (decision D-V).
+  ///
+  /// Local edits never change the stored version. Once a create is queued but not
+  /// yet acknowledged by the server, the entity has no server version, so its
+  /// operations carry 0. Otherwise the stored last-known server version is used.
+  int _baseVersionFor(String entityType, String entityId, int storedVersion) {
+    final pending = _db.raw.select(
+      "SELECT 1 FROM sync_outbox WHERE entity_type = ? AND entity_id = ? "
+      "AND base_version = 0 AND state IN ('pending', 'sent') LIMIT 1",
+      [entityType, entityId],
+    );
+    return pending.isEmpty ? storedVersion : 0;
   }
 
   void _enqueue({
@@ -336,7 +357,7 @@ final class SqliteTaskRepository implements TaskRepository {
     'project_id': task.projectId,
     'parent_id': task.parentId,
     'title': task.title,
-    'notes': _notesColumn(task.notes),
+    'notes': task.notes,
     'status': _statusColumn(task.status),
     'priority': _priorityColumn(task.priority),
     'due_date': task.dueDate?.toIsoString(),
@@ -428,9 +449,6 @@ TaskPriority _priorityFromColumn(String value) => switch (value) {
   'high' => TaskPriority.high,
   _ => throw RepositoryException('unknown stored priority "$value"'),
 };
-
-/// Empty notes are stored as NULL, so the column is unambiguous.
-String? _notesColumn(String notes) => notes.isEmpty ? null : notes;
 
 CalendarDate? _dateFromColumn(String? value) {
   if (value == null) {
