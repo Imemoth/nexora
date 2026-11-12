@@ -230,7 +230,7 @@ final class TaskWorkspace {
         return Err<void, WorkspaceError>(code);
       case Ok(:final value):
         final task = draft.copyWith(title: value).toTask();
-        return _persistDraft(draft.taskId, task);
+        return _persistDraft(draft, task);
     }
   }
 
@@ -366,8 +366,8 @@ final class TaskWorkspace {
           candidate,
           expandParentId: expandParentId,
         );
-        if (committed is Err<Task, WorkspaceError>) {
-          _publish(_state.copyWith(error: WorkspaceError.saveFailed));
+        if (committed case Err<Task, WorkspaceError>(:final error)) {
+          _publish(_state.copyWith(error: error));
         }
       case _:
         _apply(transition);
@@ -443,6 +443,18 @@ final class TaskWorkspace {
     Task candidate, {
     required String? expandParentId,
   }) async {
+    // Re-check the parent against the state as it is now. A save that ran
+    // while the gate was open may have archived it.
+    final parentId = candidate.parentId;
+    if (parentId != null) {
+      final parent = _state.tasks[parentId];
+      if (parent == null) {
+        return const Err<Task, WorkspaceError>(WorkspaceError.unknownParent);
+      }
+      if (parent.status == TaskStatus.archived) {
+        return const Err<Task, WorkspaceError>(WorkspaceError.parentArchived);
+      }
+    }
     try {
       await repository.saveTask(candidate);
     } on RepositoryException {
@@ -466,7 +478,7 @@ final class TaskWorkspace {
   }
 
   Future<Result<void, WorkspaceError>> _persistDraft(
-    String taskId,
+    EditDraft snapshot,
     Task task,
   ) async {
     try {
@@ -477,13 +489,12 @@ final class TaskWorkspace {
     }
     final tasks = {..._state.tasks, task.id: task};
     final current = _state.draft;
-    final sameDraftStillShown = current != null && current.taskId == taskId;
+    // Edits typed while the save was in flight must survive the rebase.
+    final draftAfter = (current != null && current.taskId == snapshot.taskId)
+        ? current.rebaseAfterSave(snapshot: snapshot, savedTask: task)
+        : current;
     _publish(
-      _state.copyWith(
-        tasks: tasks,
-        draft: sameDraftStillShown ? EditDraft.fromTask(task) : null,
-        clearError: true,
-      ),
+      _state.copyWith(tasks: tasks, draft: draftAfter, clearError: true),
     );
     return const Ok<void, WorkspaceError>(null);
   }
