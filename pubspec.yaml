@@ -35,6 +35,11 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # Local SQLite persistence (Phase 2A). Exact pin: a native Windows build
+  # depends on this version. Changing it needs the same approval as any new
+  # dependency.
+  sqlite3: 3.9.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

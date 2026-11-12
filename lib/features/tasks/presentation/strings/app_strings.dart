@@ -57,6 +57,9 @@ abstract final class AppStrings {
   static const errorOperationInProgress =
       'Please wait for the current change to finish.';
   static const errorGatePending = 'Save, discard or cancel your changes first.';
+  static const errorDatabaseOpen =
+      'Nexora could not open its local database. Close any other copy of Nexora and start it again. Your data has not been changed.';
+  static const defaultProjectName = 'Inbox';
   static const desktopOnlyNotice =
       'Nexora needs a window at least 900 px wide.';
 
