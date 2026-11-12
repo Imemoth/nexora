@@ -14,12 +14,12 @@ final class AuthenticatedTransport implements SyncTransport {
     required SyncTransport inner,
     required TokenSource tokens,
     required String boundUserId,
-  }) : _inner = inner,
-       _tokens = tokens,
+  }) : _wrapped = inner,
+       _tokenSource = tokens,
        _bound = boundUserId.toLowerCase();
 
-  final SyncTransport _inner;
-  final TokenSource _tokens;
+  final SyncTransport _wrapped;
+  final TokenSource _tokenSource;
   final String _bound;
 
   Future<T> _call<T>(Future<T> Function() call) async {
@@ -30,7 +30,7 @@ final class AuthenticatedTransport implements SyncTransport {
       if (error.anonymous) {
         rethrow;
       }
-      if (!await _tokens.refreshAfterRejection()) {
+      if (!await _tokenSource.refreshAfterRejection()) {
         rethrow;
       }
       _checkAccount();
@@ -39,7 +39,7 @@ final class AuthenticatedTransport implements SyncTransport {
   }
 
   void _checkAccount() {
-    final current = _tokens.userId?.toLowerCase();
+    final current = _tokenSource.userId?.toLowerCase();
     if (current == null) {
       throw const SyncAuthFailure('signed_out');
     }
@@ -52,20 +52,20 @@ final class AuthenticatedTransport implements SyncTransport {
   Future<Map<String, Object?>> registerDevice(
     String deviceId, {
     String? label,
-  }) => _call(() => _inner.registerDevice(deviceId, label: label));
+  }) => _call(() => _wrapped.registerDevice(deviceId, label: label));
 
   @override
   Future<List<Object?>> push(
     String deviceId,
     List<Map<String, Object?>> operations,
-  ) => _call(() => _inner.push(deviceId, operations));
+  ) => _call(() => _wrapped.push(deviceId, operations));
 
   @override
   Future<Map<String, Object?>> pull(
     String deviceId,
     int cursor, {
     int limit = 200,
-  }) => _call(() => _inner.pull(deviceId, cursor, limit: limit));
+  }) => _call(() => _wrapped.pull(deviceId, cursor, limit: limit));
 
   @override
   Future<Map<String, Object?>> resolveConflict({
@@ -75,7 +75,7 @@ final class AuthenticatedTransport implements SyncTransport {
     required String resolution,
     Map<String, Object?>? values,
   }) => _call(
-    () => _inner.resolveConflict(
+    () => _wrapped.resolveConflict(
       deviceId: deviceId,
       operationId: operationId,
       conflictId: conflictId,
@@ -88,5 +88,5 @@ final class AuthenticatedTransport implements SyncTransport {
   Future<Map<String, Object?>> revokeDevice(
     String deviceId,
     String targetDeviceId,
-  ) => _call(() => _inner.revokeDevice(deviceId, targetDeviceId));
+  ) => _call(() => _wrapped.revokeDevice(deviceId, targetDeviceId));
 }

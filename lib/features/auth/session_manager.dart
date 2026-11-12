@@ -64,15 +64,15 @@ final class SessionManager {
     required SecureStore store,
     DateTime Function()? now,
     this.refreshMargin = const Duration(seconds: 60),
-  }) : _api = api,
-       _store = store,
+  }) : _authApi = api,
+       _secrets = store,
        _now = now ?? (() => DateTime.now().toUtc());
 
   static const String _sessionKey = 'session';
   static const String _userKey = 'last_user';
 
-  final AuthApi _api;
-  final SecureStore _store;
+  final AuthApi _authApi;
+  final SecureStore _secrets;
   final DateTime Function() _now;
   final Duration refreshMargin;
 
@@ -106,8 +106,8 @@ final class SessionManager {
     String? raw;
     String? hint;
     try {
-      raw = await _store.read(_sessionKey);
-      hint = await _store.read(_userKey);
+      raw = await _secrets.read(_sessionKey);
+      hint = await _secrets.read(_userKey);
     } on AuthFailure {
       await _forgetTokens();
       _set(
@@ -168,10 +168,10 @@ final class SessionManager {
   /// change on failure. A different account replaces the current one: the former
   /// account's local database is untouched and is not reachable from the new one.
   Future<AuthState> signIn(String email, String password) async {
-    final session = await _api.signInWithPassword(email.trim(), password);
+    final session = await _authApi.signInWithPassword(email.trim(), password);
     if (session.isAnonymous) {
       try {
-        await _api.signOut(session.accessToken);
+        await _authApi.signOut(session.accessToken);
       } on AuthFailure {
         // best effort
       }
@@ -252,7 +252,7 @@ final class SessionManager {
     }
     final AuthSession next;
     try {
-      next = await _api.refresh(before.refreshToken);
+      next = await _authApi.refresh(before.refreshToken);
     } on AuthSessionRevoked {
       await _forgetTokens();
       _set(
@@ -307,7 +307,7 @@ final class SessionManager {
     final session = _state.session;
     if (session != null) {
       try {
-        await _api.signOut(session.accessToken);
+        await _authApi.signOut(session.accessToken);
       } on AuthFailure {
         // The server will expire the session by itself.
       }
@@ -326,15 +326,15 @@ final class SessionManager {
   // ------------------------------------------------------------ helpers
 
   Future<void> _persist(AuthSession session) async {
-    await _store.write(_sessionKey, jsonEncode(session.toJson()));
-    await _store.write(_userKey, session.userId);
+    await _secrets.write(_sessionKey, jsonEncode(session.toJson()));
+    await _secrets.write(_userKey, session.userId);
   }
 
   Future<void> _forgetTokens() => _safeDelete(_sessionKey);
 
   Future<void> _safeDelete(String key) async {
     try {
-      await _store.delete(key);
+      await _secrets.delete(key);
     } on AuthFailure {
       // nothing more can be done; the value is unreadable anyway
     }

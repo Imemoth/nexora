@@ -93,9 +93,9 @@ final class SyncRuntime {
     SyncHook? hook,
     this.autoSyncOnSignIn = true,
   }) : _transportFactory = transportFactory ?? _httpTransport,
-       _engineConfig = engineConfig,
-       _sleep = sleep,
-       _hook = hook;
+       _engineSettings = engineConfig,
+       _sleepFn = sleep,
+       _syncHook = hook;
 
   final SessionManager sessions;
   final AccountPaths paths;
@@ -112,9 +112,9 @@ final class SyncRuntime {
   /// control timing).
   final bool autoSyncOnSignIn;
   final TransportFactory _transportFactory;
-  final SyncEngineConfig _engineConfig;
-  final Future<void> Function(Duration)? _sleep;
-  final SyncHook? _hook;
+  final SyncEngineConfig _engineSettings;
+  final Future<void> Function(Duration)? _sleepFn;
+  final SyncHook? _syncHook;
 
   ActiveWorkspace? _active;
   StreamSubscription<AuthState>? _authWatch;
@@ -330,9 +330,9 @@ final class SyncRuntime {
       userId: () async => sessions.userId,
       ids: ids,
       enabled: true,
-      config: _engineConfig,
-      sleep: _sleep,
-      hook: _hook,
+      config: _engineSettings,
+      sleep: _sleepFn,
+      hook: _syncHook,
     );
     current.engine = engine;
     current.state = state;
