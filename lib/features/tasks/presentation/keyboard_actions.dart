@@ -243,24 +243,17 @@ final class TaskCommands {
     return (id: task.id, title: task.title);
   }
 
-  /// Opens the create dialog and gives focus back to whatever had it before.
+  /// Opens the create dialog. Focus rules are in [openCreateTask].
   Future<void> _openCreate(
     BuildContext context, {
     String? parentId,
     String? parentTitle,
-  }) async {
-    final previous = FocusManager.instance.primaryFocus;
-    await showCreateTaskDialog(
-      context,
-      notifier,
-      parentId: parentId,
-      parentTitle: parentTitle,
-    );
-    if (!context.mounted) {
-      return;
-    }
-    TaskKeyboardFocus.restore(previous);
-  }
+  }) => openCreateTask(
+    context,
+    notifier,
+    parentId: parentId,
+    parentTitle: parentTitle,
+  );
 }
 
 /// Adapts [TaskCommands] to the [Actions] system.
@@ -280,4 +273,34 @@ final class TaskCommandAction extends Action<TaskIntent> {
     onInvoke(intent.command);
     return null;
   }
+}
+
+/// Opens the create dialog from any entry point, so every route gets the same
+/// focus rules. After a create, focus moves to the details title (spec 5.5). If
+/// the create opened the unsaved-change gate, the gate keeps focus. A dialog
+/// that closes without a create gives focus back to where it was.
+Future<void> openCreateTask(
+  BuildContext context,
+  TasksNotifier notifier, {
+  String? parentId,
+  String? parentTitle,
+}) async {
+  final previous = FocusManager.instance.primaryFocus;
+  final created = await showCreateTaskDialog(
+    context,
+    notifier,
+    parentId: parentId,
+    parentTitle: parentTitle,
+  );
+  if (!context.mounted) {
+    return;
+  }
+  if (created == true && notifier.state.pending == null) {
+    final title = TaskKeyboardFocus.of(notifier).title;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => TaskKeyboardFocus.restore(title),
+    );
+    return;
+  }
+  TaskKeyboardFocus.restore(previous);
 }

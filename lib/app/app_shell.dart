@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexora/features/tasks/presentation/details_pane.dart';
+import 'package:nexora/features/tasks/presentation/keyboard_actions.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/features/tasks/presentation/task_list_pane.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
@@ -32,22 +33,17 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  final FocusNode _listFocus = FocusNode(debugLabel: 'task-list');
-
-  @override
-  void dispose() {
-    _listFocus.dispose();
-    super.dispose();
-  }
-
   void _closeOverlay(TasksNotifier notifier) {
     notifier.selectTask(null);
-    // Return focus to the list only when the close actually happened. A dirty
-    // draft opens the gate instead, and the gate keeps focus.
+    // Return focus to the list's own keyboard node. The list keymap sits below
+    // that node, so arrow keys and shortcuts reach it. A focus wrapper above
+    // the list would not. Focus moves only when the close actually happened. A
+    // dirty draft opens the gate instead, and the gate keeps focus.
     if (notifier.state.selectedTaskId == null) {
+      final list = TaskKeyboardFocus.of(notifier).list;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _listFocus.requestFocus();
+          TaskKeyboardFocus.restore(list);
         }
       });
     }
@@ -88,13 +84,8 @@ class _AppShellState extends State<AppShell> {
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ),
-                      Expanded(
-                        child: Focus(
-                          focusNode: _listFocus,
-                          child: const TaskListPane(
-                            key: ValueKey('task-list-pane'),
-                          ),
-                        ),
+                      const Expanded(
+                        child: TaskListPane(key: ValueKey('task-list-pane')),
                       ),
                     ],
                   ),
