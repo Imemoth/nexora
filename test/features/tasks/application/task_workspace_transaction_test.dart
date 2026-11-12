@@ -203,6 +203,25 @@ void main() {
     });
   });
 
+  group('revert during a save', () {
+    test(
+      'is refused, so the saved draft is not reverted to the old base',
+      () async {
+        final h = await loadedHarness(tasks: sampleTasks());
+        final ws = h.workspace;
+        ws.requestSelectTask('a');
+        ws.editDraft(title: 'Alpha 2');
+        h.repository.beforeSave = ws.revertDraft;
+
+        okValue(await ws.saveDraft());
+
+        expect(ws.state.draft?.title, 'Alpha 2');
+        expect(ws.state.draft?.base.title, 'Alpha 2');
+        expect(ws.state.draft?.isDirty, isFalse);
+      },
+    );
+  });
+
   group('state consistency', () {
     test(
       'a failed create changes neither the task map nor the selection',
