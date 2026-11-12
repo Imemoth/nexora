@@ -11,66 +11,68 @@ Scope: a fully offline, in-memory Windows desktop prototype with deterministic d
 | Item | Value |
 |---|---|
 | Repository | `Imemoth/nexora` |
-| Final code head (tested) | `3be43876f5` on branch `feature/phase-1-golden` (PR #11) |
-| Full commit | `3be43876f57ca7d9ce28c5ac6be231c988a1edc0` |
-| This document's commit | documentation-only commit on `feature/phase-1-acceptance` (stacked on the code head). It changes no code. |
-| Final CI run (code head) | [43188559503](https://github.com/Imemoth/nexora/actions/runs/43188559503) — **success** |
+| Final code head (tested) | `682378e18c5047bb89c08d5ba26519e77acadfb0` on branch `feature/phase-1-acceptance` (PR #12) |
+| Final CI run (code head) | [43193981389](https://github.com/Imemoth/nexora/actions/runs/43193981389) — **success** |
+| This document's commit | a documentation-only commit on top of the code head. It changes no code. Its own CI run is recorded in PR #12. |
 | Toolchain | Flutter 3.47.9 (stable), Dart 3.13.7, `windows-latest` GitHub Actions runner |
 
-The code head contains every Phase 1 task (2 through 8). The stacked PRs listed in section 2 are verified ancestors of it.
+The code head contains every Phase 1 task (2 through 8) and the fixes from the independent final review (section 9). Every stacked PR head in section 2 is a verified ancestor of it.
+
+Earlier verified heads are kept for traceability: `3be43876f5` (the first full green run, section 3) and the review-fix heads listed in section 2.
 
 ---
 
 ## 2. Implementation PRs and dependency order
 
-Execution order is strictly linear. Each PR's base is the PR above it. None is merged into `main`. All are Draft.
+Execution order is strictly linear. Each PR's base is the PR above it. None is merged into `main` by this work. All are Draft.
 
-| Order | PR | Task | Branch | Head at last CI | Base | State |
+| Order | PR | Task | Branch | Head at last CI | CI run | Base |
 |---|---|---|---|---|---|---|
-| 0 | [#4](https://github.com/Imemoth/nexora/pull/4) | Task 1: pure domain | `feature/phase-1-domain` | `b746db8` | `main` | merged into `main` (`c1c1557`), owner-approved |
-| 1 | [#5](https://github.com/Imemoth/nexora/pull/5) | Task 2: application workspace | `feature/phase-1-application` | `ee56e7a` (CI success) | `main` | Draft |
-| 2 | [#6](https://github.com/Imemoth/nexora/pull/6) | Task 3: shell and sidebar | `feature/phase-1-shell` | `86b5c7d` (CI success) | #5 | Draft |
-| 3 | [#7](https://github.com/Imemoth/nexora/pull/7) | Task 4: task tree, search, sort | `feature/phase-1-tree` | `22ab5ce` (CI success) | #6 | Draft |
-| 4 | [#8](https://github.com/Imemoth/nexora/pull/8) | Task 5: editor, creation, unsaved-change gate, exit gate | `feature/phase-1-editor` | `3bff274` (CI success) | #7 | Draft |
-| 5 | [#9](https://github.com/Imemoth/nexora/pull/9) | Task 7: responsive overlay, palette, accessibility | `feature/phase-1-responsive-lead` | `4f51abe` (CI success) | #8 | Draft |
-| 6 | [#10](https://github.com/Imemoth/nexora/pull/10) | Tasks 6+7 integration (keyboard merged in) | `feature/phase-1-integration` | `622cf0e` (CI success) | #9 | Draft |
-| 7 | [#11](https://github.com/Imemoth/nexora/pull/11) | Task 8: goldens and baselines | `feature/phase-1-golden` | `3be4387` (CI success) | #10 | Draft — **final integrated code head** |
-| 8 | this PR (Task 9) | acceptance documentation | `feature/phase-1-acceptance` | docs-only | #11 | Draft |
+| 0 | [#4](https://github.com/Imemoth/nexora/pull/4) | Task 1: pure domain | `feature/phase-1-domain` | `b746db8` | 43105602655 | `main` — **merged** into `main` at `c1c1557` before Phase 1 implementation (owner's merge) |
+| 1 | [#5](https://github.com/Imemoth/nexora/pull/5) | Task 2: application workspace | `feature/phase-1-application` | `ee56e7a` | 43169699581 | `main` |
+| 2 | [#6](https://github.com/Imemoth/nexora/pull/6) | Task 3: shell and sidebar | `feature/phase-1-shell` | `86b5c7d` | 43172667316 | #5 |
+| 3 | [#7](https://github.com/Imemoth/nexora/pull/7) | Task 4: task tree, search, sort | `feature/phase-1-tree` | `22ab5ce` | 43173864694 | #6 |
+| 4 | [#8](https://github.com/Imemoth/nexora/pull/8) | Task 5: editor, creation, unsaved-change gate, exit gate, transactional discard | `feature/phase-1-editor` | `bde6f5d` | 43193685246 | #7 |
+| 5 | [#9](https://github.com/Imemoth/nexora/pull/9) | Task 7: responsive overlay, palette, accessibility | `feature/phase-1-responsive-lead` | `14dae11` | 43193959909 | #8 |
+| 6 | [#10](https://github.com/Imemoth/nexora/pull/10) | Tasks 6+7 integration (keyboard merged in) | `feature/phase-1-integration` | `b591545` | 43193967641 | #9 |
+| 7 | [#11](https://github.com/Imemoth/nexora/pull/11) | Task 8: golden tests and baselines | `feature/phase-1-golden` | `ee4c284` | 43193975795 | #10 |
+| 8 | [#12](https://github.com/Imemoth/nexora/pull/12) | Task 9: acceptance package (this document) | `feature/phase-1-acceptance` | `682378e` (code) + docs commit | 43193981389 (code) | #11 |
 
 Notes on the stack:
 - Task 6 (keyboard) was developed on `feature/phase-1-keyboard` and merged into the integration branch. It has no separate PR, to avoid running CI twice on the same code.
-- PRs #5 to #10 are superseded by #11 for the final verification. Their heads are verified ancestors of `3be4387`.
-- PR #1 (`docs/phase-0-implementation-plan`, a Phase 0 documentation PR) is still open as a Draft. It is not part of Phase 1 and is listed for the owner to close or keep.
+- PRs #5 to #11 are Drafts superseded by PR #12 for the final verification. Their heads are verified ancestors of `682378e`.
+- PR #1 (`docs/phase-0-implementation-plan`, a Phase 0 documentation PR) is still open as a Draft. It is not part of Phase 1.
 
 ---
 
 ## 3. CI results
 
-All gates ran on `windows-latest` with the pinned toolchain.
+All gates ran on `windows-latest` with the pinned toolchain. Results for the code head (run 43193981389):
 
-| Gate | Result on final head (run 43188559503) |
+| Gate | Result |
 |---|---|
 | Flutter and Dart version verification | pass (Flutter 3.47.9; Dart 3.13.7) |
 | Dependency resolution (`flutter pub get`) | pass |
 | Dart formatting (`dart format --set-exit-if-changed`) | pass |
 | Analyzer (`flutter analyze`) | pass — "No issues found!" |
-| Full real Flutter test suite (`flutter test`) | pass — **262 tests passed**, including architecture, domain, application, widget, keyboard, accessibility, responsive and golden tests |
+| Full real Flutter test suite (`flutter test`) | pass — **266 tests passed**, including architecture, domain, application, widget, keyboard, accessibility, responsive and golden tests |
 | Windows release build (`flutter build windows --release`) | pass |
 | Portable ZIP packaging (`tool/package_windows.ps1`) | pass — "PACKAGE PASS" |
-| Unicode and spaces path smoke test | pass — launched from `…\nexora smoke é测试 0950db4b`, closed cleanly, exit 0 |
+| Unicode and spaces path smoke test | pass — launched from `…\nexora smoke é测试 51490dbb`, closed cleanly, exit 0 |
 | Artifact upload | pass |
 
-The run before the final one (run 43188539877 on `95105ec`) was cancelled by the concurrency rule when a newer commit arrived, so it is not evidence. The run that failed before it (43185856604 on `7af3635`) failed on one analyzer finding, which is fixed in `95105ec` and `3be4387`.
+An earlier full green run on `3be43876f5` (run 43188559503, 262 tests) passed the same gates before the independent final review. Its artifact is superseded by the one in section 6.
 
-### Earlier CI failures, fixed during the work (for traceability)
+### Repair history (for traceability)
 
-These are listed so the owner can see the repair history. Each was fixed with a regression test or a lint correction. None is open.
+Each item below was fixed with a regression test or a lint correction. None is open.
 
 - Task 5: analyzer errors on `AppExitResponse`/`AppExitType` (defined in `dart:ui` at this Flutter version) — `10e532a`.
-- Task 5: 22 widget tests broken by a 88 px overflow in the editor action row — `aed8cfd`.
+- Task 5: 22 widget tests broken by an 88 px overflow in the editor action row — `aed8cfd`.
 - Task 5: text-finder ambiguity (indicator and dialog title both "Unsaved changes") — `3bff274`.
 - Task 6/7: duplicate "New task" text in a keyboard test; redundant imports — `622cf0e`, `2ce9f6c`.
 - Task 8: the golden generator stalled because a piped `flutter --version | head` closed the Flutter tool's output pipe, which made the tool retry forever — `d6ef667`.
+- Final review: keyboard dead after closing the overlay (blocking) — `22781d9`; revert during a save (major) — `bde6f5d`; no focus on the title after a create (major) — `f2ee8df`; failed load shown as empty (minor) and the strings rule missing double quotes (minor) — `682378e` lineage. Each has a red test commit before its fix.
 
 ---
 
@@ -78,19 +80,19 @@ These are listed so the owner can see the repair history. Each was fixed with a 
 
 | Source | Count | Status |
 |---|---|---|
-| Real `flutter test` on the final head (CI run 43188559503) | **262 passed, 0 failed** | official |
-| Local stand-in runner (non-widget tests only, Dart SDK 3.13.7, no Flutter) | 182 passed, 0 failed | informational only; not a substitute for CI |
+| Real `flutter test` on the code head (CI run 43193981389) | **266 passed, 0 failed** | official |
+| Real `flutter test` on the earlier full green run (CI run 43188559503, `3be4387`) | 262 passed, 0 failed | superseded, kept for history |
 
-The local stand-in cannot execute widget tests. It was used only for fast checks of domain, application, architecture and contrast logic. Official evidence is the CI figure.
+Local checks used a stand-in for `flutter_test` that cannot run widget tests. Those local counts are not evidence and are not reported here. CI is the only official test run.
 
 ### What the automated tests cover
 
 - **Domain** (Task 1): parent-change rules, creation rules, title validation, calendar dates, smart views, ordering, search, completion summaries.
-- **Application** (Tasks 2 and 5): workspace state, the unsaved-change gate for every transition in the plan's table, failed-save and failed-create invariants, the transactional Discard decision, duplicate and concurrent operation guards, the reveal rule for new tasks, exit gating.
-- **Architecture**: no Flutter import in core, domain or application; no SQLite, Supabase or HTTP package anywhere in `lib/`; no visible-text literals outside `AppStrings`.
-- **Widget** (Tasks 3 to 7): shell layout, sidebar counts, task tree (expand/collapse, done/total, Ready for review), search, sort, empty states, the editor (Save/Revert enabled only when dirty, validation, failed-save message), creation dialogs, the unsaved-change dialog, exit flows, keyboard shortcuts with focus restoration, responsive breakpoints (overlay, desktop-only notice), text scale 1.3 without overflow, tooltips and 40 px hit targets.
-- **Contrast** (Task 7, pure Dart): every text token against every surface, 4.5:1 normal text and 3:1 large text. The lowest pair is `textMuted` on `surface2` at about 5.1:1.
-- **Golden** (Task 8): two pixel comparisons on the pinned runner (see section 5).
+- **Application** (Tasks 2 and 5): workspace state, the unsaved-change gate for every transition in the plan's table, failed-save and failed-create invariants, the transactional Discard decision, duplicate and concurrent operation guards (including refused revert during a save), the reveal rule for new tasks, exit gating.
+- **Architecture**: no Flutter import in core, domain or application; no SQLite, Supabase or HTTP package anywhere in `lib/`; no visible-text literals (single- or double-quoted) outside `AppStrings`.
+- **Widget** (Tasks 3 to 7): shell layout, sidebar counts, task tree (expand/collapse, done/total, Ready for review), search, sort, empty states, the editor (Save/Revert enabled only when dirty, validation, failed-save message), creation dialogs and focus after create, the unsaved-change dialog, exit flows, keyboard shortcuts with focus restoration (including after the overlay closes at 1000 px), responsive breakpoints (overlay, desktop-only notice), text scale 1.3 without overflow, tooltips and 40 px hit targets, a failed load shown as an error.
+- **Contrast** (Task 7, pure Dart): every text token against every surface, 4.5:1 normal text and 3:1 large text. The lowest pair is `textMuted` on `surface2` at **5.14:1**.
+- **Golden** (Task 8): two pixel comparisons on the pinned runner (section 5).
 
 ---
 
@@ -102,7 +104,8 @@ The local stand-in cannot execute widget tests. It was used only for fast checks
 | `test/golden/goldens/empty_state.png` | Empty state ("No tasks here yet") at 1280×800 |
 
 - Generated on `windows-latest` with Flutter 3.47.9 by a temporary push-triggered workflow (run 43185260570, commit `d6ef667`). The workflow was removed in the commit that added the baselines.
-- Demo data is fixed to a date, so the output is deterministic. Test font rendering uses Flutter's built-in test font, which draws glyphs as blocks. **The goldens therefore prove layout, colour and structure, not the final typeface.** The real Windows font is a manual check (section 8).
+- The code head's golden test compares against these committed files and passed (section 3).
+- Demo data is fixed to the date the test runs for (`testToday`), so the output is deterministic. Test font rendering uses Flutter's built-in test font, which draws glyphs as blocks. **The goldens therefore prove layout, colour and structure, not the final typeface.** The real Windows font is a manual check (section 8).
 - The goldens were checked by eye after generation: the selected row is highlighted, and the empty state shows its message.
 
 ---
@@ -112,30 +115,32 @@ The local stand-in cannot execute widget tests. It was used only for fast checks
 | Item | Value |
 |---|---|
 | Artifact name (GitHub) | `nexora-windows-portable` |
-| Artifact ID | `13929533389` |
-| Produced by | run [43188559503](https://github.com/Imemoth/nexora/actions/runs/43188559503), commit `3be43876f5` |
-| Download (owner) | GitHub Actions run page → Artifacts → `nexora-windows-portable`. Or: `gh run download 43188559503 --repo Imemoth/nexora --name nexora-windows-portable` |
-| Outer artifact size | 12,005,239 bytes |
-| **Outer artifact SHA-256** (GitHub container, verified equal to the API digest `sha256:1df5a63d…`) | `1df5a63dc40afb65481b042533647eaa37205ca14e3494cd77d51cb7d53a5c02` |
+| Artifact ID | `13931254888` |
+| Produced by | run [43193981389](https://github.com/Imemoth/nexora/actions/runs/43193981389), code head `682378e` |
+| Download (owner) | GitHub Actions run page → Artifacts → `nexora-windows-portable`. Or: `gh run download 43193981389 --repo Imemoth/nexora --name nexora-windows-portable` |
+| Outer artifact size | 12,005,007 bytes |
+| **Outer artifact SHA-256** (GitHub container; matches the API digest `sha256:f999775e…`) | `f999775e4b704ef68654ae9d3ede2da3b4979b648e703d312d0cd1fb30ab0a57` |
 | Inner application ZIP name | `nexora-windows-portable.zip` |
-| Inner application ZIP size | 12,011,972 bytes |
-| **Inner application ZIP SHA-256** | `ae7f65025bce0237c182994f9ef61dea9ffa52d5aa109e741c59b17bc7782649` |
+| Inner application ZIP size | 12,011,853 bytes |
+| **Inner application ZIP SHA-256** | `8d00f26a90813bcc94e9a137f819d74d95933ced1f7fcf4015106b12a1334b24` |
 | Inner ZIP integrity | `unzip -t`: no errors detected |
 | Inner ZIP entries | 14 (listed below) |
 
-### Verification steps (owner, PowerShell or Git Bash)
+### Verification steps (owner)
 
 ```bash
-# 1. Outer container (the GitHub artifact)
-sha256sum nexora-windows-portable-outer.zip   # expect 1df5a63d…c02
+# 1. Outer container (the GitHub artifact, as downloaded from the API)
+sha256sum nexora-windows-portable-outer.zip   # expect f999775e…0a57
 
 # 2. Inner application ZIP
-sha256sum nexora-windows-portable.zip         # expect ae7f6502…2649
+sha256sum nexora-windows-portable.zip         # expect 8d00f26a…4b24
 unzip -tq nexora-windows-portable.zip         # expect "No errors detected"
 unzip -Z1 nexora-windows-portable.zip | wc -l # expect 14
 ```
 
 PowerShell equivalent: `Get-FileHash -Algorithm SHA256 <file>`.
+
+Note: `gh run download` extracts the artifact, so the file it writes is the inner application ZIP, not the outer container. To hash the outer container, fetch it with `gh api repos/Imemoth/nexora/actions/artifacts/13931254888/zip`.
 
 ### Inner ZIP contents (14 entries)
 
@@ -154,13 +159,13 @@ flutter_windows.dll
 nexora.exe
 ```
 
-(`data/flutter_assets/packages/` and `packages/cupertino_icons/` appear as directory entries in the listing; the 14 counts include them as the ZIP reports them.)
+Twelve file entries plus two directory entries (`data/flutter_assets/packages/` and `packages/cupertino_icons/`) make the 14 that the ZIP reports.
 
 ### Smoke test evidence (from CI log)
 
 - `OK: ZIP contains 14 entries including all required runtime files`
 - `OK: release bundle complete`
-- `SMOKE PASS: launched from 'C:\Users\runneradmin\AppData\Local\Temp\nexora smoke é测试 0950db4b', closed cleanly (exit 0)`
+- `SMOKE PASS: launched from 'C:\Users\runneradmin\AppData\Local\Temp\nexora smoke é测试 51490dbb', closed cleanly (exit 0)`
 - `PACKAGE PASS: D:\a\nexora\nexora\dist\nexora-windows-portable.zip`
 
 ---
@@ -169,7 +174,7 @@ nexora.exe
 
 ### Navigation and layout
 - Three panes at 1100 px and wider: sidebar (240 px), task list, details editor (360 px).
-- 900 to 1099 px: the details editor becomes an overlay over the list while a task is selected. Closing it goes through the same unsaved-change gate as selection.
+- 900 to 1099 px: the details editor becomes an overlay over the list while a task is selected. Closing it goes through the same unsaved-change gate as selection. Focus then returns to the list, and the keyboard keeps working.
 - Below 900 px: a desktop-only notice shows; the list stays usable; no overlay opens.
 - Sidebar: Today, Next 7 Days, Overdue, All, and a Projects section. Each entry shows a live count that ignores the search query.
 - The default view is All.
@@ -180,7 +185,7 @@ nexora.exe
 - A parent whose children are all done shows **Ready for review**. Its status is never changed automatically.
 - Search over title and notes, case-insensitive. The result count includes children hidden under collapsed parents.
 - Sort: position, due date, priority, title. Sorting changes only the display order.
-- Empty states: no matches (with a Clear action), empty project, empty smart view.
+- Empty states: no matches (with a Clear action), empty project, empty smart view. A failed load shows the load-error message.
 - If a collapse hides the selected task, the list says: "Selected task is hidden in this view."
 
 ### Editing
@@ -188,18 +193,20 @@ nexora.exe
 - Save and Revert are enabled only for a dirty draft. An "Edited, not saved" indicator shows while the draft is dirty.
 - Validation: an empty or over-200-character title is refused, and nothing is saved.
 - Save failures keep the edits and show an error message.
+- Revert is refused while a save or transition is running.
 - Add subtask is disabled for an archived draft.
 
 ### Creation
 - New task (root) in a project, with a project selector.
 - Subtask under a non-archived task. It expands the parent and selects the child.
+- After a create, the details title takes focus, on every route (New task button, Ctrl+N, Ctrl+Shift+N, Add subtask).
 - An undated task is hidden in Today, Next 7 Days and Overdue. Creating one from those views moves the selection to its project and clears a search that hides it. The task never receives a due date.
 
 ### Unsaved changes (the gate)
 - Selecting another task, changing view, project or search, clearing selection, creating, and exiting all pass through one gate when the draft is dirty. Sorting and expanding do not.
-- The dialog offers Save, Discard and Cancel. A failed save keeps the dialog open with the error.
+- The dialog offers Save, Discard and Cancel. A failed save keeps the dialog open with the error. The dialog cannot be dismissed by tapping outside it or by Esc.
 - **Discard (owner-approved behaviour, 2026-11-12):** Discard is committed only when the pending transition succeeds. If a pending create fails after Discard, the dirty draft, the selection and the pending create are all kept, and the error is shown. The user can retry or cancel, and cancel keeps every edit.
-- Duplicate and concurrent operations are refused: a second Save, Discard or create while one is running is not executed.
+- Duplicate and concurrent operations are refused: a second Save, Discard, create or revert while one is running is not executed.
 
 ### Exit
 - Closing the app with a dirty draft opens the same dialog and cancels the exit. Save or Discard then exits.
@@ -212,7 +219,7 @@ nexora.exe
 | Up / Down | Move selection through visible rows (through the gate) |
 | Right / Left | Expand or collapse; Left moves to the parent when collapsed |
 | Enter | Focus the title field of the selected task |
-| Esc | In the editor or search, return focus to the list. Elsewhere, clear the selection (through the gate). See section 9 for the deviation. |
+| Esc | In the editor or search, return focus to the list. Elsewhere, clear the selection (through the gate). See section 9 for the open decision. |
 | Ctrl+F | Focus the search field |
 | Ctrl+N | Open the New task dialog |
 | Ctrl+Shift+N | Open the New subtask dialog for the selected task (not for archived tasks) |
@@ -232,16 +239,18 @@ Keys reach the shortcuts only when focus is inside the list or the editor. The s
 
 Run the artifact from section 6 on a Windows 10 x64 machine (or Windows 11). Record a pass or fail and a short note for each item. Use a path with spaces and a non-ASCII character to extract the ZIP, to match the automated smoke test.
 
+Note on demo data: the demo data is built from the **date the app is launched**. Counts for Today, Overdue and Next 7 Days therefore depend on the day you run it. The checks below use relative wording for that reason.
+
 ### A. Setup
 - [ ] A1. Verify the outer and inner SHA-256 values in section 6. Record the values you computed.
 - [ ] A2. Extract the inner ZIP to a folder whose path contains a space and a non-ASCII character. Confirm all 14 entries exist.
 - [ ] A3. Confirm no installer or admin rights are needed.
 
 ### B. Launch and exit
-- [ ] B1. Double-click `nexora.exe`. The window opens with the title "Nexora" and the dark theme.
+- [ ] B1. Double-click `nexora.exe`. The window opens with the dark theme. The in-app name is "Nexora". The Windows window title and taskbar label come from the native runner and read `nexora`; record what you see.
 - [ ] B2. The default view is All, and the sidebar shows Today, Next 7 Days, Overdue, All and Projects (Home, Work).
 - [ ] B3. Close the window with the close button. The app exits. The process is gone from Task Manager.
-- [ ] B4. Close the window with Alt+F4 while a draft is dirty (see J). The dialog appears and the app does not close.
+- [ ] B4. Close the window while a draft is dirty (see J). The dialog appears and the app does not close.
 
 ### C. Layout
 - [ ] C1. At full width (at least 1100 px) the sidebar, list and details editor show side by side.
@@ -250,8 +259,8 @@ Run the artifact from section 6 on a Windows 10 x64 machine (or Windows 11). Rec
 - [ ] C4. Set the Windows display scale to 125% and then 150%. Nothing is cut off, and the buttons still show their text.
 
 ### D. Smart views and projects
-- [ ] D1. Today shows the task "Plan weekend groceries" and the count is 1 (demo data is fixed to the date the build was made, so the counts may differ if the date has changed).
-- [ ] D2. Overdue and Next 7 Days show tasks with the expected counts for the build date.
+- [ ] D1. Today shows the task "Plan weekend groceries" as due on the launch date. Its count is 1.
+- [ ] D2. Overdue shows "Pay utility bill" and "Reply to client email". Next 7 Days shows "Renew car insurance" and "Quarterly review". Confirm these match the launch date.
 - [ ] D3. Click Home and Work. Each shows only its own tasks, and its header and count update.
 - [ ] D4. The sidebar counts do not change when you type in the search box.
 
@@ -267,6 +276,7 @@ Run the artifact from section 6 on a Windows 10 x64 machine (or Windows 11). Rec
 - [ ] F3. Select a task, click Add subtask. Enter a title and submit. The parent expands and the new child is selected.
 - [ ] F4. Click New task, leave the title empty, and press Create. The message "Enter a title." appears and the dialog stays open.
 - [ ] F5. Type 201 characters in the title. The message "Use 200 characters or fewer." appears.
+- [ ] F6. After a successful create, the details title field has keyboard focus. Type a character and confirm it goes into the title.
 
 ### G. Editing, Save and Revert
 - [ ] G1. Select a task. Save and Revert are disabled. The "Edited, not saved" indicator is not shown.
@@ -286,6 +296,7 @@ Run the artifact from section 6 on a Windows 10 x64 machine (or Windows 11). Rec
 - [ ] H5. Change the view or project while a draft is dirty and the task would be hidden. The dialog appears.
 - [ ] H6. Expand or collapse a parent with a dirty draft. No dialog appears (expanding and collapsing never gate).
 - [ ] H7. Change the sort order with a dirty draft. No dialog appears.
+- [ ] H8. Tap outside the dialog and press Esc. The dialog stays open.
 
 ### I. Failed-save behaviour (Discard exception)
 - [ ] I1. The app cannot be forced to fail a save from the UI, so this item is covered by automated tests (`task_workspace_transaction_test.dart`, `editor_test.dart`). Owner: confirm you accept this as evidence, or request a manual fault-injection build.
@@ -297,13 +308,13 @@ Run the artifact from section 6 on a Windows 10 x64 machine (or Windows 11). Rec
 - [ ] J3. Repeat with Discard. The app closes without saving.
 - [ ] J4. Repeat with Cancel. The app stays open and the edit is kept.
 - [ ] J5. Click the close button several times quickly with a dirty draft. Only one dialog is open.
-- [ ] J6. Alt+F4 behaves like the close button (J1 to J4).
+- [ ] J6. Alt+F4 behaves like the close button (J1 to J4). Record the result.
 
 ### K. Search and sort
 - [ ] K1. Click the search box and type "bike". Only "Repair bike" shows. The count is "1 task".
 - [ ] K2. Type "zzzz". "No tasks match your search" appears with a Clear button. Click Clear. All tasks return.
 - [ ] K3. Search matches notes too: type "offers". The task "Renew car insurance" shows.
-- [ ] K4. Open the sort menu. Choose Due date. Overdue tasks come first. Choose Title. The list is alphabetical.
+- [ ] K4. Open the sort menu. Choose Due date. Dated tasks come first, earliest first. Choose Title. The list is alphabetical.
 
 ### L. Keyboard
 - [ ] L1. Click a task, then press Down and Up. The selection moves through visible rows.
@@ -315,7 +326,8 @@ Run the artifact from section 6 on a Windows 10 x64 machine (or Windows 11). Rec
 - [ ] L7. Edit a title, press Ctrl+S. The change is saved.
 - [ ] L8. Inside the title field, press Ctrl+Z after typing. The text undo works and is not blocked by a shortcut.
 - [ ] L9. With a dirty draft, press Down. The unsaved-change dialog appears, the same as with the mouse.
-- [ ] L10. Complete flows L5, L6 and L7 without touching the mouse.
+- [ ] L10. Open the overlay at 1000 px, close it with its × button, and press Down. The selection moves.
+- [ ] L11. Complete flows L5, L6 and L7 without touching the mouse.
 
 ### M. Accessibility
 - [ ] M1. Tab through the sidebar, the list, the search box, the sort menu, and the editor. The focus ring is visible on every control.
@@ -334,7 +346,17 @@ Run the artifact from section 6 on a Windows 10 x64 machine (or Windows 11). Rec
 
 ---
 
-## 9. Known limitations and open items
+## 9. Independent final review and known limitations
+
+### Independent final review
+An independent reviewer (a fresh agent that did not implement the code) audited the integrated branch at `3be4387` against the specification and checked the claims in this document against the repository and CI. Its blocking and major findings were fixed before the code head in section 1, each with a red test first:
+
+- **Blocking — keyboard dead after the overlay closed** (900–1099 px). Fixed in `22781d9`; test: keyboard navigation after the overlay closes at 1000 px.
+- **Major — revert during a save** could leave a saved draft dirty against the wrong base. Fixed in `bde6f5d`; test: revert is refused during a save.
+- **Major — no focus on the details title after a create** (spec 5.5). Fixed in `f2ee8df`; test: a successful create focuses the title. One helper now serves every create entry point.
+- **Minor — a failed load showed an empty list** without saying so. Fixed; test: the load-error message shows.
+- **Minor — the strings rule only matched single quotes.** Fixed; the rule now matches double quotes too.
+- **Document claims** were corrected in this version (section 11 lists what changed).
 
 ### Known limitations (by design in Phase 1)
 - **No persistence.** All data is in memory. Every restart returns to the demo data. Changes are lost on exit. (Phase 2 adds SQLite.)
@@ -342,22 +364,28 @@ Run the artifact from section 6 on a Windows 10 x64 machine (or Windows 11). Rec
 - **No moves.** A task cannot be moved to another parent or project.
 - **No light theme.** Dark only (decision 7).
 - **Desktop only.** Below 900 px the app shows a notice and no editor. Windows is the only target.
-- **Keyboard scope.** The keymap covers the list and the editor only. The sidebar is not in the keymap. Ctrl is the command key; there is no Cmd binding.
 - **No notifications, tray or reminders.** These are Phase 4.
 - **Test font.** Golden tests use Flutter's built-in test font. Real typography is checked manually (section 8, M4).
+- **Demo data date.** The demo data is relative to the launch date, so the Today, Overdue and Next 7 Days contents change from day to day.
 
-### Deviations and open owner decisions
-- **Specification 5.4 item 4 (Discard after a failed create):** the owner approved transactional behaviour on 2026-11-12. The Discard choice is committed only after the pending create succeeds. This is now the specification, recorded in the plan document, Section 5.4 item 4. It is covered by `task_workspace_transaction_test.dart`.
-- **Esc in the search box:** the specification (section 5.2) says Esc **clears** the query. The implementation returns focus to the list and leaves the query. **Open: the owner must decide which behaviour Phase 1 should use.** Until then, the implemented behaviour is what the automated tests check.
-- **Golden baselines** are regenerated only on the pinned runner. Changing the Flutter version or the runner image requires regenerating them.
+### Deviations recorded but not fixed (owner review requested)
+These differ from the wording of the specification or are design gaps the review found. None blocks Live Acceptance on its own, but each should be accepted or changed by the owner.
+
+- **Esc in the search box** returns focus to the list and keeps the query. Specification 5.2 says Esc clears the query. **Open owner decision.**
+- **Right and Left are gated** by the unsaved-change dialog when a draft is dirty. Specification 6.1 marks them as ungated. Right on an expanded parent moves focus to its first child, which the specification does not describe.
+- **Cancelling a gated create drops the title typed in the create dialog.** The create is held as a pending transition until the gate resolves. Cancel discards it. The existing draft is kept.
+- **Up and Down are consumed in the search box**, so the caret cannot move with them there.
+- **Cancel and Discard are ignored silently while a save is running.** The dialog gives no message. This is the duplicate-operation guard working as designed; the message is a gap.
+- **Border colour contrast.** The border token used for input outlines is about 1.5 to 1.9:1 against the surfaces. WCAG 1.4.11 (non-text contrast) asks for 3:1 where the boundary is needed to identify a control. The specification does not set a non-text requirement; the contrast test covers text tokens only. Dialog surfaces use Material 3 defaults and are not checked against the palette.
+- **Exit listener placement.** The exit request is handled by the unsaved-change host (`unsaved_changes_host.dart`), not in the application root as specification 5.2 describes. Behaviour is the same, and the native close path itself is covered by manual check J.
+
+### Unresolved defects
+- None known that block acceptance. The deviations above are recorded for the owner to accept or change.
+- A second independent review of the final head is not performed. The review that was performed covered the code at `3be4387`; the fixes listed above were made after it and are covered by CI on the code head.
 
 ### Open items outside Phase 1
 - PR #1 (Phase 0 documentation) remains open as a Draft. It is not part of Phase 1. The owner should close it or keep it.
-- The Draft PRs #5 to #10 are superseded by PR #11 for the final verification. The owner may close them after acceptance, or keep them as the record of stacked review. Nothing has been merged into `main`.
-
-### Unresolved defects
-- None known that block acceptance. Each defect found during the work is listed in section 3 and was fixed before the final head.
-- Not independently reviewed yet. An independent review of the final integrated branch is a separate step before the Live Acceptance handoff.
+- The Draft PRs #5 to #11 are superseded by PR #12 for the final verification. The owner may close them after acceptance, or keep them as the record of stacked review.
 
 ---
 
@@ -367,7 +395,7 @@ The owner does not need Flutter. CI builds and tests the app. To reproduce the f
 
 ```bash
 git fetch origin
-git checkout 3be43876f5          # or: git checkout feature/phase-1-golden
+git checkout 682378e18c5047bb89c08d5ba26519e77acadfb0
 flutter pub get
 dart format --output=none --set-exit-if-changed .
 flutter analyze
@@ -376,14 +404,23 @@ flutter build windows --release
 pwsh ./tool/package_windows.ps1 -OutputDir ./dist
 ```
 
-Run the first six commands on Windows with Flutter 3.47.9 and Dart 3.13.7 for the same results. Golden comparisons are valid only on the pinned Windows environment.
+Run these on Windows with Flutter 3.47.9 and Dart 3.13.7 for the same results. Golden comparisons are valid only on the pinned Windows environment.
 
 No secrets, service-role keys, Supabase credentials or environment files are needed or used. The app makes no network calls.
 
 ---
 
-## 11. Attestation boundaries
+## 11. Attestation boundaries and changes in this version
 
-- Automated gates are green on the final code head. That is the only verification claimed here.
+- Automated gates are green on the final code head (section 3). That is the only verification claimed here.
 - Manual Live Acceptance has **not** been performed. Its pass or fail is the owner's decision, recorded in section 8.
-- Nothing has been merged into `main`. No production change, Supabase write, migration, deployment or Phase 2 work was made.
+- **No Phase 1 PR has been merged into `main` by this work.** PR #4 (Task 1, the pure domain) was merged into `main` earlier, at `c1c1557`, by the owner. Everything after it is Draft.
+- No production change, Supabase write, migration, deployment or Phase 2 work was made.
+
+Changes in this version, against the previous draft, after the independent review:
+- The code head, PR heads, CI run, test count (266), artifact ID, checksums and smoke-test path were updated to the final run.
+- The statement that nothing had been merged into `main` was corrected (PR #4 is merged).
+- The demo-data description was corrected: the data is built from the launch date, not the build date.
+- The window-title expectation was corrected: the Windows title comes from the native runner, not from the in-app name.
+- The unverified local test count was removed. The contrast figure was corrected to 5.14:1.
+- The deviations found by the review were recorded in section 9, and the fixed defects were listed with their commits.
