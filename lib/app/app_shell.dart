@@ -22,21 +22,21 @@ class AppShell extends StatelessWidget {
           final threePane = constraints.maxWidth >= threePaneBreakpoint;
           return Row(
             children: [
-              SizedBox(
-                key: const ValueKey('sidebar'),
+              const SizedBox(
+                key: ValueKey('sidebar'),
                 width: sidebarWidth,
-                child: const SidebarNav(),
+                child: SidebarNav(),
               ),
               const VerticalDivider(width: 1),
-              Expanded(
-                child: TaskListPane(key: const ValueKey('task-list-pane')),
+              const Expanded(
+                child: TaskListPane(key: ValueKey('task-list-pane')),
               ),
               if (threePane) ...[
                 const VerticalDivider(width: 1),
-                SizedBox(
-                  key: const ValueKey('details-pane'),
+                const SizedBox(
+                  key: ValueKey('details-pane'),
                   width: detailsWidth,
-                  child: const DetailsPane(),
+                  child: DetailsPane(),
                 ),
               ],
             ],

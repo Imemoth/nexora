@@ -12,7 +12,9 @@ class TasksScope extends InheritedNotifier<TasksNotifier> {
 
   static TasksNotifier of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<TasksScope>();
-    assert(scope != null, 'TasksScope is missing above this widget');
-    return scope!.notifier!;
+    if (scope == null) {
+      throw StateError('TasksScope is missing above this widget');
+    }
+    return scope.notifier!;
   }
 }

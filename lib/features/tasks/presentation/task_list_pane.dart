@@ -42,7 +42,7 @@ class TaskListPane extends StatelessWidget {
         ),
         Expanded(
           child: rows.isEmpty
-              ? Center(child: Text(AppStrings.noTasksHere))
+              ? const Center(child: Text(AppStrings.noTasksHere))
               : ListView.builder(
                   itemCount: rows.length,
                   itemBuilder: (context, index) => _TaskRowTile(

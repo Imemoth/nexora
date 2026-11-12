@@ -12,7 +12,7 @@ class DetailsPane extends StatelessWidget {
   Widget build(BuildContext context) {
     final draft = TasksScope.of(context).state.draft;
     if (draft == null) {
-      return Center(child: Text(AppStrings.selectTaskPrompt));
+      return const Center(child: Text(AppStrings.selectTaskPrompt));
     }
     final textTheme = Theme.of(context).textTheme;
     final due = draft.dueDate;
