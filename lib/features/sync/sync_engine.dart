@@ -83,7 +83,7 @@ final class SyncEngine {
     Future<void> Function(Duration)? sleep,
     this.hook,
   }) : enabled = enabled ?? syncFeatureEnabled,
-       _ids = ids,
+       _idSource = ids,
        _config = config,
        _backoff = backoff ?? Backoff(),
        _sleep = sleep ?? Future<void>.delayed,
@@ -99,7 +99,7 @@ final class SyncEngine {
   final Future<String?> Function() userId;
   final bool enabled;
   final SyncHook? hook;
-  final IdGenerator _ids;
+  final IdGenerator _idSource;
   final SyncEngineConfig _config;
   final Backoff _backoff;
   final Future<void> Function(Duration) _sleep;
@@ -340,7 +340,7 @@ final class SyncEngine {
     final key = '$conflictId:$strategy';
     var operationId = state.resolveOperationId(key);
     if (operationId == null) {
-      operationId = _ids.nextId();
+      operationId = _idSource.nextId();
       state.rememberResolveOperationId(key, operationId);
     }
     final payload = strategy == 'recreate_copy'
@@ -378,7 +378,7 @@ final class SyncEngine {
     if (remembered != null) {
       return remembered;
     }
-    final id = _ids.nextId();
+    final id = _idSource.nextId();
     state.rememberResolveOperationId('copy:$key', id);
     return id;
   }

@@ -206,8 +206,9 @@ final class FakeSyncServer implements SyncTransport {
     final id = op['entity_id'] as String;
     final opType = op['op_type'] as String;
     final key = '$type:$id';
-    if (_hasOpenConflict(type, id))
+    if (_hasOpenConflict(type, id)) {
       return _rejected(opId, 'blocked_by_conflict');
+    }
     final patch = Map<String, Object?>.from(
       (op['patch'] ?? <String, Object?>{}) as Map,
     );
@@ -215,13 +216,15 @@ final class FakeSyncServer implements SyncTransport {
         ? _projectFields
         : [..._taskFields, if (opType == 'create') 'project_id'];
     if (opType == 'create') {
-      if (patch.keys.any((k) => !allowed.contains(k)))
+      if (patch.keys.any((k) => !allowed.contains(k))) {
         return _rejected(opId, 'invalid_patch');
+      }
       final existing = rows[key];
       if (existing != null) {
         final differs = patch.entries.any((e) => existing[e.key] != e.value);
-        if (existing['deleted_at'] == null && !differs)
+        if (existing['deleted_at'] == null && !differs) {
           return _applied(opId, existing, existing['version'] as int);
+        }
         return _conflict(
           opId,
           op,
@@ -235,15 +238,17 @@ final class FakeSyncServer implements SyncTransport {
       if (type == 'task') {
         final project = rows['project:${patch['project_id']}'];
         if (project == null) return _rejected(opId, 'not_found');
-        if (project['deleted_at'] != null)
+        if (project['deleted_at'] != null) {
           return _rejected(opId, 'parent_invalid');
+        }
         final parent = patch['parent_id'];
         if (parent != null) {
           final p = rows['task:$parent'];
           if (p == null ||
               p['deleted_at'] != null ||
-              p['project_id'] != patch['project_id'])
+              p['project_id'] != patch['project_id']) {
             return _rejected(opId, 'parent_invalid');
+          }
         }
       }
       final r = <String, Object?>{
@@ -282,12 +287,14 @@ final class FakeSyncServer implements SyncTransport {
     final r = rows[key];
     if (r == null) return _rejected(opId, 'not_found');
     final base = op['base_version'] as int?;
-    if (base == null || base < 1 || base > (r['version'] as int))
+    if (base == null || base < 1 || base > (r['version'] as int)) {
       return _rejected(opId, 'invalid_op');
+    }
     final before = r['version'] as int;
     if (opType == 'update') {
-      if (patch.keys.any((k) => !allowed.contains(k)))
+      if (patch.keys.any((k) => !allowed.contains(k))) {
         return _rejected(opId, 'invalid_patch');
+      }
       if (r['deleted_at'] != null) {
         return _conflict(
           opId,
@@ -304,10 +311,12 @@ final class FakeSyncServer implements SyncTransport {
       final changed = <String>[];
       for (final e in patch.entries) {
         if (r[e.key] == e.value) continue;
-        if (((fv[e.key] as int?) ?? 0) > base)
+        if (((fv[e.key] as int?) ?? 0) > base) {
           conflicting.add(e.key);
-        else
+        }
+        else {
           changed.add(e.key);
+        }
       }
       if (conflicting.isNotEmpty) {
         conflicting.sort();
@@ -342,8 +351,9 @@ final class FakeSyncServer implements SyncTransport {
     if (tree is List) {
       final ids = [for (final e in tree) 'task:${(e as Map)['id']}'];
       if (ids.any((i) => !descendants.contains(i)) ||
-          ids.toSet().length != ids.length)
+          ids.toSet().length != ids.length) {
         return _rejected(opId, 'invalid_patch');
+      }
       final missing = live.where((d) => !ids.contains(d)).toList();
       if (missing.isNotEmpty) {
         return _conflict(
@@ -358,7 +368,7 @@ final class FakeSyncServer implements SyncTransport {
           r,
         );
       }
-      if (base < before)
+      if (base < before) {
         return _conflict(
           opId,
           op,
@@ -368,19 +378,21 @@ final class FakeSyncServer implements SyncTransport {
           {'op': 'delete', 'base_version': base, 'tree': tree},
           r,
         );
+      }
       final edited = <Map<String, Object?>>[];
       for (final e in tree) {
         final m = e as Map;
         final d = rows['task:${m['id']}']!;
         if (d['deleted_at'] == null &&
-            (d['version'] as int) > (m['base_version'] as int))
+            (d['version'] as int) > (m['base_version'] as int)) {
           edited.add({
             'id': m['id'],
             'version': d['version'],
             'base_version': m['base_version'],
           });
+        }
       }
-      if (edited.isNotEmpty)
+      if (edited.isNotEmpty) {
         return _conflict(
           opId,
           op,
@@ -390,13 +402,14 @@ final class FakeSyncServer implements SyncTransport {
           {'op': 'delete', 'base_version': base, 'tree': tree},
           r,
         );
+      }
       for (final d in live) {
         _tombstone(rows[d]!);
       }
       _tombstone(r);
       return {..._applied(opId, r, before), 'tree_deleted': live.length + 1};
     }
-    if (live.isNotEmpty)
+    if (live.isNotEmpty) {
       return _conflict(
         opId,
         op,
@@ -406,7 +419,8 @@ final class FakeSyncServer implements SyncTransport {
         {'op': 'delete'},
         r,
       );
-    if (before > base)
+    }
+    if (before > base) {
       return _conflict(
         opId,
         op,
@@ -416,6 +430,7 @@ final class FakeSyncServer implements SyncTransport {
         {'op': 'delete', 'base_version': base},
         r,
       );
+    }
     _tombstone(r);
     return _applied(opId, r, before);
   }
@@ -444,8 +459,9 @@ final class FakeSyncServer implements SyncTransport {
 
     if (type == 'project') {
       for (final e in rows.entries) {
-        if (e.key.startsWith('task:') && e.value['project_id'] == id)
+        if (e.key.startsWith('task:') && e.value['project_id'] == id) {
           out.add(e.key);
+        }
       }
     } else {
       walk(id);
@@ -461,8 +477,9 @@ final class FakeSyncServer implements SyncTransport {
   }) async {
     log.add('pull:$cursor');
     _device(deviceId);
-    if (cursor < 0 || cursor > seq)
+    if (cursor < 0 || cursor > seq) {
       throw const SyncServerError('invalid_cursor');
+    }
     final items = <MapEntry<int, Map<String, Object?>>>[
       for (final e in rows.entries)
         if ((e.value['change_seq'] as int) > cursor)
@@ -505,8 +522,9 @@ final class FakeSyncServer implements SyncTransport {
     if (seen != null) return {...seen, 'replayed': true};
     final c = conflicts[conflictId];
     if (c == null) return _rejected(operationId, 'not_found');
-    if (c['status'] != 'open')
+    if (c['status'] != 'open') {
       return _rejected(operationId, 'conflict_not_open');
+    }
     final type = c['entity_type'] as String;
     final id = c['entity_id'] as String;
     final r = rows['$type:$id']!;
@@ -521,8 +539,9 @@ final class FakeSyncServer implements SyncTransport {
       case 'resolved_client':
         if (clientValue.containsKey('tree') ||
             deleted ||
-            c['kind'] == 'edit_deleted')
+            c['kind'] == 'edit_deleted') {
           return _rejected(operationId, 'strategy_not_allowed');
+        }
         if (c['kind'] == 'delete_edited' ||
             c['kind'] == 'parent_has_live_children') {
           _tombstone(r);
@@ -531,15 +550,17 @@ final class FakeSyncServer implements SyncTransport {
         }
         status = 'resolved_client';
       case 'resolved_merged':
-        if (values == null || values.isEmpty || deleted)
+        if (values == null || values.isEmpty || deleted) {
           return _rejected(operationId, 'invalid_values');
+        }
         _edit(r, values);
         status = 'resolved_merged';
       case 'recreate_copy':
         if (!deleted) return _rejected(operationId, 'strategy_not_allowed');
         copyId = (values?['new_entity_id']) as String?;
-        if (copyId == null || rows.containsKey('$type:$copyId'))
+        if (copyId == null || rows.containsKey('$type:$copyId')) {
           return _rejected(operationId, 'invalid_values');
+        }
         final copy = Map<String, Object?>.from(r)
           ..addAll(clientValue)
           ..['id'] = copyId
@@ -566,7 +587,7 @@ final class FakeSyncServer implements SyncTransport {
         copyId != null ? rows['$type:$copyId']! : r,
       ),
       'replayed': false,
-      if (copyId != null) 'copy_entity_id': copyId,
+      'copy_entity_id': ?copyId,
       if ((r['version'] as int) != before) 'applied_version': r['version'],
     };
     stored[operationId] = result;
@@ -591,8 +612,9 @@ final class FakeSyncServer implements SyncTransport {
   ) async {
     log.add('revoke');
     _device(deviceId);
-    if (!devices.containsKey(targetDeviceId))
+    if (!devices.containsKey(targetDeviceId)) {
       throw const SyncServerError('device_invalid');
+    }
     final newly = devices[targetDeviceId] == false;
     devices[targetDeviceId] = true;
     return {
