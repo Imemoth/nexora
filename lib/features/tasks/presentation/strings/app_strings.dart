@@ -54,6 +54,8 @@ abstract final class AppStrings {
   static const errorParentArchived = 'An archived task cannot get subtasks.';
   static const errorSaveFailed = 'Could not save. Your changes are kept.';
   static const errorLoadFailed = 'Could not load tasks.';
+  static const errorOperationInProgress =
+      'Please wait for the current change to finish.';
   static const errorGatePending = 'Save, discard or cancel your changes first.';
   static const desktopOnlyNotice =
       'Nexora needs a window at least 900 px wide.';
@@ -68,6 +70,7 @@ abstract final class AppStrings {
       WorkspaceError.saveFailed => errorSaveFailed,
       WorkspaceError.loadFailed => errorLoadFailed,
       WorkspaceError.unsavedChangesPending => errorGatePending,
+      WorkspaceError.operationInProgress => errorOperationInProgress,
     };
   }
 
