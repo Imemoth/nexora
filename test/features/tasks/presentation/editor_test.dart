@@ -1,4 +1,6 @@
-import 'package:flutter/widgets.dart';
+import 'dart:ui' show AppExitResponse;
+
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';

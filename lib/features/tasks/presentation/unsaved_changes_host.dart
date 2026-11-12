@@ -1,3 +1,5 @@
+import 'dart:ui' show AppExitResponse, AppExitType;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nexora/features/tasks/application/workspace_transition.dart';

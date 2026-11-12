@@ -5,7 +5,6 @@ import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
 
 import '../../../support/result_matchers.dart';
-import '../../../support/task_fixtures.dart';
 import '../../../support/workspace_harness.dart';
 
 void main() {
