@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| Status | **Planning baseline. Not implemented.** SQLite schema v2 does not exist; `lib/` has no v2 code. Synchronization stays disabled. |
+| Status | **Implemented locally (2026-11-12, owner authorization "Phase 3 S5 Complete Implementation").** SQLite schema v2, migration, backup, outbox, patches, folding, acknowledgement, conflict mirror and recovery are in `lib/features/tasks/data/`; evidence, deviations and open integration points: `docs/operations/s5-implementation-record.md`. Synchronization stays disabled: no transport, no pull, no authentication. |
 | Source | The corrected Session B specification ("Phase 3 S5: corrected specification, acceptance, and implementation handoff"), supplied by the owner on 2026-11-12 as text and **received and reconciled on that date**. The earlier reconstruction in this file is replaced. |
-| Authority | The Session B report is a **proposed technical specification, not an authorization of unresolved owner decisions** (owner instruction). Every rule below carries a tag: **[A]** approved by an owner direction recorded in `status-register.md` (OD-x); **[R]** stated as approved policy inside the Session B report but recorded in no owner message in this repository, so it needs confirmation; **[P]** proposed by the report, needs owner approval. Where the tag is missing the line is a description of existing behavior. |
-| Not verified here | The report's scratch checks (45 passed on Python SQLite 3.50.4, script on the author's machine) were **not reproduced** by this session; the pinned Dart `sqlite3` 3.9.1 bundle is unverified and the checks must be re-run in the Dart harness before any v2 step (blocker B-17). |
+| Authority | The Session B report was a proposed technical specification. The owner's authorization of 2026-11-12 ("Phase 3 S5 Complete Implementation") **approved proposals P-1 to P-8 as the implementation baseline with sixteen stated requirements**, which also confirm the [R] items; the tags below remain to show where each rule came from, and every one of them is now approved. Original tag legend: every rule carries a tag: **[A]** approved by an owner direction recorded in `status-register.md` (OD-x); **[R]** stated as approved policy inside the Session B report but recorded in no owner message in this repository, so it needs confirmation; **[P]** proposed by the report, needs owner approval. Where the tag is missing the line is a description of existing behavior. |
+| Verification | The report's scratch checks (Python SQLite 3.50.4) were reproduced on SQLite 3.53.1 for the DDL and then re-run as Dart tests on the pinned `sqlite3` 3.9.1 bundle in Windows CI (blockers B-17, B-18 resolved; see `docs/operations/s5-implementation-record.md`). |
 | Related | `docs/operations/s5-migration-safety-test-spec.md` (tests), `docs/architecture/s2-wire-contract.md` (server contract), `docs/coordination/status-register.md` (decisions, blockers), CR-2A-001 `phase-2a-sync-requirements.md` (original requirements REQ-1..8). |
 
 ## 1. Policy
@@ -99,17 +99,17 @@ R-1 (three base concepts) adopted as [P]. R-2 (only class S becomes 0) adopted; 
 ## 15. Open points and owner decisions
 | # | Point | State |
 |---|---|---|
-| S5-Q1 | Representation of preserved v1 `sent`/`failed`/`acked` rows | report proposes class U with verbatim archive (section 5); needs approval |
-| S5-Q2 | Stored version of a pending create: 0 for class S (report) vs Phase 2A's current 1 | proposal; needs approval; requires relaxing the v1 `version > 0` CHECK in v2 |
-| S5-Q3 | Title CHECK 500 locally vs 200 on the server | the report aborts migration on titles over 200; v2 tightens to 200; needs approval |
-| S5-Q4 | Owner binding column name | open |
-| S5-Q5 | `request_id` | client-only (agrees with O-5, still unapproved) |
-| S5-Q6 | Per-entity `synced`/`sync_scope` flag | the report adds `sync_scope`; default must not be `synced` (risk 7); needs approval |
-| O-11 | `blocked_by_conflict` terminal or retryable | open; recommendation: keep terminal (no S2 change), resubmit flow |
-| O-12 | Delivery route for the S5-0 remainder | owner decision: this branch (current) or a new branch (needs explicit approval) |
-| O-13 | Local tree-delete precheck (refuse delete with live children until the S3 gate) | needs authorization |
-| O-14 | `archived` maps to null `completed_at` | confirm |
-| O-15 | Real-database handling: unclassified rows stay unsynced; demo relabel is manual | confirm |
+| S5-Q1 | Representation of preserved v1 `sent`/`failed`/`acked` rows | **decided**: class U, verbatim archive (authorization requirement 5) |
+| S5-Q2 | Stored version of a pending create | **decided**: 0 for demonstrably never-synchronized entities (requirement 4); v2 relaxes the CHECK to `version >= 0` |
+| S5-Q3 | Title CHECK 500 locally vs 200 on the server | **decided**: 200 (requirement 9); migration aborts, never truncates |
+| S5-Q4 | Owner binding column name | **decided**: `meta.user_id` (requirement 9) |
+| S5-Q5 | `request_id` | **decided**: client-side only, never sent (requirement 10) |
+| S5-Q6 | Per-entity `sync_scope` flag | **decided**: explicit `sync_scope` (`synced`, `local_only`, `unclassified`), no default |
+| O-11 | `blocked_by_conflict` terminal or retryable | **decided**: stays a recorded terminal rejection (requirement 13); recovery is a resubmit with a new id |
+| O-12 | Delivery route | **decided**: the existing Phase 3 branch |
+| O-13 | Local tree-delete precheck | **decided and implemented** (requirement 14) |
+| O-14 | `archived` maps to null `completed_at` | **decided and implemented** (requirement 16) |
+| O-15 | Real-database handling | **decided**: unclassified entities never synchronize automatically (15); demo records and descendants stay local-only (6); relabeling legacy demo rows is a manual owner action and is not implemented |
 
 ## 16. Remaining risks (from the report, unchanged unless noted)
 1 Backups are plaintext copies of titles and notes accumulating in the app data folder; retention is an owner decision (OD-8: never automatic). 2 Tree delete is non-atomic on the server; the local precheck is the only protection until the S3 gate and must be tested. 3 Conflict detail: now provided by S2 (locally); do not show "resolved" without evidence. 4 Rule R relies on `version_before` and the exact +1 increment. 5 Recorded rejections need a visible recovery UI. 6 Discard-local can erase intent: archive first, never delete. 7 Unclassified and demo rows must never sync; the `sync_scope` default must be reviewed. 8 Two app instances: cross-process test. 9 A backup at a disk-full or antivirus-locked moment leaves a partial file (kept, never deleted). 10 Migration diagnostics contain ids and counts only. 11 `completed_at` is device time. 12 Operation ids must come from a secure generator (`RandomIdGenerator` not verified). 13 D-U anonymous sign-in unaudited; the binding must reject anonymous ids. 14 `nexora_private` exposure must be verified on the hosted project before any S2 hosted apply. 15 The local database is unencrypted (out of scope).

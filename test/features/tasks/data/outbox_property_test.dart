@@ -220,9 +220,10 @@ Future<void> _scenario(int seed, Directory dir) async {
       );
       for (final op in batch) {
         final payload =
-            db.raw.select('SELECT payload_json FROM sync_outbox WHERE seq = ?', [
-                  op.seq,
-                ]).single['payload_json']
+            db.raw.select(
+                  'SELECT payload_json FROM sync_outbox WHERE seq = ?',
+                  [op.seq],
+                ).single['payload_json']
                 as String;
         final seen = claimedPayloads[op.operationId];
         expect(
