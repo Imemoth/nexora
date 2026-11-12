@@ -33,7 +33,7 @@ String _schemaFingerprint(Database db) {
 
 Map<String, List<Object?>> _dump(Database db) {
   return {
-    for (final table in ['meta', 'projects', 'tasks', 'sync_outbox'])
+    for (final table in ['meta', 'projects', 'tasks'])
       table: db
           .select('SELECT * FROM $table ORDER BY rowid')
           .map((r) => [for (final key in r.keys) '$key=${r[key]}'].join(','))
@@ -72,13 +72,15 @@ void main() {
       },
     );
 
-    test('a new file gets exactly the golden v1 schema', () {
-      final db = LocalDatabase.open('${dir.path}/new.db');
-      addTearDown(db.close);
+    test('the frozen v1 statements produce exactly the golden v1 schema', () {
+      final raw = sqlite3.open(':memory:');
+      addTearDown(raw.close);
+      for (final statement in migrationStatements.single) {
+        raw.execute(statement);
+      }
 
-      expect(db.raw.userVersion, 1);
       expect(
-        _schemaFingerprint(db.raw),
+        _schemaFingerprint(raw),
         _fixture('v1_schema_fingerprint.golden.txt'),
       );
     });
@@ -99,23 +101,24 @@ void main() {
   });
 
   group('a v1 file with synthetic data', () {
-    test('opens at v1 without any change to its rows, versions or outbox', () {
+    test('migrates to v2 keeping every row and archiving every operation', () {
       final path = '${dir.path}/legacy.db';
       final seed = sqlite3.open(path);
       seed.execute(_fixture('synthetic_v1.sql'));
       seed.userVersion = 1;
-      final before = _dump(seed);
       seed.close();
 
       final db = LocalDatabase.open(path);
       addTearDown(db.close);
 
-      expect(db.schemaVersion, LocalDatabase.currentVersion);
-      expect(db.raw.userVersion, LocalDatabase.currentVersion);
-      expect(_dump(db.raw), before);
-      expect(before['sync_outbox'], hasLength(5));
-      expect(before['projects'], hasLength(2));
-      expect(before['tasks'], hasLength(3));
+      expect(db.schemaVersion, 2);
+      expect(db.raw.userVersion, 2);
+      expect(_dump(db.raw)['projects'], hasLength(2));
+      expect(_dump(db.raw)['tasks'], hasLength(3));
+      expect(
+        db.raw.select('SELECT COUNT(*) AS n FROM sync_outbox_archive').single['n'],
+        5,
+      );
     });
 
     test(

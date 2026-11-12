@@ -87,6 +87,11 @@ void main() {
       "CREATE TRIGGER inject_outbox_failure BEFORE INSERT ON sync_outbox "
       "BEGIN SELECT RAISE(ABORT, 'injected outbox failure'); END",
     );
+    // An edit of a pending create folds into it with an UPDATE of the operation.
+    db.raw.execute(
+      "CREATE TRIGGER inject_outbox_update_failure BEFORE UPDATE ON sync_outbox "
+      "BEGIN SELECT RAISE(ABORT, 'injected outbox update failure'); END",
+    );
 
     await expectLater(
       repo(db).saveTask(makeTask(id: 't1', title: 'Edited')),

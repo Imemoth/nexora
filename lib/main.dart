@@ -10,6 +10,7 @@ import 'package:nexora/features/tasks/application/repository_exception.dart';
 import 'package:nexora/features/tasks/application/task_workspace.dart';
 import 'package:nexora/features/tasks/data/local_database.dart';
 import 'package:nexora/features/tasks/data/local_storage.dart';
+import 'package:nexora/features/tasks/data/outbox_store.dart';
 import 'package:nexora/features/tasks/data/sqlite_task_repository.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
@@ -28,6 +29,9 @@ Future<void> main(List<String> args) async {
     final path = localDatabasePath(Platform.environment);
     ensureParentFolder(path);
     final db = LocalDatabase.open(path);
+    // Crash recovery: an operation left in flight by an earlier run returns to
+    // pending (the server replays by operation id). Nothing is sent: sync is off.
+    OutboxStore(db, ids: ids).recoverInFlight();
     final repository = SqliteTaskRepository(
       db,
       ownerId: ownerIdOf(db, ids),
