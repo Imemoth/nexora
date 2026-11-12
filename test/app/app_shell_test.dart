@@ -113,7 +113,15 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('row-home-groceries')));
     await tester.pumpAndSettle();
 
-    expect(_textOf(tester, 'details-title'), 'Plan weekend groceries');
+    // The details pane is an editor (Task 5), so the title is an editable
+    // field keyed by task id, not a read-only Text.
+    final field = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const ValueKey('title-home-groceries')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(field.controller.text, 'Plan weekend groceries');
   });
 
   testWidgets('details pane shows a prompt when nothing is selected', (
