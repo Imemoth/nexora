@@ -12,10 +12,10 @@ Catalog diff of "hosted baseline + F1" versus "+ S1" (rebuilt locally from the s
 | Change | Count | Notes |
 |---|---|---|
 | Columns added | 7 | `projects.field_versions`, `tasks.field_versions`, `devices.last_push_at`, `sync_conflicts.kind`, `resolution_source`, `resolution_policy`, `resolution_operation_id` |
-| Constraints added | 9 | checks and one FK; all on empty tables |
+| Constraints added | 8 | two `field_versions` object checks; on `sync_conflicts`: `kind`, `resolution_source`, `resolution_policy`, `resolution_consistent`, `policy_only_auto` checks and the `resolution_operation_id` foreign key; all on empty tables |
 | Functions added | 4 | `user_lock_key`, `lock_user`, `guard_sync_log`, `guard_device`, all in `nexora_private` |
 | Function replaced | 1 | `guard_row()` (superset of F1: keeps the nested fix, adds the user lock and `field_versions`) |
-| Constraint replaced | 1 | `sync_operations_device_id_user_id_fkey`: `ON DELETE RESTRICT` becomes `NO ACTION` (so deleting a user can cascade; tested) |
+| Constraint replaced | 1 (the 9th changed constraint line in the raw catalog diff) | `sync_operations_device_id_user_id_fkey`: `ON DELETE RESTRICT` becomes `NO ACTION` (so deleting a user can cascade; tested) |
 | Triggers added | 5 | append-only and no-truncate guards, device guard; three Phase 2B guard triggers become `ENABLE ALWAYS` |
 | Indexes added | 6 | foreign-key coverage |
 | **Grants, RLS policies, table privileges, schema ACL** | **0 changed** | none |
