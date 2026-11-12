@@ -39,8 +39,21 @@ What it proves through the real API: token issuance and the claims; PostgREST ve
 4. **DPAPI through PowerShell** adds a process start (a few hundred milliseconds) per session read or write; it protects against other Windows users and against file copies to another machine, not against code running as the same user. A native or package-based store would need dependency approval.
 5. **A fresh account gets one default project after its first complete cycle if the server holds none.** Two devices that sign in at the same moment on an empty account can each create one; they are then two ordinary projects (no data loss). Recorded as an owner product decision (O-17).
 
-## 5. Evidence
-Recorded in the status register evidence index (run ids of the exact final head). Local limits: no Dart SDK exists in the agent environment, so formatting, analysis and the Windows tests run only in CI.
+## 5. Evidence (code head `959558a`; documentation commits after it change no code)
+| Check | Run | Result |
+|---|---|---|
+| Windows `CI`: format, analyze, full Flutter suite, cross-process restart check, release build, portable ZIP smoke test | 43323362456 | success; 515 tests passed, 35 skipped (audit below); includes the real DPAPI round trip and the 13 Windows-level acceptance scenarios `S8-01` to `S8-13` |
+| `http-integration` (real GoTrue, PostgREST, Kong, PostgreSQL 17 with the real S1-S4 migrations) | 43322576202 on `5c2914d` (same library code as `959558a`; the later commit only reformatted a test) | success; 21 of 21 tests |
+| `e2e-sync` (two real SQLite databases, the real engine, the real S1-S4 migrations on PostgreSQL 17) | 43322576250 on `5c2914d` | success; 14 of 14 scenarios |
+Local limit: there is no Dart SDK in the agent environment, so formatting, analysis and the Windows tests run only in CI. Run ids of the exact final head are in the final report.
+
+### Skipped-test audit
+Windows `flutter test` reports 35 skipped tests. All of them are classified; none is an unjustified skip.
+| Count | File | Why skipped on the Windows job | Where it runs and passes |
+|---|---|---|---|
+| 14 | `test/e2e/two_device_sync_test.dart` (the 14 scenarios of the two-device suite; this is the "14 skipped" of the earlier packages) | needs a PostgreSQL 17 server (`NEXORA_E2E_PG=1`); the Windows runner has none | workflow `e2e-sync`, success |
+| 21 | `test/http/http_integration_test.dart` | needs the disposable Supabase stack (`NEXORA_HTTP_URL`) | workflow `http-integration`, success |
+No other test in the repository is skipped. One test is conditional the other way round: the real DPAPI round trip (`test/features/auth/secure_store_test.dart`) is skipped on non-Windows platforms (DPAPI exists only on Windows) and **runs and passes on the Windows job**. The scenario logic of `S8-01` to `S8-13` runs on every platform; only the session store differs (DPAPI on Windows, in memory elsewhere).
 
 ## 6. Not verified, still open
 * The hosted project: nothing was applied or changed there. Hosted HTTP/JWT acceptance is prepared but not run (B-20 stays open until an owner-approved hosted run).
