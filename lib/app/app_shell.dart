@@ -8,6 +8,7 @@ import 'package:nexora/features/tasks/presentation/tasks_scope.dart';
 import 'package:nexora/features/tasks/presentation/unsaved_changes_host.dart';
 
 import 'details_overlay.dart';
+import 'sync_panel.dart';
 import 'sidebar_nav.dart';
 
 /// Responsive desktop layout.
@@ -18,7 +19,7 @@ import 'sidebar_nav.dart';
 /// - Below 900 px: the desktop-only notice is shown, the list stays usable and
 ///   no overlay opens.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.onExitApp});
+  const AppShell({super.key, this.onExitApp, this.syncPanel});
 
   static const double sidebarWidth = 240;
   static const double detailsWidth = 360;
@@ -27,6 +28,9 @@ class AppShell extends StatefulWidget {
 
   /// Passed to the unsaved-change host. Tests inject a fake exit.
   final void Function()? onExitApp;
+
+  /// Shown only when synchronization is enabled and wired; null by default.
+  final SyncPanel? syncPanel;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -101,9 +105,18 @@ class _AppShellState extends State<AppShell> {
               ],
             );
 
+            final content = widget.syncPanel == null
+                ? body
+                : Column(
+                    children: [
+                      Expanded(child: body),
+                      SyncStatusBar(panel: widget.syncPanel!),
+                    ],
+                  );
+
             return Stack(
               children: [
-                body,
+                content,
                 if (overlayOpen)
                   Positioned(
                     top: 0,

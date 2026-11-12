@@ -4,6 +4,7 @@ import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
 import 'package:nexora/features/tasks/presentation/tasks_scope.dart';
 
 import 'app_shell.dart';
+import 'sync_panel.dart';
 import 'theme.dart';
 
 /// Application root: the approved dark theme, the task workspace scope and the
@@ -14,6 +15,7 @@ class NexoraApp extends StatelessWidget {
     required this.notifier,
     this.onExitApp,
     this.textScaler,
+    this.syncPanel,
   });
 
   final TasksNotifier notifier;
@@ -23,6 +25,9 @@ class NexoraApp extends StatelessWidget {
 
   /// Test seam for text scaling. Null keeps the platform scaling.
   final TextScaler? textScaler;
+
+  /// Null unless synchronization is enabled and wired (it is not, by default).
+  final SyncPanel? syncPanel;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +50,7 @@ class NexoraApp extends StatelessWidget {
             child: content,
           );
         },
-        home: AppShell(onExitApp: onExitApp),
+        home: AppShell(onExitApp: onExitApp, syncPanel: syncPanel),
       ),
     );
   }
