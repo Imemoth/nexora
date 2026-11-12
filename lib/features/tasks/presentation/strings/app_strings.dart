@@ -78,6 +78,34 @@ abstract final class AppStrings {
   static const accountStorageProblem =
       'The protected session store could not be written';
   static String accountSignedInAs(String email) => 'Signed in as $email';
+  static const newProjectAction = 'New project';
+  static const newProjectTitle = 'New project';
+  static const projectNameLabel = 'Project name';
+  static const createAction = 'Create';
+  static const emptyAccountTitle = 'This account has no projects yet';
+  static const emptyAccountBody =
+      'Create a project, or import projects and tasks from this computer. Nothing is imported automatically.';
+  static const importLocalAction = 'Import local data';
+  static const importTitle = 'Import local data';
+  static const importIntro =
+      'Choose what to copy into this account. Your local workspace is not changed. A verified backup of this account is made first.';
+  static const importNothingToOffer =
+      'There is nothing on this computer that can be imported.';
+  static const importNewProject = 'New project';
+  static const importAgainAnyway = 'Import again anyway';
+  static const importAlreadyDone = 'Already imported into this account';
+  static const importSameName = 'A project with this name already exists';
+  static const importAction = 'Import selected';
+  static const importWorking = 'Importing…';
+  static const importDestinationLabel = 'Into';
+  static const importFailed =
+      'The import did not run and nothing was changed. Your backup and local data are intact';
+  static const importBackupNote = 'Backup of this account saved at';
+  static String importTaskCount(int n) => n == 1 ? '1 task' : '$n tasks';
+  static String importSkippedNote(int localOnly, int unclassified, int deleted) =>
+      'Not offered: $localOnly local-only, $unclassified of unknown origin, $deleted deleted';
+  static String importDone(int projects, int tasks, int skipped) =>
+      'Imported $projects project(s) and $tasks task(s); $skipped skipped as duplicates';
   static const syncNowAction = 'Sync now';
   static const syncDisabled = 'Synchronization is off';
   static const syncing = 'Synchronizing…';

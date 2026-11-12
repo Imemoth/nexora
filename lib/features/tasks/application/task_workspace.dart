@@ -4,6 +4,7 @@ import 'package:nexora/core/ids/id_generator.dart';
 import 'package:nexora/core/result.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
 import 'package:nexora/features/tasks/domain/clock.dart';
+import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_creation_rules.dart';
@@ -89,6 +90,34 @@ final class TaskWorkspace {
         ),
       );
     }
+  }
+
+  /// Creates a project the user asked for. Needs a repository that can store
+  /// projects ([ProjectStore]); nothing creates a project automatically.
+  Future<Result<Project, WorkspaceError>> createProject(String name) async {
+    final store = repository;
+    if (store is! ProjectStore) {
+      return const Err(WorkspaceError.saveFailed);
+    }
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      return const Err(WorkspaceError.titleRequired);
+    }
+    if (trimmed.length > maxTitleLength) {
+      return const Err(WorkspaceError.titleTooLong);
+    }
+    final next = _state.projects.isEmpty
+        ? 0
+        : _state.projects.map((p) => p.position).reduce((a, b) => a > b ? a : b) +
+              1;
+    final project = Project(id: ids.nextId(), name: trimmed, position: next);
+    try {
+      await store.saveProject(project);
+    } on RepositoryException {
+      return const Err(WorkspaceError.saveFailed);
+    }
+    _publish(_state.copyWith(projects: [..._state.projects, project]));
+    return Ok(project);
   }
 
   /// Re-reads projects and tasks after a synchronization changed storage.

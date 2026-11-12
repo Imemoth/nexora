@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexora/app/account_actions.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 
 /// Where the account stands, in terms the user can act on.
@@ -72,9 +73,12 @@ String accountNoticeText(AccountNotice notice) => switch (notice) {
 
 /// A thin bar: who is signed in, and Sign in / Sign out.
 class AccountBar extends StatelessWidget {
-  const AccountBar({super.key, required this.panel});
+  const AccountBar({super.key, required this.panel, this.importPanel});
 
   final AccountPanel panel;
+
+  /// Present only for a signed-in account; adds New project / Import actions.
+  final ImportPanel? importPanel;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +109,19 @@ class AccountBar extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
+                if (view.phase == AccountPhase.signedIn &&
+                    importPanel != null) ...[
+                  TextButton(
+                    key: const ValueKey('bar-new-project'),
+                    onPressed: () => showNewProjectDialog(context),
+                    child: const Text(AppStrings.newProjectAction),
+                  ),
+                  TextButton(
+                    key: const ValueKey('bar-import'),
+                    onPressed: () => showImportDialog(context, importPanel!),
+                    child: const Text(AppStrings.importLocalAction),
+                  ),
+                ],
                 if (view.phase == AccountPhase.signedIn)
                   TextButton(
                     key: const ValueKey('sign-out'),

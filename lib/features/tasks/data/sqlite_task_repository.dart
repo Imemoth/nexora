@@ -26,7 +26,7 @@ import 'outbox_store.dart';
 /// operation; demo data and everything created under it is `local_only`;
 /// unclassified entities (migrated legacy rows) never produce operations; a
 /// task with live children cannot be deleted until the S3 atomicity protocol.
-final class SqliteTaskRepository implements TaskRepository {
+final class SqliteTaskRepository implements TaskRepository, ProjectStore {
   SqliteTaskRepository(
     this._db, {
     required this.ownerId,
@@ -103,8 +103,41 @@ final class SqliteTaskRepository implements TaskRepository {
   }
 
   /// Inserts or updates a project, in one transaction with its outbox entry.
+  @override
   Future<void> saveProject(Project project) async {
     _run(() => _transaction(() => _upsertProject(project)));
+  }
+
+  /// Writes many projects and tasks in ONE transaction: all of them or none (used
+  /// by the local-data import). [tasks] must list every parent before its
+  /// children. [meta] is written in the same transaction. [beforeCommit] is a test
+  /// seam that runs after the writes and before COMMIT; if it throws, everything
+  /// is rolled back.
+  Future<void> importBatch({
+    required List<Project> projects,
+    required List<Task> tasks,
+    Map<String, String> meta = const {},
+    void Function()? beforeCommit,
+  }) async {
+    for (final task in tasks) {
+      if (task.title.length > maxTitleLength) {
+        throw RepositoryException('title exceeds $maxTitleLength characters');
+      }
+    }
+    _run(
+      () => _transaction(() {
+        for (final project in projects) {
+          _upsertProject(project);
+        }
+        for (final task in tasks) {
+          _upsertTask(task);
+        }
+        for (final entry in meta.entries) {
+          _setMeta(entry.key, entry.value);
+        }
+        beforeCommit?.call();
+      }),
+    );
   }
 
   /// Marks a task deleted. The row is kept and, for a synchronized task, a delete

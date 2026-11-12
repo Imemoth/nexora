@@ -4,6 +4,7 @@ import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
 import 'package:nexora/features/tasks/presentation/tasks_scope.dart';
 
 import 'app_shell.dart';
+import 'account_actions.dart';
 import 'account_panel.dart';
 import 'sync_panel.dart';
 import 'theme.dart';
@@ -18,6 +19,7 @@ class NexoraApp extends StatelessWidget {
     this.textScaler,
     this.syncPanel,
     this.accountPanel,
+    this.importPanel,
   });
 
   final TasksNotifier notifier;
@@ -33,6 +35,9 @@ class NexoraApp extends StatelessWidget {
 
   /// Null unless synchronization is enabled and wired (it is not, by default).
   final AccountPanel? accountPanel;
+
+  /// Null unless a signed-in account workspace is shown.
+  final ImportPanel? importPanel;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +64,7 @@ class NexoraApp extends StatelessWidget {
           onExitApp: onExitApp,
           syncPanel: syncPanel,
           accountPanel: accountPanel,
+          importPanel: importPanel,
         ),
       ),
     );

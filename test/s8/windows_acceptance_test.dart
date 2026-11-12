@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/core/ids/random_id_generator.dart';
+import 'package:nexora/core/result.dart';
 import 'package:nexora/features/auth/account_paths.dart';
 import 'package:nexora/features/auth/auth_failure.dart';
 import 'package:nexora/features/auth/secure_store.dart';
@@ -10,6 +11,7 @@ import 'package:nexora/features/sync/sync_engine.dart';
 import 'package:nexora/features/sync/sync_status.dart';
 import 'package:nexora/features/sync/sync_transport.dart';
 import 'package:nexora/features/tasks/application/repository_exception.dart';
+import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
 import 'package:nexora/features/tasks/domain/clock.dart';
 import 'package:nexora/features/tasks/domain/project.dart';
@@ -125,6 +127,18 @@ void main() {
     await app.runtime.syncNow();
 
     expect(app.runtime.active.userId, userA);
+    // A new account starts empty: nothing is created or imported automatically.
+    expect(await app.runtime.active.repository.loadProjects(), isEmpty);
+    expect(
+      (servers[userA]?.rows.keys ?? const <String>[]).where(
+        (k) => k.startsWith('project:'),
+      ),
+      isEmpty,
+    );
+    // A project exists only after a deliberate user action.
+    final created = await app.runtime.active.workspace.createProject('Inbox');
+    expect(created, isA<Ok<Project, WorkspaceError>>());
+    await app.runtime.syncNow();
     final projects = await app.runtime.active.repository.loadProjects();
     expect(projects.map((p) => p.name), ['Inbox']);
     expect(

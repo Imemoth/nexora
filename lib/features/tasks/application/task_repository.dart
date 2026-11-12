@@ -15,3 +15,9 @@ abstract interface class TaskRepository {
   /// Throws `RepositoryException` when the write cannot complete.
   Future<void> saveTask(Task task);
 }
+
+/// Optional capability: a repository that can store a new project. The workspace
+/// offers "New project" only when its repository has it.
+abstract interface class ProjectStore {
+  Future<void> saveProject(Project project);
+}

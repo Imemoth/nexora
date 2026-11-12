@@ -81,6 +81,10 @@ final class LocalDatabase {
     }
   }
 
+  /// The path of the open file (as SQLite reports it).
+  String get filePath =>
+      raw.select('PRAGMA database_list').first['file'] as String;
+
   /// Closes the file. The object must not be used afterwards.
   void close() {
     raw.close();

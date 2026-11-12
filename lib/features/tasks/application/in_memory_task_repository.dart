@@ -5,7 +5,7 @@ import 'repository_exception.dart';
 import 'task_repository.dart';
 
 /// Phase 1 storage. Data lives only as long as the process.
-final class InMemoryTaskRepository implements TaskRepository {
+final class InMemoryTaskRepository implements TaskRepository, ProjectStore {
   InMemoryTaskRepository({
     required List<Project> projects,
     required List<Task> tasks,
@@ -50,6 +50,20 @@ final class InMemoryTaskRepository implements TaskRepository {
     beforeSave?.call();
     _tasks[task.id] = task;
     _savedTasks.add(task);
+  }
+
+  @override
+  Future<void> saveProject(Project project) async {
+    if (failNextSave) {
+      failNextSave = false;
+      throw const RepositoryException('simulated save failure');
+    }
+    final index = _projects.indexWhere((p) => p.id == project.id);
+    if (index < 0) {
+      _projects.add(project);
+    } else {
+      _projects[index] = project;
+    }
   }
 
   void _consumeLoadFailure() {

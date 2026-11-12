@@ -7,6 +7,7 @@ import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
 import 'package:nexora/features/tasks/presentation/tasks_scope.dart';
 import 'package:nexora/features/tasks/presentation/unsaved_changes_host.dart';
 
+import 'account_actions.dart';
 import 'account_panel.dart';
 import 'details_overlay.dart';
 import 'sync_panel.dart';
@@ -25,6 +26,7 @@ class AppShell extends StatefulWidget {
     this.onExitApp,
     this.syncPanel,
     this.accountPanel,
+    this.importPanel,
   });
 
   static const double sidebarWidth = 240;
@@ -40,6 +42,9 @@ class AppShell extends StatefulWidget {
 
   /// Shown only together with [syncPanel]; null by default.
   final AccountPanel? accountPanel;
+
+  /// Non-null only for a signed-in account workspace.
+  final ImportPanel? importPanel;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -116,12 +121,23 @@ class _AppShellState extends State<AppShell> {
 
             final account = widget.accountPanel;
             final sync = widget.syncPanel;
+            final emptyAccount =
+                widget.importPanel != null &&
+                !state.loading &&
+                state.projects.isEmpty;
+            final shown = emptyAccount
+                ? EmptyAccountNotice(importPanel: widget.importPanel)
+                : body;
             final content = (account == null && sync == null)
-                ? body
+                ? shown
                 : Column(
                     children: [
-                      if (account != null) AccountBar(panel: account),
-                      Expanded(child: body),
+                      if (account != null)
+                        AccountBar(
+                          panel: account,
+                          importPanel: widget.importPanel,
+                        ),
+                      Expanded(child: shown),
                       if (sync != null) SyncStatusBar(panel: sync),
                     ],
                   );

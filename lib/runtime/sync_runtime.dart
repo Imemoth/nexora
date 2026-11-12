@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:nexora/app/account_actions.dart';
 import 'package:nexora/app/account_panel.dart';
 import 'package:nexora/app/sync_panel.dart';
 import 'package:nexora/core/ids/id_generator.dart';
@@ -21,7 +22,7 @@ import 'package:nexora/features/tasks/data/outbox_store.dart';
 import 'package:nexora/features/tasks/data/pull_applier.dart';
 import 'package:nexora/features/tasks/data/sqlite_task_repository.dart';
 import 'package:nexora/features/tasks/data/sync_state_store.dart';
-import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
+import 'package:nexora/features/tasks/data/local_import.dart';
 
 import 'runtime_config.dart';
 import 'session_token_source.dart';
@@ -166,6 +167,76 @@ final class SyncRuntime {
       await syncNow();
     },
   );
+
+  /// The manual import of the local workspace into the signed-in account.
+  /// Null for the local workspace itself (nothing to import into).
+  ImportPanel? importPanel() {
+    final current = _active;
+    if (current == null || current.userId == null) {
+      return null;
+    }
+    final service = LocalImportService(
+      sourcePath: localDatabasePath,
+      target: current.db,
+      repository: current.repository,
+      ids: ids,
+    );
+    return ImportPanel(
+      preview: () async {
+        final p = await service.preview();
+        return ImportPreviewView(
+          candidates: [
+            for (final c in p.candidates)
+              ImportCandidateView(
+                id: c.project.id,
+                name: c.project.name,
+                taskCount: c.tasks.length,
+                sameNameProjectId: c.sameNameProjectId,
+                warnings: {
+                  if (c.warnings.contains(ImportWarning.alreadyImported))
+                    ImportWarningView.alreadyImported,
+                  if (c.warnings.contains(ImportWarning.sameNameExists))
+                    ImportWarningView.sameNameExists,
+                },
+              ),
+          ],
+          skippedLocalOnly: p.skipped.localOnly,
+          skippedUnclassified: p.skipped.unclassified,
+          skippedDeleted: p.skipped.deleted,
+        );
+      },
+      destinations: () async {
+        final projects = await current.repository.loadProjects();
+        return [for (final p in projects) DestinationView(p.id, p.name)];
+      },
+      run: (choices) async {
+        try {
+          final r = await service.run([
+            for (final c in choices)
+              ImportChoice(
+                sourceProjectId: c.sourceProjectId,
+                destinationProjectId: c.destinationProjectId,
+                allowDuplicate: c.allowDuplicate,
+              ),
+          ]);
+          if (!await current.workspace.refresh()) {
+            current.refreshPending = true;
+          }
+          // Imported records are queued like any new record; send them now.
+          unawaited(syncNow().then<void>((_) {}, onError: (Object _) {}));
+          return ImportOutcomeView(
+            ok: true,
+            projectsCreated: r.projectsCreated,
+            tasksImported: r.tasksImported,
+            tasksSkipped: r.tasksSkippedDuplicate,
+            backupFile: r.backupFile,
+          );
+        } on ImportException catch (e) {
+          return ImportOutcomeView(ok: false, errorCode: e.code);
+        }
+      },
+    );
+  }
 
   AccountView _accountView() {
     final state = sessions.state;
@@ -373,14 +444,8 @@ final class SyncRuntime {
   }
 
   Future<void> _afterCycle(ActiveWorkspace current, SyncEngine engine) async {
-    // A fresh account with nothing on the server gets its default project; an
-    // account that already has projects keeps exactly those.
-    final created = await current.repository.ensureDefaultProject(
-      AppStrings.defaultProjectName,
-    );
-    if (created != null) {
-      await engine.syncNow();
-    }
+    // No project is created here: an empty account stays empty until the user
+    // creates a project or imports local data.
     if (!await current.workspace.refresh()) {
       current.refreshPending = true;
     }
