@@ -41,19 +41,29 @@ final class SupabaseSyncTransport implements SyncTransport {
   };
 
   @override
-  Future<Map<String, Object?>> registerDevice(String deviceId, {String? label}) async {
-    return _object(await _rpc('nexora_register_device', {
-      'p_device_id': deviceId,
-      'p_label': label,
-    }));
+  Future<Map<String, Object?>> registerDevice(
+    String deviceId, {
+    String? label,
+  }) async {
+    return _object(
+      await _rpc('nexora_register_device', {
+        'p_device_id': deviceId,
+        'p_label': label,
+      }),
+    );
   }
 
   @override
-  Future<List<Object?>> push(String deviceId, List<Map<String, Object?>> operations) async {
-    final body = _object(await _rpc('nexora_sync_push', {
-      'p_device_id': deviceId,
-      'p_ops': operations,
-    }));
+  Future<List<Object?>> push(
+    String deviceId,
+    List<Map<String, Object?>> operations,
+  ) async {
+    final body = _object(
+      await _rpc('nexora_sync_push', {
+        'p_device_id': deviceId,
+        'p_ops': operations,
+      }),
+    );
     final results = body['results'];
     if (results is! List) {
       throw const SyncNetworkFailure('malformed_push_response');
@@ -62,12 +72,18 @@ final class SupabaseSyncTransport implements SyncTransport {
   }
 
   @override
-  Future<Map<String, Object?>> pull(String deviceId, int cursor, {int limit = 200}) async {
-    return _object(await _rpc('nexora_sync_pull', {
-      'p_device_id': deviceId,
-      'p_cursor': cursor,
-      'p_limit': limit,
-    }));
+  Future<Map<String, Object?>> pull(
+    String deviceId,
+    int cursor, {
+    int limit = 200,
+  }) async {
+    return _object(
+      await _rpc('nexora_sync_pull', {
+        'p_device_id': deviceId,
+        'p_cursor': cursor,
+        'p_limit': limit,
+      }),
+    );
   }
 
   @override
@@ -78,21 +94,28 @@ final class SupabaseSyncTransport implements SyncTransport {
     required String resolution,
     Map<String, Object?>? values,
   }) async {
-    return _object(await _rpc('nexora_resolve_conflict', {
-      'p_device_id': deviceId,
-      'p_operation_id': operationId,
-      'p_conflict_id': conflictId,
-      'p_resolution': resolution,
-      'p_values': values,
-    }));
+    return _object(
+      await _rpc('nexora_resolve_conflict', {
+        'p_device_id': deviceId,
+        'p_operation_id': operationId,
+        'p_conflict_id': conflictId,
+        'p_resolution': resolution,
+        'p_values': values,
+      }),
+    );
   }
 
   @override
-  Future<Map<String, Object?>> revokeDevice(String deviceId, String targetDeviceId) async {
-    return _object(await _rpc('nexora_revoke_device', {
-      'p_device_id': deviceId,
-      'p_target_device_id': targetDeviceId,
-    }));
+  Future<Map<String, Object?>> revokeDevice(
+    String deviceId,
+    String targetDeviceId,
+  ) async {
+    return _object(
+      await _rpc('nexora_revoke_device', {
+        'p_device_id': deviceId,
+        'p_target_device_id': targetDeviceId,
+      }),
+    );
   }
 
   Map<String, Object?> _object(Object? value) {
@@ -118,7 +141,10 @@ final class SupabaseSyncTransport implements SyncTransport {
         ..set(HttpHeaders.acceptHeader, 'application/json');
       request.add(utf8.encode(jsonEncode(body)));
       final response = await request.close().timeout(timeout);
-      final text = await response.transform(utf8.decoder).join().timeout(timeout);
+      final text = await response
+          .transform(utf8.decoder)
+          .join()
+          .timeout(timeout);
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return text.isEmpty ? null : jsonDecode(text);
       }
@@ -150,7 +176,9 @@ final class SupabaseSyncTransport implements SyncTransport {
     } on FormatException {
       // not JSON: classify by status alone
     }
-    if (status == 401 || sqlstate == '28000' || (sqlstate != null && sqlstate.startsWith('PGRST3'))) {
+    if (status == 401 ||
+        sqlstate == '28000' ||
+        (sqlstate != null && sqlstate.startsWith('PGRST3'))) {
       return const SyncAuthFailure('unauthenticated');
     }
     if (sqlstate == '42501' && message == 'anonymous_not_allowed') {
@@ -160,7 +188,10 @@ final class SupabaseSyncTransport implements SyncTransport {
       return SyncNetworkFailure('http_$status');
     }
     if (sqlstate != null &&
-        (sqlstate.startsWith('40') || sqlstate.startsWith('53') || sqlstate.startsWith('55') || sqlstate.startsWith('57'))) {
+        (sqlstate.startsWith('40') ||
+            sqlstate.startsWith('53') ||
+            sqlstate.startsWith('55') ||
+            sqlstate.startsWith('57'))) {
       return SyncNetworkFailure('transient_$sqlstate');
     }
     if (message != null && _knownServerCodes.contains(message)) {

@@ -108,7 +108,8 @@ final class SyncEngine {
   int _attempt = 0;
   SyncStatus _status;
   Future<SyncStatus>? _running;
-  final StreamController<SyncStatus> _controller = StreamController<SyncStatus>.broadcast();
+  final StreamController<SyncStatus> _controller =
+      StreamController<SyncStatus>.broadcast();
 
   SyncStatus get status => _status;
 
@@ -137,7 +138,8 @@ final class SyncEngine {
   Future<SyncStatus> runWithRetry() async {
     var result = await syncNow();
     var tries = 0;
-    while (result.phase == SyncPhase.retrying && tries < _config.maxRetriesPerRun) {
+    while (result.phase == SyncPhase.retrying &&
+        tries < _config.maxRetriesPerRun) {
       await _sleep(_backoff.delay(_attempt - 1));
       tries++;
       result = await syncNow();
@@ -170,7 +172,10 @@ final class SyncEngine {
       _attempt = 0;
       return _emit(SyncPhase.idle);
     } on SyncAuthFailure catch (error) {
-      return _emit(SyncPhase.authRequired, code: error.anonymous ? 'anonymous' : 'auth');
+      return _emit(
+        SyncPhase.authRequired,
+        code: error.anonymous ? 'anonymous' : 'auth',
+      );
     } on SyncNetworkFailure catch (error) {
       _attempt++;
       return _emit(SyncPhase.retrying, code: error.message);
@@ -222,7 +227,9 @@ final class SyncEngine {
       await _at('before_push');
       final List<Object?> results;
       try {
-        results = await transport.push(outbox.deviceId(), [for (final op in batch) op.wire]);
+        results = await transport.push(outbox.deviceId(), [
+          for (final op in batch) op.wire,
+        ]);
       } on SyncServerError catch (error) {
         outbox.releaseClaims(ids, error: error.code);
         switch (error.code) {
@@ -269,7 +276,11 @@ final class SyncEngine {
     for (var page = 0; page < _config.maxPullPages; page++) {
       final Map<String, Object?> response;
       try {
-        response = await transport.pull(outbox.deviceId(), cursor, limit: _config.pullPageLimit);
+        response = await transport.pull(
+          outbox.deviceId(),
+          cursor,
+          limit: _config.pullPageLimit,
+        );
       } on SyncServerError catch (error) {
         if (error.code == 'invalid_cursor' && !resetOnce) {
           // The cursor is not from this server's stream (for example the server
@@ -308,15 +319,21 @@ final class SyncEngine {
     if (!enabled) {
       throw const RepositoryException('synchronization is disabled');
     }
-    final conflict = outbox.conflictsNeedingAction().where((c) => c['id'] == conflictId).toList();
+    final conflict = outbox
+        .conflictsNeedingAction()
+        .where((c) => c['id'] == conflictId)
+        .toList();
     if (conflict.isEmpty) {
       throw RepositoryException('no conflict needing a decision: $conflictId');
     }
-    final isTree = (jsonDecode(conflict.single['client_value_json'] as String) as Map).containsKey('tree');
+    final isTree = (jsonDecode(
+      conflict.single['client_value_json'] as String,
+    ) as Map).containsKey('tree');
     final retryAfterServer = choice == ConflictChoice.keepLocal && isTree;
     final strategy = switch (choice) {
       ConflictChoice.useServer => 'resolved_server',
-      ConflictChoice.keepLocal => isTree ? 'resolved_server' : 'resolved_client',
+      ConflictChoice.keepLocal =>
+        isTree ? 'resolved_server' : 'resolved_client',
       ConflictChoice.merge => 'resolved_merged',
       ConflictChoice.recreateCopy => 'recreate_copy',
     };

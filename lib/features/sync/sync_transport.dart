@@ -16,10 +16,17 @@ abstract interface class SyncTransport {
   Future<Map<String, Object?>> registerDevice(String deviceId, {String? label});
 
   /// `nexora_sync_push`: returns the `results` list in input order.
-  Future<List<Object?>> push(String deviceId, List<Map<String, Object?>> operations);
+  Future<List<Object?>> push(
+    String deviceId,
+    List<Map<String, Object?>> operations,
+  );
 
   /// `nexora_sync_pull`: returns `{changes, conflicts, next_cursor, has_more}`.
-  Future<Map<String, Object?>> pull(String deviceId, int cursor, {int limit = 200});
+  Future<Map<String, Object?>> pull(
+    String deviceId,
+    int cursor, {
+    int limit = 200,
+  });
 
   /// `nexora_resolve_conflict`: returns the result object (`status` applied or
   /// rejected).
@@ -32,7 +39,10 @@ abstract interface class SyncTransport {
   });
 
   /// `nexora_revoke_device`.
-  Future<Map<String, Object?>> revokeDevice(String deviceId, String targetDeviceId);
+  Future<Map<String, Object?>> revokeDevice(
+    String deviceId,
+    String targetDeviceId,
+  );
 }
 
 /// Base of every transport failure.

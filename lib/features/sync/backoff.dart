@@ -23,7 +23,9 @@ final class Backoff {
   Duration delay(int attempt) {
     final exponent = attempt < 0 ? 0 : (attempt > 30 ? 30 : attempt);
     final base = initial.inMilliseconds * pow(factor, exponent);
-    final capped = base > max.inMilliseconds ? max.inMilliseconds.toDouble() : base.toDouble();
+    final capped = base > max.inMilliseconds
+        ? max.inMilliseconds.toDouble()
+        : base.toDouble();
     final spread = capped * jitter * (2 * _random.nextDouble() - 1);
     final value = (capped + spread).round();
     final bounded = value > max.inMilliseconds ? max.inMilliseconds : value;

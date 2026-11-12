@@ -82,7 +82,10 @@ final class PullApplier {
     final conflicts = response['conflicts'];
     final next = response['next_cursor'];
     final more = response['has_more'];
-    if (changes is! List || conflicts is! List || next is! int || more is! bool) {
+    if (changes is! List ||
+        conflicts is! List ||
+        next is! int ||
+        more is! bool) {
       throw const PullProtocolException('malformed pull response');
     }
     final fresh = <_Incoming>[];
@@ -99,9 +102,13 @@ final class PullApplier {
       final version = row['version'];
       final seq = row['change_seq'];
       if (id is! String || version is! int || seq is! int) {
-        throw const PullProtocolException('a row lacks id, version or change_seq');
+        throw const PullProtocolException(
+          'a row lacks id, version or change_seq',
+        );
       }
-      fresh.add(_Incoming(type as String, id, Map<String, Object?>.from(row), seq));
+      fresh.add(
+        _Incoming(type as String, id, Map<String, Object?>.from(row), seq),
+      );
     }
     for (final conflict in conflicts) {
       if (conflict is! Map || conflict['id'] is! String) {
@@ -116,7 +123,9 @@ final class PullApplier {
         final item = _Incoming(
           row['entity_type'] as String,
           row['entity_id'] as String,
-          Map<String, Object?>.from(jsonDecode(row['row_json'] as String) as Map),
+          Map<String, Object?>.from(
+            jsonDecode(row['row_json'] as String) as Map,
+          ),
           row['server_seq'] as int,
         );
         incoming['${item.type}:${item.id}'] = item;
@@ -130,7 +139,8 @@ final class PullApplier {
       }
       var remaining = incoming.values.toList()
         ..sort((a, b) {
-          final byType = (a.type == 'project' ? 0 : 1) - (b.type == 'project' ? 0 : 1);
+          final byType =
+              (a.type == 'project' ? 0 : 1) - (b.type == 'project' ? 0 : 1);
           return byType != 0 ? byType : a.seq.compareTo(b.seq);
         });
       var applied = 0;
@@ -172,7 +182,9 @@ final class PullApplier {
         mirrored++;
       }
       _raw.execute('INSERT OR IGNORE INTO sync_state (singleton) VALUES (1)');
-      _raw.execute('UPDATE sync_state SET cursor = ? WHERE singleton = 1', [next]);
+      _raw.execute('UPDATE sync_state SET cursor = ? WHERE singleton = 1', [
+        next,
+      ]);
       return PullResult(
         applied: applied,
         preserved: preserved,
@@ -194,9 +206,13 @@ final class PullApplier {
       throw const PullProtocolException('a row lacks id or version');
     }
     _transaction(() {
-      final outcome = _applyOne(_Incoming(entityType, id, row, (row['change_seq'] as int?) ?? 0));
+      final outcome = _applyOne(
+        _Incoming(entityType, id, row, (row['change_seq'] as int?) ?? 0),
+      );
       if (outcome == _Outcome.missingParent) {
-        throw const RepositoryException('the parent of the server row is not present locally');
+        throw const RepositoryException(
+          'the parent of the server row is not present locally',
+        );
       }
     });
   }
@@ -224,18 +240,24 @@ final class PullApplier {
       return _Outcome.applied;
     }
     if (local.single['sync_scope'] != 'synced') {
-      return _Outcome.skippedLocal; // never reclassify or overwrite local-only data
+      return _Outcome
+          .skippedLocal; // never reclassify or overwrite local-only data
     }
     final pending = _pendingFields(item.type, item.id);
     final serverDeleted = row['deleted_at'] != null;
     if (serverDeleted && pending.any) {
       // The server tombstoned it while local work is still unsent: keep the local
       // row as it is; the push will surface the conflict.
-      _raw.execute('UPDATE $table SET version = MAX(version, ?) WHERE id = ?', [version, item.id]);
+      _raw.execute('UPDATE $table SET version = MAX(version, ?) WHERE id = ?', [
+        version,
+        item.id,
+      ]);
       _snapshot(item);
       return _Outcome.appliedPreserving;
     }
-    final fields = item.type == 'project' ? projectUpdatableFields : taskUpdatableFields;
+    final fields = item.type == 'project'
+        ? projectUpdatableFields
+        : taskUpdatableFields;
     final sets = <String>[];
     final values = <Object?>[];
     var preserved = false;
@@ -251,7 +273,10 @@ final class PullApplier {
     values.add(version);
     sets.add('updated_at = ?');
     values.add(_timestamp(row['updated_at']) ?? _iso());
-    _raw.execute('UPDATE $table SET ${sets.join(', ')} WHERE id = ?', [...values, item.id]);
+    _raw.execute('UPDATE $table SET ${sets.join(', ')} WHERE id = ?', [
+      ...values,
+      item.id,
+    ]);
     _snapshot(item);
     return preserved ? _Outcome.appliedPreserving : _Outcome.applied;
   }
@@ -310,7 +335,8 @@ final class PullApplier {
     return rows.isEmpty ? null : rows.single['value'] as String;
   }
 
-  Object? _columnValue(String field, Map<String, Object?> row) => serverColumnValue(field, row);
+  Object? _columnValue(String field, Map<String, Object?> row) =>
+      serverColumnValue(field, row);
 
   String? _timestamp(Object? value) => normalizeServerTimestamp(value);
 
@@ -327,7 +353,9 @@ final class PullApplier {
       if (opType == 'delete') {
         fields.add('deleted_at');
       } else if (opType == 'create') {
-        fields.addAll(type == 'project' ? projectUpdatableFields : taskUpdatableFields);
+        fields.addAll(
+          type == 'project' ? projectUpdatableFields : taskUpdatableFields,
+        );
       } else {
         final decoded = jsonDecode(op['payload_json'] as String);
         if (decoded is Map) {
@@ -359,7 +387,10 @@ final class PullApplier {
       'resolved_server' => 'resolved_server',
       _ => 'resolved_local',
     };
-    final existing = _raw.select('SELECT status FROM sync_conflicts_local WHERE id = ?', [id]);
+    final existing = _raw.select(
+      'SELECT status FROM sync_conflicts_local WHERE id = ?',
+      [id],
+    );
     final source = (c['resolution_source'] as String?) ?? 'server';
     if (existing.isEmpty) {
       final kind = c['kind'];

@@ -92,29 +92,37 @@ final class SyncStateStore {
 
   bool get deviceRegistered => _meta('device_registered') == '1';
 
-  set deviceRegistered(bool value) => _setMeta('device_registered', value ? '1' : '0');
+  set deviceRegistered(bool value) =>
+      _setMeta('device_registered', value ? '1' : '0');
 
   DateTime? get lastSyncedAt {
     final value = _meta('last_synced_at');
     return value == null ? null : DateTime.parse(value);
   }
 
-  void markSynced() => _setMeta('last_synced_at', _now().toUtc().toIso8601String());
+  void markSynced() =>
+      _setMeta('last_synced_at', _now().toUtc().toIso8601String());
 
   /// The operation id used for resolving [conflictId], created once and reused by
   /// every retry so the server replays instead of applying twice.
-  String? resolveOperationId(String conflictId) => _meta('resolve_op:$conflictId');
+  String? resolveOperationId(String conflictId) =>
+      _meta('resolve_op:$conflictId');
 
   void rememberResolveOperationId(String conflictId, String operationId) =>
       _setMeta('resolve_op:$conflictId', operationId);
 
   SyncCounts counts() {
-    int count(String sql) =>
-        _db.raw.select(sql).single['n'] as int;
+    int count(String sql) => _db.raw.select(sql).single['n'] as int;
     return SyncCounts(
-      pending: count("SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'pending'"),
-      inFlight: count("SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'in_flight'"),
-      openConflicts: count("SELECT COUNT(*) AS n FROM sync_conflicts_local WHERE status = 'open'"),
+      pending: count(
+        "SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'pending'",
+      ),
+      inFlight: count(
+        "SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'in_flight'",
+      ),
+      openConflicts: count(
+        "SELECT COUNT(*) AS n FROM sync_conflicts_local WHERE status = 'open'",
+      ),
       rejected: count(
         "SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'rejected' AND handled_at_utc IS NULL",
       ),
