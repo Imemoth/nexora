@@ -459,7 +459,7 @@ void main() {
       final db = LocalDatabase.open(path);
       addTearDown(db.close);
 
-      expect(db.schemaVersion, 2);
+      expect(db.schemaVersion, LocalDatabase.currentVersion);
       expect(
         _backups(path),
         hasLength(2),
@@ -496,7 +496,7 @@ void main() {
       final db = LocalDatabase.open(path);
       addTearDown(db.close);
 
-      expect(db.schemaVersion, 2);
+      expect(db.schemaVersion, LocalDatabase.currentVersion);
       expect(db.migrationReport!.backupFile, isNull);
       expect(_backups(path), isEmpty);
     });
@@ -563,7 +563,7 @@ void main() {
         // The file migrates normally afterwards.
         final db = LocalDatabase.open(path);
         addTearDown(db.close);
-        expect(db.schemaVersion, 2);
+        expect(db.schemaVersion, LocalDatabase.currentVersion);
         expect(_scalar(db.raw, 'SELECT COUNT(*) FROM sync_outbox'), 3);
       });
     }
@@ -598,7 +598,7 @@ void main() {
       addTearDown(db.close);
 
       expect(checked, isTrue);
-      expect(db.schemaVersion, 2);
+      expect(db.schemaVersion, LocalDatabase.currentVersion);
     });
 
     test('a second opener of an already migrated file does nothing', () {

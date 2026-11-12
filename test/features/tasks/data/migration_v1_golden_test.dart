@@ -111,8 +111,8 @@ void main() {
       final db = LocalDatabase.open(path);
       addTearDown(db.close);
 
-      expect(db.schemaVersion, 2);
-      expect(db.raw.userVersion, 2);
+      expect(db.schemaVersion, LocalDatabase.currentVersion);
+      expect(db.raw.userVersion, LocalDatabase.currentVersion);
       expect(_dump(db.raw)['projects'], hasLength(2));
       expect(_dump(db.raw)['tasks'], hasLength(3));
       expect(
