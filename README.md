@@ -24,5 +24,14 @@ flutter build windows --release
 ## Portable ZIP
 `tool/package_windows.ps1` packages the full Release bundle (`nexora.exe`, Flutter engine DLLs, and `data/`). Extract the ZIP anywhere and run `nexora.exe`. No installer is needed.
 
+## Phase 1 prototype (in-memory)
+Phase 1 is a Windows desktop prototype over deterministic in-memory demo data. Nothing is saved between runs: restarting the app returns to the demo data. The app makes no network calls and uses no database.
+
+What it does: a three-pane layout (sidebar, task tree, details editor), smart views (Today, Next 7 Days, Overdue, All), projects, search, sort, task and subtask creation, editing with Save and Revert, and an unsaved-change gate that protects edits on every navigation and on exit. Between 900 and 1099 px the details editor becomes an overlay. Below 900 px a desktop-only notice is shown.
+
+Keyboard (Ctrl is the command key): Up and Down move through tasks; Right and Left expand or collapse; Enter focuses the title; Ctrl+F searches; Ctrl+N creates a task; Ctrl+Shift+N creates a subtask; Ctrl+S saves; Esc returns focus to the list or clears the selection.
+
+Acceptance: see [`docs/operations/phase-1-acceptance.md`](docs/operations/phase-1-acceptance.md) for CI evidence, artifact checksums and the manual Live Acceptance checklist. Phase 1 is not accepted until the owner completes that checklist.
+
 ## Configuration and secrets
 Phase 0 does not connect to Supabase, and the app runs with no configuration. Never commit `.env` files, service-role keys, connection strings, or tokens. Supabase access is documented in `docs/operations/supabase-access.md`.
