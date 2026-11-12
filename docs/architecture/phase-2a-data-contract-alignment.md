@@ -7,12 +7,12 @@ Scope: local SQLite only. No Supabase code, no network, no sync engine, no schem
 
 | Source | Where it lives | Note |
 |---|---|---|
-| Phase 3 requirements for Phase 2A (REQ-1 to REQ-8) | `docs/coordination/phase-2a-sync-requirements.md` on `claude/affectionate-turing-unzmd2` | Not on `main` or this branch. Read only. |
-| Shared data contract (frozen for Phase 3) | `docs/architecture/data-contract.md` on `claude/affectionate-turing-unzmd2` | Not on `main`. Read only. |
-| Phase 3 plan | `docs/superpowers/plans/2026-11-12-nexora-phase-3-sync.md` on `claude/affectionate-turing-unzmd2` | Not on `main`. Read only. |
+| Phase 3 requirements for Phase 2A (REQ-1 to REQ-8) | `docs/coordination/phase-2a-sync-requirements.md` | On `main` (PR #14, merged 2026-11-12) and on this branch after the merge of `main`. Read only. |
+| Shared data contract (frozen for Phase 3) | `docs/architecture/data-contract.md` | On `main` (PR #14). Read only. |
+| Phase 3 plan | `docs/superpowers/plans/2026-11-12-nexora-phase-3-sync.md` | On `main` (PR #14). Read only. |
 | Hosted Supabase schema | Hosted project, read only | Migrations `20261112111349`, `20261112115809`, `20261112120132`, `20261112120149` applied. S1 `20261112130000` not applied, as the contract says. |
 
-The source documents are on a branch that is not merged, and that branch continues to move. This branch does not depend on them. Once they reach `main`, link them from here.
+The source documents reached `main` through PR #14 and were merged into this branch. This branch still does not depend on them at run time.
 
 ## 2. Hosted schema check (read only)
 
@@ -52,12 +52,17 @@ Acceptance checks named in the request document:
 - **D-3 Title CHECK on the table.** The local CHECK allows 500 characters. The repository refuses titles above 200, and the domain caps at 200, so the table is looser than the contract but no path writes more than 200. Tightening the CHECK needs a table rebuild in a migration. Resolution needs owner decision 3.
 - **D-4 Outbox rows are not coalesced.** One row is written per committed change, as in migration v1. Phase 3 coalesces per entity when it sends.
 
-## 5. Owner decisions needed before Phase 3 (S5)
+## 5. Owner decisions (2026-11-12) and deferred Phase 3 items
 
-1. **Outbox v2.** Approve the forward migration in the Phase 3 plan §4.2 (`seq`, the new states, `request_id`) as the Phase 3 S5 change. It is not part of this pull request.
-2. **Stored version for a pending create (D-1).** Either relax the CHECK to `>= 0` in the same migration v2, so the stored value can be 0 until the server acknowledges the create, or keep the derivation in `_baseVersionFor`. Option 1 matches the contract text.
-3. **Title CHECK (D-3).** Tighten the table to 200 in migration v2, or accept the repository and domain as the only enforcement.
-4. **Name of the owner binding.** The contract calls it `meta.user_id`. Phase 2A stores `owner_id`. Confirm the name before Phase 3.
+The owner decided the four open items. **None of them changes Phase 2A.** They are Phase 3 S5 work and are deliberately not implemented in this pull request.
+
+| # | Decision | Where it lands |
+|---|---|---|
+| 1 | Outbox v2 belongs to S5 (forward migration v2: `seq`, new states, `request_id`, `sync_state`, local conflict mirror) | Phase 3 S5. Not in this PR |
+| 2 | A never-synchronized entity should ultimately store `version = 0` (D-1). Until then Phase 2A stores `1` and derives `base_version = 0` from the pending create in the outbox (`_baseVersionFor`) | Phase 3 S5: relax the CHECK to `>= 0` in migration v2 and store `0`. Not in this PR |
+| 3 | The SQLite title CHECK must be tightened to 200 characters in a forward migration (D-3). Today the repository and the domain enforce 200; the table allows 500 | Phase 3 S5, migration v2 (table rebuild). Not in this PR |
+| 4 | `meta.user_id` is the canonical name of the user binding. Phase 2A stores `meta.owner_id` | Phase 3 S5, migration v2 renames the key. Not in this PR |
+| 5 | Update operations must carry only the changed fields (field-level conflict detection). Phase 2A still writes the whole row as the payload (D-4 and REQ-3) | Phase 3, before S6. Not in this PR |
 
 ## 6. Not in this change
 
