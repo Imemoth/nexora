@@ -19,7 +19,9 @@ Rules: (1) a recommendation is not an approval; only entries marked **approved**
 | S4 pull and cursor | **Implemented locally and tested (PostgreSQL 16 locally, PostgreSQL 17 CI). NOT applied to hosted.** | same records |
 | S5 SQLite outbox v2 | **Implemented locally** under the owner authorization "Phase 3 S5 Complete Implementation" (2026-11-12): schema v2, forward-only migration with verified backup, outbox state machine, rule R, folding, acknowledgement, conflict mirror, snapshots, recovery actions, local-only demo data. Tested on Windows CI. No transport, no pull, no authentication: **synchronization stays disabled**. Evidence: `docs/operations/s5-implementation-record.md` | `docs/coordination/phase-3-s5-outbox-v2.md`, `docs/operations/s5-migration-safety-test-spec.md`, `test/features/tasks/data/` |
 | S6 sync engine | **Implemented locally, disabled** (flag OFF, adapter not wired into the app, no sign-in). Two-device end-to-end suite on disposable PostgreSQL 17 (psql as `authenticated` with claims; no PostgREST/JWT) | `docs/operations/s6-implementation-record.md`, workflow `e2e-sync` |
-| S7 auth/session, S8 hosted end-to-end, S9 activation | Not started (deferred) | plan section 6 |
+| S7 auth and session | **Implemented locally, disabled** (flag OFF; no hosted Auth change): Supabase Auth client over `dart:io`, DPAPI-protected session storage, session manager (restore, refresh, expiry, revocation, anonymous rejection), per-account SQLite files, account-bound transport, runtime wiring, sign-in UI | `docs/operations/s7-s8-implementation-record.md` |
+| S8 end-to-end acceptance (pre-hosted) | **Implemented locally**: real HTTP/JWT suite on a disposable local Supabase stack (workflow `http-integration`), Windows-level acceptance suite (`test/s8/`), skipped-test audit. Hosted S8 (against the hosted project) is **not done** | same record |
+| S9 removal of direct table-write grants, activation | Not started (deferred, plan prepared) | `docs/operations/s9-direct-grants-removal-plan.md` |
 | Synchronization and Auth activation | **Disabled** (flag OFF, D-F). No auth activation, no sync traffic, hosted tables empty | all gates in section 4 |
 
 ## 2. Migration history
@@ -80,6 +82,9 @@ Status: **approved**, **conditional** (approved with the stated condition still 
 | O-13 | Local tree-delete precheck | **resolved and implemented** (OD-11) | S5 doc 9 |
 | O-14 | `archived` maps to null `completed_at` | **resolved and implemented** (OD-11) | S5 doc 10 |
 | O-15 | Real-database handling | **resolved** (OD-11): unclassified rows never sync; demo relabeling is a manual owner action and is not implemented | S5 doc 5 |
+| O-16 | Local data and accounts: the signed-out local workspace and each account database are separate files; local-only and unclassified data are never attached to an account. An explicit, user-initiated import of local data into an account is **not implemented** | open; recommendation: a manual, previewed, per-record import in a later package | s7-s8 record section 2 |
+| O-17 | Default project of a new account (created after the first complete cycle when the server holds none; two devices racing can make two) | open; recommendation: keep | s7-s8 record finding 5 |
+| O-18 | DPAPI through PowerShell as the Windows session store (no new dependency) versus a native or package-based store | open; recommendation: keep unless dependency approval is given | s7-s8 record finding 4 |
 | O-8 | Scope and order of S3 and S4 | **resolved** by the owner authorization of 2026-11-12 (S3, S4 and S6 as one package) | s3-s4 record |
 | O-9 | Hosted S2 gate approval | open | S2 record gate steps 1-5 |
 | O-10 | Backup retention for the local SQLite file before migration 2 (how long, who removes it). **Deletion is never automatic (OD-8).** | open | S5 safety spec section 2 |
@@ -115,8 +120,8 @@ Recommendations stay here until the owner approves them; only the decision table
 | Hosted S2, S3 and S4 deployment | **NO-GO** | owner approval O-9 absent; HTTP/JWT end-to-end, exposed-schemas check and 8 s timeout behavior unproven; O-1, O-2, O-3 undecided |
 | Further hosted migration of any kind | **HOLD** | no authorization |
 | Hosted permission changes | **HOLD** | no authorization; none made |
-| Auth activation | **NO-GO** | D-U unaudited; S7 not started |
-| Synchronization activation | **NO-GO** | S7, S8, S9 not done; hosted S2/S3/S4 not deployed; hosted HTTP acceptance (B-20) open |
+| Auth activation | **NO-GO** | D-U hosted Auth audit not performed (checklist prepared); S7 is implemented locally against a disposable stack only |
+| Synchronization activation | **NO-GO** | S9 not done; hosted S2/S3/S4 not deployed; hosted HTTP acceptance and hosted Auth audit not performed (B-20, D-U) |
 | Full SQLite schema v2 (S5 implementation) | **GO, done locally** | authorized and implemented; applies to the local file only. Shipping it to users needs the owner's release decision (not authorized here); the user's real database must be backed up and migrated only as a copy until then |
 | Local development of S2/S5-0 and docs on the existing branch | GO | authorized |
 
@@ -137,9 +142,12 @@ Recommendations stay here until the owner approves them; only the decision table
 | B-12 | D-S dependency versions and secure storage | owner-approval | open until S7 |
 | B-13 | S5-Q1: representation of preserved v1 `sent`/`failed`/`acked` rows in v2 | owner-approval | **resolved**: class U with verbatim archive (OD-11), implemented and tested |
 | B-14 | Windows Flutter checks run only in CI (no Flutter SDK in the agent sandbox) | environment | accepted; CI run recorded in section 7 |
-| B-15 | S7, S8, S9 | deferred | not started (S3, S4, S6 done locally) |
-| B-20 | PostgREST exposure and real JWT verification for the S2/S3/S4 RPCs are not exercised by any automated test (the end-to-end harness sets claims per transaction) | technical, needs hosted | open; hosted HTTP acceptance gate |
-| B-21 | `NEXORA_SYNC` adapter and engine have never run against Supabase; no sign-in code | technical | open (S7, S8) |
+| B-15 | S9, hosted S8 | deferred | not started (S3, S4, S6, S7 and the pre-hosted S8 are done locally) |
+| B-20 | PostgREST exposure and real JWT verification for the S2/S3/S4 RPCs | technical | **resolved for the disposable stack** (http-integration: real GoTrue tokens, PostgREST verification, 21 tests); **still open for the hosted project** (hosted HTTP acceptance is prepared in `docs/operations/hosted-deployment-checklist-s2-s4.md`, not run) |
+| B-21 | `NEXORA_SYNC` adapter and engine against Supabase; sign-in code | technical | **resolved for the disposable stack** (production client code ran against local GoTrue and PostgREST); never run against the hosted project |
+| B-22 | Direct INSERT/UPDATE on `projects`/`tasks` is reachable through the Data API (probe: HTTP 201 for the owner's own row) | owner-approval (S9) | open; same as B-10, now observed through the real API |
+| B-23 | Access tokens are stateless: sign-out ends the refresh token only; an issued access token works until it expires | owner decision | open; recommendation: JWT expiry of one hour or less (Auth audit) |
+| B-24 | The refresh-token reuse window observed in the disposable stack exceeds the configured interval; the hosted setting is unread | owner decision | open (Auth audit, `docs/operations/auth-dashboard-audit.md`) |
 | B-16 | The corrected Session B S5 report was not received on the first reconciliation attempt. | open document | **resolved 2026-11-12**: received as text and incorporated; no line of it is treated as approved beyond the owner directions OD-7 to OD-10 |
 | B-17 | Dart `sqlite3` 3.9.1 (the pinned bundle) was not used for the report's checks | open technical | **resolved**: the v2 DDL, triggers, rebuild and backup under lock run as Dart tests on the pinned bundle in Windows CI |
 | B-18 | The report's scratch verification was not reproduced in this repository | open technical | **resolved**: reproduced on SQLite 3.53.1 for the DDL and as Dart tests in CI |
@@ -160,6 +168,7 @@ S2/S5 wire contract: `docs/architecture/s2-wire-contract.md` (authoritative for 
 | S3, S4 | `s3_resolve_test.sql` (68), `s3_tree_delete_test.sql` (39), `s3_revoke_test.sql` (28), `s4_pull_test.sql` (111), `concurrency/s3_s4_concurrency.sh`, `mutation_checks.sh` (37 mutations), `verify_rollbacks.sh`; record `docs/operations/s3-s4-implementation-record.md`; PostgreSQL 17 run on `f7e742e`: 43296292663 (success) |
 | S6 | `lib/features/sync/`, `lib/features/tasks/data/{pull_applier,sync_state_store,schema_v3,server_row}.dart`, `test/features/sync/sync_engine_test.dart`, `test/support/fake_sync_server.dart`; record `docs/operations/s6-implementation-record.md`; Windows CI run 43306627424 on `b90840d` (success, 447 tests) |
 | Two-device end-to-end (PostgreSQL 17) | `test/e2e/`, workflow `.github/workflows/e2e-sync.yml`; 15 scenarios, run 43299291266 on `0c1f84e` (success) |
+| S7, S8 | `lib/features/auth/`, `lib/runtime/`, `lib/app/{account_panel,sync_panel}.dart`; tests `test/features/auth/`, `test/runtime/`, `test/s8/windows_acceptance_test.dart`, `test/http/` (21 tests, workflow `.github/workflows/http-integration.yml`); record `docs/operations/s7-s8-implementation-record.md`; run ids of the exact final head are in the final report |
 | Documentation consistency (links, paths, migration list, stale phrases, policy rules OD-7 to OD-9, self-test) | `tools/check_docs.py`, workflow `.github/workflows/docs-check.yml` |
 Run results for the current head are recorded in the final report of this consolidation and in `docs/operations/s2-implementation-record.md` section "Consolidation validation".
 
