@@ -1,5 +1,7 @@
 # Sync Contract (future phases; not implemented in Phase 0)
 
+> **Update 2026-11-12:** the owner approved the Phase 2B/3 shared contract. Where this Phase 0 document differs, `data-contract.md` and `decisions/0002-sync-protocol.md` apply: ownership is `owner_id` (not `workspace_id`) and the revision is `version` (D1); the envelope's `base_revision` is `base_version`; operation types are `create | update | delete`. The invariants and failure cases below still hold.
+
 This document fixes invariants that Phases 2 and 3 must satisfy. It is a contract, not an implementation.
 
 ## Operation envelope
