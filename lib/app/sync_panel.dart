@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:nexora/app/conflict_dialog.dart';
+import 'package:nexora/app/conflict_panel.dart';
 import 'package:nexora/features/sync/sync_status.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 
@@ -19,11 +21,15 @@ final class SyncPanel {
 
 /// A thin bar: the current state in plain words and a manual "Sync now".
 class SyncStatusBar extends StatelessWidget {
-  const SyncStatusBar({super.key, required this.panel});
+  const SyncStatusBar({super.key, required this.panel, this.conflictPanel});
 
   final SyncPanel panel;
 
-  static String describe(SyncStatus s) {
+  /// When present, unresolved conflicts show as a button that opens the
+  /// resolution screen; otherwise they are only mentioned in the status text.
+  final ConflictPanel? conflictPanel;
+
+  static String describe(SyncStatus s, {bool conflictsAsButton = false}) {
     switch (s.phase) {
       case SyncPhase.disabled:
         return AppStrings.syncDisabled;
@@ -38,7 +44,7 @@ class SyncStatusBar extends StatelessWidget {
       case SyncPhase.error:
         return AppStrings.syncError;
       case SyncPhase.idle:
-        if (s.openConflicts > 0) {
+        if (s.openConflicts > 0 && !conflictsAsButton) {
           return AppStrings.syncConflicts(s.openConflicts);
         }
         if (s.rejected > 0) {
@@ -59,6 +65,8 @@ class SyncStatusBar extends StatelessWidget {
       builder: (context, snapshot) {
         final status = snapshot.data ?? panel.initial;
         final busy = status.phase == SyncPhase.syncing;
+        final conflicts = conflictPanel;
+        final showButton = conflicts != null && status.openConflicts > 0;
         return Material(
           key: const ValueKey('sync-status-bar'),
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -66,9 +74,16 @@ class SyncStatusBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Row(
               children: [
+                if (showButton) ...[
+                  _ConflictIndicator(
+                    count: status.openConflicts,
+                    onPressed: () => showConflictDialog(context, conflicts),
+                  ),
+                  const SizedBox(width: 12),
+                ],
                 Expanded(
                   child: Text(
-                    describe(status),
+                    describe(status, conflictsAsButton: showButton),
                     key: const ValueKey('sync-status-text'),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
@@ -83,6 +98,41 @@ class SyncStatusBar extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// The actionable conflict indicator: prominent, keyboard reachable (Tab, then
+/// Enter or Space), and labelled for screen readers.
+class _ConflictIndicator extends StatelessWidget {
+  const _ConflictIndicator({required this.count, required this.onPressed});
+
+  final int count;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: AppStrings.conflictsOpenTooltip,
+      child: Semantics(
+        button: true,
+        label: AppStrings.syncConflicts(count),
+        child: TextButton.icon(
+          key: const ValueKey('sync-conflicts'),
+          onPressed: onPressed,
+          style: TextButton.styleFrom(
+            backgroundColor: scheme.errorContainer,
+            foregroundColor: scheme.onErrorContainer,
+            visualDensity: VisualDensity.compact,
+          ),
+          icon: const Icon(Icons.warning_amber_rounded, size: 18),
+          label: Text(
+            AppStrings.syncConflicts(count),
+            key: const ValueKey('sync-conflicts-text'),
+          ),
+        ),
+      ),
     );
   }
 }

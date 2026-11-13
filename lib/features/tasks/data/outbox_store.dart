@@ -817,6 +817,11 @@ final class OutboxStore {
     );
   }
 
+  /// The last server state this device knows for an entity (read-only; used to
+  /// show the server's side of a conflict). Null when none was recorded.
+  Map<String, Object?>? serverSnapshot(String entityType, String entityId) =>
+      _snapshotRow(entityType, entityId);
+
   Map<String, Object?>? _snapshotRow(String entityType, String entityId) {
     final rows = _rows(
       'SELECT row_json, server_version FROM sync_entity_snapshot '

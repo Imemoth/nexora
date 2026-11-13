@@ -120,8 +120,13 @@ final class SyncStateStore {
       inFlight: count(
         "SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'in_flight'",
       ),
+      // Conflicts that still need the user: the local operation is unhandled
+      // (this includes one another device already resolved on the server: the
+      // local change still waits for a decision here).
       openConflicts: count(
-        "SELECT COUNT(*) AS n FROM sync_conflicts_local WHERE status = 'open'",
+        'SELECT COUNT(*) AS n FROM sync_conflicts_local c '
+        'JOIN sync_outbox o ON o.operation_id = c.operation_id '
+        "WHERE o.state = 'conflict' AND o.handled_at_utc IS NULL",
       ),
       rejected: count(
         "SELECT COUNT(*) AS n FROM sync_outbox WHERE state = 'rejected' AND handled_at_utc IS NULL",

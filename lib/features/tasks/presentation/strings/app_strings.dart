@@ -113,6 +113,139 @@ abstract final class AppStrings {
       'Not offered: $localOnly local-only, $unclassified of unknown origin, $deleted deleted';
   static String importDone(int projects, int tasks, int skipped) =>
       'Imported $projects project(s) and $tasks task(s); $skipped skipped as duplicates';
+  static const conflictsTitle = 'Resolve conflicts';
+  static const conflictsOpenTooltip = 'Review and resolve the conflicts';
+  static const conflictsNoneLeft = 'All conflicts are resolved.';
+  static const conflictsResolvedNote = 'Conflict resolved. Synchronizing…';
+  static const conflictsListHeader = 'Waiting for your decision';
+  static const conflictFieldColumn = 'Field';
+  static const conflictLocalColumn = 'Your version (this device)';
+  static const conflictServerColumn = 'Server version';
+  static const conflictDiffers = 'Differs';
+  static const conflictSideDeleted = 'Deleted';
+  static const conflictSideUnavailable = 'Not recorded';
+  static const conflictStatusOpen = 'Needs your decision';
+  static const conflictStatusElsewhere =
+      'Already decided on another device. Choose how to apply it here';
+  static const conflictStatusResolving = 'Sending your decision…';
+  static const conflictPickIntro =
+      'To merge, choose which version to keep for each field:';
+  static const conflictPickLocal = 'Mine';
+  static const conflictPickServer = 'Server';
+  static const conflictConfirmAction = 'Confirm';
+  static const conflictCancelAction = 'Cancel';
+  static const conflictCloseAction = 'Close';
+  static String conflictProjectLine(String name) => 'Project: $name';
+  static String conflictTitleCount(int n) =>
+      n == 1 ? 'Resolve conflict' : 'Resolve conflicts ($n)';
+  static String conflictKindSummary(String kind, bool isTask) {
+    final what = isTask ? 'task' : 'project';
+    return switch (kind) {
+      'field' =>
+        'This $what was changed on two devices. Choose which version to keep.',
+      'exists' =>
+        'This $what was created on two devices with different values. Choose which version to keep.',
+      'edit_deleted' =>
+        'You changed this $what, but it was deleted on another device.',
+      'delete_edited' =>
+        'You deleted this $what, but it was changed on another device.',
+      'parent_has_live_children' =>
+        'You deleted this $what, but another device added items inside it.',
+      _ => 'This $what needs your decision.',
+    };
+  }
+
+  static String conflictChoiceLabel(String choice, String kind) {
+    switch (choice) {
+      case 'useServer':
+        return switch (kind) {
+          'edit_deleted' => 'Accept the deletion',
+          'delete_edited' ||
+          'parent_has_live_children' => 'Keep the item (server version)',
+          _ => 'Use server version',
+        };
+      case 'keepLocal':
+        return switch (kind) {
+          'delete_edited' ||
+          'parent_has_live_children' => 'Delete it anyway (my version)',
+          _ => 'Keep my version',
+        };
+      case 'merge':
+        return 'Merge selected fields';
+      default:
+        return 'Keep my changes as a new copy';
+    }
+  }
+
+  static String conflictChoiceHelp(String choice, String kind) {
+    switch (choice) {
+      case 'useServer':
+        return switch (kind) {
+          'edit_deleted' =>
+            'The item stays deleted. Your changes are not applied.',
+          'delete_edited' || 'parent_has_live_children' =>
+            'The item stays. Your deletion is not applied.',
+          _ =>
+            'This device takes the server value. Your change is not applied.',
+        };
+      case 'keepLocal':
+        return switch (kind) {
+          'delete_edited' ||
+          'parent_has_live_children' => 'The item is deleted on all devices.',
+          _ => 'Your value replaces the server value on all devices.',
+        };
+      case 'merge':
+        return 'Keep the version you pick for each field, on all devices.';
+      default:
+        return 'The deleted item stays deleted. Your changes are saved as a new item.';
+    }
+  }
+
+  static String conflictConfirmTitle(String choice) => switch (choice) {
+    'useServer' => 'Use the server version?',
+    'keepLocal' => 'Keep your version?',
+    _ => 'Apply the merged fields?',
+  };
+
+  static String conflictConfirmBody(String choice, String kind) {
+    switch (choice) {
+      case 'useServer':
+        return switch (kind) {
+          'edit_deleted' =>
+            'Your changes to this item will be discarded and it stays deleted.',
+          'delete_edited' || 'parent_has_live_children' =>
+            'Your deletion will be discarded and the item stays.',
+          _ => 'Your version of the conflicting fields will be discarded on this device.',
+        };
+      case 'keepLocal':
+        return switch (kind) {
+          'delete_edited' || 'parent_has_live_children' =>
+            'The item will be deleted on all your devices.',
+          _ => 'The server version of the conflicting fields will be overwritten on all your devices.',
+        };
+      default:
+        return 'The versions you did not pick will be discarded on all your devices.';
+    }
+  }
+
+  static const conflictOffline =
+      'No connection. Nothing was changed: your change and the conflict are still here. Try again when you are online.';
+  static const conflictAuth =
+      'Sign in again to resolve this conflict. Nothing was changed.';
+  static const conflictRevoked =
+      'This device was removed from the account. Nothing was changed.';
+  static const conflictElsewhere =
+      'Another device already decided this conflict. Updating this device…';
+  static const conflictUnsupported =
+      'That choice is not available for this conflict. Nothing was changed.';
+  static const conflictBusy =
+      'A decision for this conflict is already being sent.';
+  static const conflictGone =
+      'This conflict is no longer waiting for a decision.';
+  static const conflictFailed =
+      'Something went wrong. Nothing was changed. Try again.';
+  static String conflictRejected(String? code) =>
+      'The server refused this decision${code == null ? '' : ' ($code)'}. Nothing was changed.';
   static const syncNowAction = 'Sync now';
   static const syncDisabled = 'Synchronization is off';
   static const syncing = 'Synchronizing…';

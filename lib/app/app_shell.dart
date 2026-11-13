@@ -9,6 +9,7 @@ import 'package:nexora/features/tasks/presentation/unsaved_changes_host.dart';
 
 import 'account_actions.dart';
 import 'account_panel.dart';
+import 'conflict_panel.dart';
 import 'details_overlay.dart';
 import 'sync_panel.dart';
 import 'sidebar_nav.dart';
@@ -27,6 +28,7 @@ class AppShell extends StatefulWidget {
     this.syncPanel,
     this.accountPanel,
     this.importPanel,
+    this.conflictPanel,
   });
 
   static const double sidebarWidth = 240;
@@ -45,6 +47,9 @@ class AppShell extends StatefulWidget {
 
   /// Non-null only for a signed-in account workspace.
   final ImportPanel? importPanel;
+
+  /// Non-null only for a signed-in account workspace.
+  final ConflictPanel? conflictPanel;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -138,7 +143,11 @@ class _AppShellState extends State<AppShell> {
                           importPanel: widget.importPanel,
                         ),
                       Expanded(child: shown),
-                      if (sync != null) SyncStatusBar(panel: sync),
+                      if (sync != null)
+                        SyncStatusBar(
+                          panel: sync,
+                          conflictPanel: widget.conflictPanel,
+                        ),
                     ],
                   );
 

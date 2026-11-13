@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/core/ids/random_id_generator.dart';
+import 'package:nexora/features/sync/conflicts.dart';
 import 'package:nexora/features/sync/sync_engine.dart';
 import 'package:nexora/features/sync/sync_status.dart';
 import 'package:nexora/features/sync/sync_transport.dart';
@@ -725,4 +726,224 @@ void main() {
       '24',
     );
   }, skip: skip);
+
+  group('conflict screens against the real server', () {
+    ConflictService serviceOf(_Node n) =>
+        ConflictService(outbox: n.outbox, db: n.db, engine: () => n.engine);
+
+    Future<(String, String, String, _Node, _Node)> twoDevicesWithTask({
+      String title = 'Original',
+      String notes = 'n0',
+    }) async {
+      final user = await _newUser();
+      final a = _node(_transport(user), user);
+      final b = _node(_transport(user), user);
+      final p = _id(), t = _id();
+      await a.repo.saveProject(Project(id: p, name: 'Home', position: 0));
+      await a.repo.saveTask(
+        makeTask(id: t, projectId: p, title: title, notes: notes),
+      );
+      await _converge([a, b]);
+      return (user, p, t, a, b);
+    }
+
+    test('keep my version: both devices converge on CONFLICT-B', () async {
+      final (user, p, t, a, b) = await twoDevicesWithTask();
+      await a.repo.saveTask(
+        makeTask(id: t, projectId: p, title: 'CONFLICT-A', notes: 'n0'),
+      );
+      await b.repo.saveTask(
+        makeTask(id: t, projectId: p, title: 'CONFLICT-B', notes: 'n0'),
+      );
+      await a.engine.syncNow();
+      await b.engine.syncNow();
+
+      final service = serviceOf(b);
+      final view = service.list().single;
+      expect(view.fields.single.local, const ConflictSide.value('CONFLICT-B'));
+      expect(view.fields.single.server, const ConflictSide.value('CONFLICT-A'));
+      expect(view.choices, {
+        ConflictChoice.useServer,
+        ConflictChoice.keepLocal,
+      });
+
+      expect(
+        (await service.resolve(view.id, ConflictChoice.keepLocal)).ok,
+        isTrue,
+      );
+      await _converge([b, a]);
+
+      expect(
+        await _q("select title from public.tasks where id = '$t'"),
+        'CONFLICT-B',
+      );
+      expect(a.task(t)['title'], 'CONFLICT-B');
+      expect(b.task(t)['title'], 'CONFLICT-B');
+      expect(service.list(), isEmpty);
+      expect(user, isNotEmpty);
+    }, skip: skip);
+
+    test('use server version: both devices converge on CONFLICT-A', () async {
+      final (_, p, t, a, b) = await twoDevicesWithTask();
+      await a.repo.saveTask(
+        makeTask(id: t, projectId: p, title: 'CONFLICT-A', notes: 'n0'),
+      );
+      await b.repo.saveTask(
+        makeTask(id: t, projectId: p, title: 'CONFLICT-B', notes: 'n0'),
+      );
+      await a.engine.syncNow();
+      await b.engine.syncNow();
+      final service = serviceOf(b);
+
+      final outcome = await service.resolve(
+        service.list().single.id,
+        ConflictChoice.useServer,
+      );
+      await _converge([b, a]);
+
+      expect(outcome.ok, isTrue);
+      expect(a.task(t)['title'], 'CONFLICT-A');
+      expect(b.task(t)['title'], 'CONFLICT-A');
+    }, skip: skip);
+
+    test(
+      'merge selected fields: the picked side of each field wins everywhere',
+      () async {
+        final (_, p, t, a, b) = await twoDevicesWithTask();
+        await a.repo.saveTask(
+          makeTask(id: t, projectId: p, title: 'A title', notes: 'A notes'),
+        );
+        await b.repo.saveTask(
+          makeTask(id: t, projectId: p, title: 'B title', notes: 'B notes'),
+        );
+        await a.engine.syncNow();
+        await b.engine.syncNow();
+        final service = serviceOf(b);
+        final view = service.list().single;
+        expect(view.choices, contains(ConflictChoice.merge));
+
+        final outcome = await service.resolve(
+          view.id,
+          ConflictChoice.merge,
+          picks: {'title': MergePick.local, 'notes': MergePick.server},
+        );
+        await _converge([b, a]);
+
+        expect(outcome.ok, isTrue);
+        expect(
+          await _q("select title from public.tasks where id = '$t'"),
+          'B title',
+        );
+        expect(
+          await _q("select notes from public.tasks where id = '$t'"),
+          'A notes',
+        );
+        expect(a.task(t)['title'], 'B title');
+        expect(a.task(t)['notes'], 'A notes');
+      },
+      skip: skip,
+    );
+
+    test('recreate as copy: the deletion stands, the copy keeps my edit', () async {
+      final (user, p, t, a, b) = await twoDevicesWithTask();
+      await a.repo.softDeleteTask(t);
+      await b.repo.saveTask(
+        makeTask(id: t, projectId: p, title: 'Edited here', notes: 'n0'),
+      );
+      await a.engine.syncNow();
+      await b.engine.syncNow();
+      final service = serviceOf(b);
+      final view = service.list().single;
+      expect(view.kind, 'edit_deleted');
+      expect(view.choices, {
+        ConflictChoice.useServer,
+        ConflictChoice.recreateCopy,
+      });
+
+      final outcome = await service.resolve(
+        view.id,
+        ConflictChoice.recreateCopy,
+      );
+      await _converge([b, a]);
+
+      expect(outcome.ok, isTrue);
+      expect(
+        await _q(
+          "select deleted_at is not null from public.tasks where id = '$t'",
+        ),
+        't',
+      );
+      expect(
+        await _q(
+          "select count(*) from public.tasks where owner_id = '$user' and title = 'Edited here' and deleted_at is null",
+        ),
+        '1',
+      );
+      expect(service.list(), isEmpty);
+    }, skip: skip);
+
+    test('a conflict decided on another device is applied here without a second server decision', () async {
+      final (user, p, t, a, b) = await twoDevicesWithTask();
+      await a.repo.saveTask(
+        makeTask(id: t, projectId: p, title: 'CONFLICT-A', notes: 'n0'),
+      );
+      await b.repo.saveTask(
+        makeTask(id: t, projectId: p, title: 'CONFLICT-B', notes: 'n0'),
+      );
+      await a.engine.syncNow();
+      await b.engine.syncNow();
+      final service = serviceOf(b);
+      final id = service.list().single.id;
+      // Another device of the account decides first.
+      final other = await _transport(user).resolveConflict(
+        deviceId: a.outbox.deviceId(),
+        operationId: _id(),
+        conflictId: id,
+        resolution: 'resolved_server',
+      );
+      expect(other['status'], 'applied');
+
+      final attempt = await service.resolve(id, ConflictChoice.keepLocal);
+      expect(attempt.kind, ConflictOutcomeKind.alreadyDecidedElsewhere);
+      await b.engine.syncNow();
+      expect(service.list().single.status, ConflictStatus.decidedElsewhere);
+
+      expect((await service.resolve(id, ConflictChoice.useServer)).ok, isTrue);
+      await _converge([b, a]);
+      expect(b.task(t)['title'], 'CONFLICT-A');
+      expect(service.list(), isEmpty);
+    }, skip: skip);
+
+    test('restart: the conflict survives and the decision is applied once', () async {
+      final (user, p, t, a, b) = await twoDevicesWithTask();
+      await a.repo.saveTask(
+        makeTask(id: t, projectId: p, title: 'CONFLICT-A', notes: 'n0'),
+      );
+      await b.repo.saveTask(
+        makeTask(id: t, projectId: p, title: 'CONFLICT-B', notes: 'n0'),
+      );
+      await a.engine.syncNow();
+      await b.engine.syncNow();
+      final id = serviceOf(b).list().single.id;
+      final path = b.path;
+      b.db.close();
+
+      final restarted = _node(_transport(user), user, path: path);
+      final service = serviceOf(restarted);
+      expect(service.list().single.id, id);
+      expect((await service.resolve(id, ConflictChoice.keepLocal)).ok, isTrue);
+      await _converge([restarted, a]);
+
+      expect(
+        await _q("select title from public.tasks where id = '$t'"),
+        'CONFLICT-B',
+      );
+      expect(
+        await _q(
+          "select count(*) from public.sync_operations where user_id = '$user' and op_type = 'resolve'",
+        ),
+        '1',
+      );
+    }, skip: skip);
+  });
 }

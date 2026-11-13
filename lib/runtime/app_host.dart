@@ -58,6 +58,7 @@ class _AppHostState extends State<AppHost> {
       syncPanel: widget.runtime.syncPanel(),
       accountPanel: widget.runtime.accountPanel(),
       importPanel: widget.runtime.importPanel(),
+      conflictPanel: widget.runtime.conflictPanel(),
     );
   }
 }

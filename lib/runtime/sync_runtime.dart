@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:nexora/app/account_actions.dart';
 import 'package:nexora/app/account_panel.dart';
+import 'package:nexora/app/conflict_panel.dart';
 import 'package:nexora/app/sync_panel.dart';
 import 'package:nexora/core/ids/id_generator.dart';
 import 'package:nexora/features/auth/account_paths.dart';
@@ -10,6 +11,7 @@ import 'package:nexora/features/auth/auth_diagnostics.dart';
 import 'package:nexora/features/auth/auth_failure.dart';
 import 'package:nexora/features/auth/session_manager.dart';
 import 'package:nexora/features/sync/authenticated_transport.dart';
+import 'package:nexora/features/sync/conflicts.dart';
 import 'package:nexora/features/sync/supabase_sync_transport.dart';
 import 'package:nexora/features/sync/sync_engine.dart';
 import 'package:nexora/features/sync/sync_status.dart';
@@ -173,6 +175,42 @@ final class SyncRuntime {
       await syncNow();
     },
   );
+
+  /// The unresolved conflicts of the signed-in account and the way to decide
+  /// them. Null for the local workspace (nothing synchronizes there).
+  ConflictPanel? conflictPanel() {
+    final current = _active;
+    if (current == null || current.userId == null) {
+      return null;
+    }
+    final service = ConflictService(
+      outbox: OutboxStore(current.db, ids: ids),
+      db: current.db,
+      engine: () => current.engine,
+    );
+    return ConflictPanel(
+      load: service.list,
+      changes: _syncStatuses.stream.map<void>((_) {}),
+      resolve: (id, choice, {picks}) async {
+        _log.log('conflict.resolve.start', {'choice': choice.name});
+        final outcome = await service.resolve(id, choice, picks: picks);
+        _log.log('conflict.resolve.done', {'outcome': outcome.kind.name});
+        if (outcome.ok) {
+          // Refresh what the user sees, then resume synchronization (the
+          // decision may have queued the local change again).
+          if (!await current.workspace.refresh()) {
+            current.refreshPending = true;
+          }
+          unawaited(syncNow().then<void>((_) {}, onError: (Object _) {}));
+        } else if (outcome.kind ==
+            ConflictOutcomeKind.alreadyDecidedElsewhere) {
+          // Catch up with the other device's decision.
+          unawaited(syncNow().then<void>((_) {}, onError: (Object _) {}));
+        }
+        return outcome;
+      },
+    );
+  }
 
   /// The manual import of the local workspace into the signed-in account.
   /// Null for the local workspace itself (nothing to import into).
