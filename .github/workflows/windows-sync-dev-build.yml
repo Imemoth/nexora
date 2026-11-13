@@ -42,6 +42,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          flutter --version
           flutter_line="$(flutter --version | head -n 1)"
           dart_line="$(dart --version 2>&1 | head -n 1)"
           case "$flutter_line" in *"Flutter ${FLUTTER_VERSION} "*) ;; *) echo "Flutter version mismatch"; exit 1;; esac
