@@ -38,7 +38,12 @@ Future<void> main(List<String> args) async {
   if (syncFeatureEnabled) {
     // Development self-test of the sign-in lifecycle inside the real executable
     // (no UI, no network); see lib/runtime/auth_selftest.dart.
-    final selfTest = Platform.environment['NEXORA_AUTH_SELFTEST'];
+    final selfTest =
+        Platform.environment['NEXORA_AUTH_SELFTEST'] ??
+        args
+            .where((a) => a.startsWith('--auth-selftest='))
+            .map((a) => a.substring('--auth-selftest='.length))
+            .firstOrNull;
     if (selfTest != null && selfTest.isNotEmpty) {
       exit(await runAuthSelfTest(selfTest));
     }

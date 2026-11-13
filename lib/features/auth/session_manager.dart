@@ -65,10 +65,9 @@ final class SessionManager {
     required SecureStore store,
     DateTime Function()? now,
     this.refreshMargin = const Duration(seconds: 60),
-    AuthLog log = const NullAuthLog(),
+    this._log = const NullAuthLog(),
   }) : _authApi = api,
        _secrets = store,
-       _log = log,
        _now = now ?? (() => DateTime.now().toUtc());
 
   static const String _sessionKey = 'session';

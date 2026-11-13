@@ -89,11 +89,8 @@ abstract interface class DataProtector {
 /// DPAPI through the PowerShell that ships with Windows (the secret travels on
 /// standard input as Base64, never on the command line).
 final class PowerShellProtector implements DataProtector {
-  PowerShellProtector({
-    ProcessRunner? runner,
-    AuthLog log = const NullAuthLog(),
-  }) : _run = runner ?? runProcess,
-       _log = log;
+  PowerShellProtector({ProcessRunner? runner, this._log = const NullAuthLog()})
+    : _run = runner ?? runProcess;
 
   final ProcessRunner _run;
   final AuthLog _log;

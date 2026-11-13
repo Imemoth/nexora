@@ -94,9 +94,8 @@ final class SyncRuntime {
     Future<void> Function(Duration)? sleep,
     SyncHook? hook,
     this.autoSyncOnSignIn = true,
-    AuthLog log = const NullAuthLog(),
-  }) : _log = log,
-       _transportFactory = transportFactory ?? _httpTransport,
+    this._log = const NullAuthLog(),
+  }) : _transportFactory = transportFactory ?? _httpTransport,
        _engineSettings = engineConfig,
        _sleepFn = sleep,
        _syncHook = hook;

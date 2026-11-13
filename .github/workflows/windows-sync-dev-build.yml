@@ -87,6 +87,24 @@ jobs:
           if (Test-Path $out) { Get-Content $out; Copy-Item $out ./dist/auth-selftest.log } else { Write-Host 'no self-test log was written' }
           if (-not $finished -or $p.ExitCode -ne 0) { throw 'sign-in self-test failed' }
 
+      - name: Same self-test with NO console and NO inherited handles (like a double-click)
+        # Win32_Process.Create starts the GUI executable from the WMI provider: no console, no inherited standard
+        # handles, a different parent than the runner shell. This is the closest CI emulation of an Explorer launch.
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $exe = (Resolve-Path 'build\windows\x64\runner\Release\nexora.exe').Path
+          $out = Join-Path $env:RUNNER_TEMP 'auth-selftest-noconsole.log'
+          if (Test-Path $out) { Remove-Item $out }
+          $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = "`"$exe`" --auth-selftest=`"$out`""; CurrentDirectory = (Split-Path $exe) }
+          Write-Host "create returned $($r.ReturnValue), pid $($r.ProcessId)"
+          $deadline = (Get-Date).AddSeconds(150)
+          while ((Get-Date) -lt $deadline -and (Get-Process -Id $r.ProcessId -ErrorAction SilentlyContinue)) { Start-Sleep -Milliseconds 500 }
+          $stuck = [bool](Get-Process -Id $r.ProcessId -ErrorAction SilentlyContinue)
+          if ($stuck) { Write-Host 'NO-CONSOLE SELFTEST DID NOT FINISH IN 150 s - the process is stuck'; Stop-Process -Id $r.ProcessId -Force }
+          if (Test-Path $out) { Get-Content $out; Copy-Item $out ./dist/auth-selftest-noconsole.log } else { Write-Host 'no log written' }
+          if ($stuck -or -not (Select-String -Path $out -Pattern 'selftest.result ok=True' -Quiet)) { throw 'no-console self-test failed' }
+
       - name: Package and smoke-test portable ZIP
         shell: pwsh
         run: ./tool/package_windows.ps1 -OutputDir ./dist
@@ -123,5 +141,6 @@ jobs:
             dist/SHA256SUMS.txt
             dist/README-DEVELOPMENT-TEST.txt
             dist/auth-selftest.log
+            dist/auth-selftest-noconsole.log
           if-no-files-found: error
           retention-days: 30
