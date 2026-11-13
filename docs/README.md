@@ -42,6 +42,7 @@
 | `operations/s9-direct-grants-removal-plan.md` | plan (not authorized) | current | removal of direct table-write grants (B-10) |
 | `operations/hardening-implementation-record.md` | implementation record | current evidence for the throttle, response bound and S9 | limits, mutation and rollback evidence |
 | `operations/combined-hosted-acceptance-operation.md` | runbook (prepared, not executed) | current | ordered operation, digests, verification queries, stop-on-failure, kill switch, execution record template |
+| `operations/hosted-acceptance-record-2026-11-13.md` | apply and acceptance record | current | hosted TEST migrations, real HTTP/JWT acceptance, measurements, S9 results, remaining test data |
 | `operations/hosted-readonly-preflight-2026-11-12.md` | preflight record | current | read-only hosted state, no writes |
 | `operations/release-candidate-guide.md` | user guide | current | install, first run, sign-in, import, backup and recovery |
 | `operations/release-acceptance-checklist.md` | checklist | current | V1 release acceptance with evidence lines |

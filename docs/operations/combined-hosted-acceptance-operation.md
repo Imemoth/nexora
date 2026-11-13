@@ -31,7 +31,7 @@ S1 (`20261112130000`, hosted `20261112151851`) is already applied; its digests a
 | 4b | **Throttle and response bound** (steps 4 and 5 of the table) same pattern, one file per call | yes | Section 4.3 queries pass: `rate_policy` rows present with defaults, `nexora_private.rate_bucket` empty, the response-bound function present; no new advisor finding. |
 | 5 | **Hosted HTTP/JWT acceptance** with a dedicated synthetic account | yes (test rows only) | Section 4.4: registration, push, pull, conflict, resolve and revoke succeed over HTTPS with the user's JWT; anonymous and cross-account calls are refused; the NX007 throttle answers a burst with `rate_limited` and the account recovers after the window. The synthetic account and its rows are removed or kept only on the owner's instruction. |
 | 6 | **Hosted timeout and response-size measurements** | yes (test rows only) | Section 4.5: 100-operation push, 500-row pull page and 1,000-descendant tree delete complete well under the 8 s role timeout; measured response sizes within the ceilings of `supabase/tests/measure_limits.sh` (largest accepted push response about 2 MB). Record the numbers. |
-| 7 | **S9** direct-write revoke, then verify | yes | Direct INSERT, UPDATE and DELETE on `projects`, `tasks` and `profiles` by `authenticated` are refused over HTTPS; SELECT still works; the RPC path of step 5 is re-run and still passes; `profiles` keeps the column grants documented in the S9 plan. |
+| 7 | **S9** direct-write revoke, then verify | yes | Direct INSERT, UPDATE and DELETE on `projects` and `tasks` by `authenticated` are refused over HTTPS (`project_members` has no client grants at all); SELECT still works; the RPC path of step 5 is re-run and still passes. **`profiles` is deliberately NOT restricted by S9**: it keeps `arw` for `authenticated` (intended permission; asserting that profile writes are refused would be a runbook error, corrected 2026-11-13). |
 | 8 | **Final hosted security and performance advisor review** [read-only] | no | No new advisor finding compared with the step 1 baseline; any finding is recorded and either explained or turned into a blocker. |
 
 Activation of synchronization for real users is **not** part of this operation (section 7).
@@ -85,10 +85,19 @@ Then over HTTPS with the synthetic account: INSERT, UPDATE and DELETE on `projec
 ## 5. Stop-on-failure procedure
 1. At the first failed exit criterion, **stop**. Do not run another checkpoint.
 2. Record the failure (query, output, time) in the execution record (section 8).
-3. Roll back only what this operation changed, in reverse order, using the rollback scripts of section 2 (S9, response bound, throttle, S4, S3, S2). Each rollback is verified locally; S3's rollback **aborts without changes** if resolve operations exist (the safe outcome; the owner decides). Before any rollback copy the contents of `devices`, `sync_operations`, `sync_conflicts` (no secrets) into the record.
+3. **Stop and preserve state when a rollback is not possible or not safe** (section 5a), otherwise roll back only what this operation changed, in reverse order, using the rollback scripts of section 2 (S9, response bound, throttle, S4, S3, S2). Each rollback is verified locally; S3's rollback **aborts without changes** if resolve operations exist (the safe outcome; the owner decides). Before any rollback copy the contents of `devices`, `sync_operations`, `sync_conflicts` (no secrets) into the record.
 4. Re-run section 4.1 to show the hosted state returned to the baseline (or document the difference).
 5. Remove the synthetic account only on the owner's instruction. Keep `NEXORA_SYNC` off.
 6. Fix forward locally, rerun every suite on a disposable database, and ask for a new authorization; a changed migration gets a new file, a new digest and a new review.
+
+### 5a. Stop-and-preserve-state procedure (corrected 2026-11-13)
+Not every hosted change can be undone. `sync_operations` and `sync_conflicts` are append-only by design, so once an immutable `resolve` operation or a `resolved_copy` conflict exists, **the S3 rollback aborts without changing anything** (its guard raises an exception; this is the safe outcome, not a failure of the script). Therefore:
+1. Do not force the rollback, do not delete or edit history rows and do not alter a migration to make it pass.
+2. **Stop further hosted writes.** Keep the schema as it is; a server that has S3 applied is a valid, tested state.
+3. **Preserve state:** copy the contents of `devices`, `sync_operations`, `sync_conflicts` (no secrets) and the migration history into the execution record; note the row counts per table.
+4. Switch off the clients (kill switch, section 6, client level) and, if needed, revoke `EXECUTE` on the entry points from `authenticated` (section 6, grants level). Both are reversible and lose nothing.
+5. Report the blocker. The owner decides between fixing forward with a new reviewed migration or an explicit data decision; the rollback may be retried only after the data question is resolved.
+Rollbacks that remain possible with data present: S9 (grants only), response bound and throttle (function replacement; the throttle also drops `rate_bucket` rows, which are disposable counters), S4 (drops derived ordering and diagnostic columns).
 
 ## 6. Rollback and kill switch (after the operation, during pilot use)
 | Level | Action | Effect | Data impact |

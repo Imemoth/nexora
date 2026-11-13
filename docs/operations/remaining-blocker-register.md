@@ -1,5 +1,8 @@
 # Remaining blocker register (V1 release candidate)
 
+> **Update 2026-11-13.** The owner authorized the combined operation for the hosted TEST project and it was executed (`hosted-acceptance-record-2026-11-13.md`). B-AUTHZ, B-AUTH-1, B-ACCT and B-PG17H are resolved or withdrawn (public sign-up stays on during development by owner decision; the synthetic acceptance accounts exist). Still open: B-AUTH-2 (some Auth settings remain UNVERIFIED, not blocking development), B-ACT (activation for real users, out of scope: test environment), B-SIGN, B-RET.
+
+
 Only items that block the stated next step are listed. "Next step" is the combined hosted acceptance operation (`combined-hosted-acceptance-operation.md`) unless stated.
 
 | ID | Blocker | Blocks | Owner action | Status |

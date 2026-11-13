@@ -60,3 +60,17 @@ How to record results: add the observed value and the date to this table in a la
 | Data API exposed schemas | `public`, `graphql_public`; `nexora_private` absent | meets |
 
 Owner decisions needed before the combined operation's HTTP step (see `remaining-blocker-register.md`): turn public sign-up off and create the accounts in the dashboard; read and record the UNVERIFIED rows (or approve a read-only Management API check); confirm JWT expiry at or below 3600 s. No dashboard setting was changed by this document.
+
+## Hosted observations of 2026-11-13 (public settings document, a real sign-in, the advisor; nothing changed)
+| Item | Observed | Note |
+|---|---|---|
+| Public sign-up | enabled (`disable_signup: false`) | allowed during development by owner decision of 2026-11-13; not a blocker |
+| Anonymous sign-ins | disabled | meets |
+| Email provider, confirmation | email on, `mailer_autoconfirm: false` | confirmation required |
+| Other providers (phone, OAuth, SAML, passkeys) | all off | meets |
+| JWT expiry | `expires_in` 3600 s on a real sign-in | meets the 3600 s limit |
+| Refresh token | returned with every password sign-in | rotation and reuse window UNVERIFIED |
+| Concurrent sessions | two accounts signed in together; per-user session limit UNVERIFIED | |
+| MFA, password policy, Auth rate limits | not readable | UNVERIFIED |
+| Leaked-password protection | **disabled** (security advisor WARN) | enable before real users; not needed for the test environment |
+| Exposed Data API schemas | `nexora_private` request answered `406 Invalid schema: nexora_private` | not exposed; `public` is |

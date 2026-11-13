@@ -14,14 +14,14 @@ Rules: (1) a recommendation is not an approval; only entries marked **approved**
 | F1 guard_row fix | **Applied to hosted** as `20261112142732` | `docs/operations/f1-hosted-fix-record.md` |
 | S0 contract freeze | Done (docs) | `docs/architecture/data-contract.md`, ADR 0002 |
 | S1 protocol schema | **Applied to hosted** as `20261112151851` and verified (rollback-only suites, advisors, empty tables) | `docs/operations/s1-hosted-deployment-record.md` |
-| S2 push RPC | **Implemented locally and tested (PostgreSQL 16 locally, PostgreSQL 17 CI). NOT applied to hosted, not exposed.** Locally tested baseline only; not hosted-ready (section 4) | `docs/operations/s2-implementation-record.md`, `docs/architecture/s2-wire-contract.md`, `docs/operations/security-hardening-decision-record.md` |
-| S3 resolve, revoke, atomic tree delete | **Implemented locally and tested (PostgreSQL 16 locally, PostgreSQL 17 CI). NOT applied to hosted.** Authorization: owner message "Phase 3 Complete S3 + S4 + S6 Implementation" (2026-11-12) | `docs/operations/s3-s4-implementation-record.md`, `docs/architecture/s3-s4-wire-contract.md` |
-| S4 pull and cursor | **Implemented locally and tested (PostgreSQL 16 locally, PostgreSQL 17 CI). NOT applied to hosted.** | same records |
+| S2 push RPC | **Applied to the hosted TEST project on 2026-11-13 (`20261113084613`) and accepted over real HTTP/JWT.** | `docs/operations/hosted-acceptance-record-2026-11-13.md` |
+| S3 resolve, revoke, atomic tree delete | **Applied to the hosted TEST project on 2026-11-13 (`20261113085005`) and accepted over real HTTP/JWT.** | same record |
+| S4 pull and cursor | **Applied to the hosted TEST project on 2026-11-13 (`20261113091105`) and accepted over real HTTP/JWT.** | same record |
 | S5 SQLite outbox v2 | **Implemented locally** under the owner authorization "Phase 3 S5 Complete Implementation" (2026-11-12): schema v2, forward-only migration with verified backup, outbox state machine, rule R, folding, acknowledgement, conflict mirror, snapshots, recovery actions, local-only demo data. Tested on Windows CI. No transport, no pull, no authentication: **synchronization stays disabled**. Evidence: `docs/operations/s5-implementation-record.md` | `docs/coordination/phase-3-s5-outbox-v2.md`, `docs/operations/s5-migration-safety-test-spec.md`, `test/features/tasks/data/` |
 | S6 sync engine | **Implemented locally, disabled** (flag OFF, adapter not wired into the app, no sign-in). Two-device end-to-end suite on disposable PostgreSQL 17 (psql as `authenticated` with claims; no PostgREST/JWT) | `docs/operations/s6-implementation-record.md`, workflow `e2e-sync` |
 | S7 auth and session | **Implemented locally, disabled** (flag OFF; no hosted Auth change): Supabase Auth client over `dart:io`, DPAPI-protected session storage, session manager (restore, refresh, expiry, revocation, anonymous rejection), per-account SQLite files, account-bound transport, runtime wiring, sign-in UI | `docs/operations/s7-s8-implementation-record.md` |
 | S8 end-to-end acceptance (pre-hosted) | **Implemented locally**: real HTTP/JWT suite on a disposable local Supabase stack (workflow `http-integration`), Windows-level acceptance suite (`test/s8/`), skipped-test audit. Hosted S8 (against the hosted project) is **not done** | same record |
-| S9 removal of direct table-write grants, activation | Not started (deferred, plan prepared) | `docs/operations/s9-direct-grants-removal-plan.md` |
+| S9 removal of direct table-write grants | **Applied to the hosted TEST project on 2026-11-13 (`20261113094553`); direct writes refused over HTTP.** Activation for real users is a separate step. | `docs/operations/hosted-acceptance-record-2026-11-13.md` |
 | Synchronization and Auth activation | **Disabled** (flag OFF, D-F). No auth activation, no sync traffic, hosted tables empty | all gates in section 4 |
 
 ## 2. Migration history
@@ -33,13 +33,13 @@ Rules: (1) a recommendation is not an approval; only entries marked **approved**
 | `supabase/migrations/20261112120149_nexora_sync_foundation.sql` | `20261112120149` | applied |
 | `supabase/migrations/20261112125000_nexora_fix_projects_update_guard.sql` (F1) | `20261112142732` | applied (hosted timestamp differs from the file name) |
 | `supabase/migrations/20261112130000_nexora_sync_protocol_schema.sql` (S1) | `20261112151851` | applied; SHA-256 `cb947073...5d42e2`, rollback `97f5e738...8596` |
-| `supabase/migrations/20261112160000_nexora_sync_push.sql` (S2) | none | **not applied**; rollback `supabase/rollback/20261112160000_rollback_s2_sync_push.sql` |
-| `supabase/migrations/20261112170000_nexora_sync_resolve_revoke.sql` (S3) | none | **not applied**; rollback `supabase/rollback/20261112170000_rollback_s3_resolve_revoke.sql` |
-| `supabase/migrations/20261112180000_nexora_sync_pull.sql` (S4) | none | **not applied**; rollback `supabase/rollback/20261112180000_rollback_s4_sync_pull.sql` |
-| `supabase/migrations/20261112185000_nexora_sync_throttle.sql` (S10a) | none | **not applied**; per-user throttle (NX007); rollback `supabase/rollback/20261112185000_rollback_sync_throttle.sql` |
-| `supabase/migrations/20261112186000_nexora_sync_response_bound.sql` (S10b) | none | **not applied**; push-response bound (NX004); rollback `supabase/rollback/20261112186000_rollback_sync_response_bound.sql` |
-| `supabase/migrations/20261112190000_nexora_s9_revoke_direct_writes.sql` (S9) | none | **not applied**; revokes direct table writes, keeps SELECT; rollback `supabase/rollback/20261112190000_rollback_s9_direct_writes.sql`; applied last in the combined operation |
-Hosted history read read-only on 2026-11-12: exactly the first six rows above. Local migration files may be edited while unapplied (the S2 file was amended on 2026-11-12 for `version_before` and `conflict`); applied files are frozen.
+| `supabase/migrations/20261112160000_nexora_sync_push.sql` (S2) | `20261113084613` | **applied to the hosted TEST project on 2026-11-13**; rollback `supabase/rollback/20261112160000_rollback_s2_sync_push.sql` |
+| `supabase/migrations/20261112170000_nexora_sync_resolve_revoke.sql` (S3) | `20261113085005` | **applied to the hosted TEST project on 2026-11-13**; rollback `supabase/rollback/20261112170000_rollback_s3_resolve_revoke.sql` |
+| `supabase/migrations/20261112180000_nexora_sync_pull.sql` (S4) | `20261113091105` | **applied to the hosted TEST project on 2026-11-13**; rollback `supabase/rollback/20261112180000_rollback_s4_sync_pull.sql` |
+| `supabase/migrations/20261112185000_nexora_sync_throttle.sql` (S10a) | `20261113091345` | **applied to the hosted TEST project on 2026-11-13**; per-user throttle (NX007); rollback `supabase/rollback/20261112185000_rollback_sync_throttle.sql` |
+| `supabase/migrations/20261112186000_nexora_sync_response_bound.sql` (S10b) | `20261113091606` | **applied to the hosted TEST project on 2026-11-13**; push-response bound (NX004); rollback `supabase/rollback/20261112186000_rollback_sync_response_bound.sql` |
+| `supabase/migrations/20261112190000_nexora_s9_revoke_direct_writes.sql` (S9) | `20261113094553` | **applied to the hosted TEST project on 2026-11-13**; revokes direct table writes, keeps SELECT; rollback `supabase/rollback/20261112190000_rollback_s9_direct_writes.sql`; applied last in the combined operation |
+Hosted history read read-only on 2026-11-12: exactly the first six rows above. Local migration files may be edited while unapplied (the S2 file was amended on 2026-11-12 for `version_before` and `conflict`); applied files are frozen. Hosted history after the 2026-11-13 operation: the first six rows plus the six rows above, in this order, with the stamped versions shown.
 
 ## 3. Owner decision register
 Status: **approved**, **conditional** (approved with the stated condition still open), **unverified**, **open** (needs a decision; any proposal is a recommendation only).
@@ -120,11 +120,11 @@ Recommendations stay here until the owner approves them; only the decision table
 ## 4. Gates (GO / HOLD / NO-GO)
 | Gate | Verdict | Reason |
 |---|---|---|
-| Hosted S2, S3 and S4 deployment | **NO-GO** | owner approval O-9 absent; HTTP/JWT end-to-end, exposed-schemas check and 8 s timeout behavior unproven; O-1, O-2, O-3 undecided |
+| Hosted S2, S3, S4, throttle, response bound and S9 | **DONE on the TEST project (2026-11-13)** | owner authorization of 2026-11-13; see the acceptance record |
 | Further hosted migration of any kind | **HOLD** | no authorization |
 | Hosted permission changes | **HOLD** | no authorization; none made |
 | Auth activation | **NO-GO** | D-U hosted Auth audit not performed (checklist prepared); S7 is implemented locally against a disposable stack only |
-| Synchronization activation | **NO-GO** | S9 not done; hosted S2/S3/S4 not deployed; hosted HTTP acceptance and hosted Auth audit not performed (B-20, D-U) |
+| Synchronization activation for real users | **NO-GO** (test environment only) | the TEST build is for owner acceptance with the existing test account; no production users |
 | Full SQLite schema v2 (S5 implementation) | **GO, done locally** | authorized and implemented; applies to the local file only. Shipping it to users needs the owner's release decision (not authorized here); the user's real database must be backed up and migrated only as a copy until then |
 | Local development of S2/S5-0 and docs on the existing branch | GO | authorized |
 
@@ -138,9 +138,9 @@ Recommendations stay here until the owner approves them; only the decision table
 | B-5 | Response size bound | owner-approval | open (O-2) |
 | B-6 | Rate limit and retention | owner-approval | open (O-3) |
 | B-7 | No client revoke RPC; 10-device lifetime cap in practice | owner-approval | **resolved locally** by `nexora_revoke_device` (not hosted) |
-| B-8 | S2 end-to-end HTTP path and exposed schemas unverified | owner-approval (hosted gate) | open (O-9) |
-| B-9 | 8 s statement timeout vs 100-operation call unmeasured | technical, needs hosted | open |
-| B-10 | Direct INSERT/UPDATE on `projects`/`tasks` still granted | owner-approval (S9) | open by design |
+| B-8 | S2 end-to-end HTTP path and exposed schemas unverified | owner-approval (hosted gate) | **resolved on the hosted TEST project (2026-11-13), see `docs/operations/hosted-acceptance-record-2026-11-13.md`** |
+| B-9 | 8 s statement timeout vs 100-operation call unmeasured | technical, needs hosted | **resolved on the hosted TEST project (2026-11-13), see `docs/operations/hosted-acceptance-record-2026-11-13.md`** |
+| B-10 | Direct INSERT/UPDATE on `projects`/`tasks` still granted | owner-approval (S9) | **resolved on the hosted TEST project (2026-11-13), see `docs/operations/hosted-acceptance-record-2026-11-13.md`** |
 | B-11 | D-U dashboard audit | owner-approval | open |
 | B-12 | D-S dependency versions and secure storage | owner-approval | open until S7 |
 | B-13 | S5-Q1: representation of preserved v1 `sent`/`failed`/`acked` rows in v2 | owner-approval | **resolved**: class U with verbatim archive (OD-11), implemented and tested |
@@ -148,7 +148,7 @@ Recommendations stay here until the owner approves them; only the decision table
 | B-15 | S9, hosted S8 | deferred | not started (S3, S4, S6, S7 and the pre-hosted S8 are done locally) |
 | B-20 | PostgREST exposure and real JWT verification for the S2/S3/S4 RPCs | technical | **resolved for the disposable stack** (http-integration: real GoTrue tokens, PostgREST verification, 21 tests); **still open for the hosted project** (hosted HTTP acceptance is prepared in `docs/operations/hosted-deployment-checklist-s2-s4.md`, not run) |
 | B-21 | `NEXORA_SYNC` adapter and engine against Supabase; sign-in code | technical | **resolved for the disposable stack** (production client code ran against local GoTrue and PostgREST); never run against the hosted project |
-| B-22 | Direct INSERT/UPDATE on `projects`/`tasks` is reachable through the Data API (probe: HTTP 201 for the owner's own row) | owner-approval (S9) | open; same as B-10, now observed through the real API |
+| B-22 | Direct INSERT/UPDATE on `projects`/`tasks` is reachable through the Data API (probe: HTTP 201 for the owner's own row) | owner-approval (S9) | **resolved on the hosted TEST project (2026-11-13), see `docs/operations/hosted-acceptance-record-2026-11-13.md`** |
 | B-23 | Access tokens are stateless: sign-out ends the refresh token only; an issued access token works until it expires | owner decision | open; recommendation: JWT expiry of one hour or less (Auth audit) |
 | B-24 | The refresh-token reuse window observed in the disposable stack exceeds the configured interval; the hosted setting is unread | owner decision | open (Auth audit, `docs/operations/auth-dashboard-audit.md`) |
 | B-16 | The corrected Session B S5 report was not received on the first reconciliation attempt. | open document | **resolved 2026-11-12**: received as text and incorporated; no line of it is treated as approved beyond the owner directions OD-7 to OD-10 |
