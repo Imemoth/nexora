@@ -46,6 +46,7 @@
 | `operations/hosted-readonly-preflight-2026-11-12.md` | preflight record | current | read-only hosted state, no writes |
 | `operations/release-candidate-guide.md` | user guide | current | install, first run, sign-in, import, backup and recovery |
 | `operations/release-acceptance-checklist.md` | checklist | current | V1 release acceptance with evidence lines |
+| `operations/windows-signin-hang-fix-record-2026-11-13.md` | fix record | current | first sign-in hang: evidence, defects, native DPAPI, diagnostics, regression tests |
 | `operations/v1-rc-evidence-record.md` | evidence record | current | CI run ids for the release candidate code head |
 | `operations/remaining-blocker-register.md` | register | current | owner decisions that block the next step |
 | `operations/auth-dashboard-audit.md` | audit | open (D-U) | |

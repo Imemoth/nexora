@@ -1,4 +1,5 @@
-# (sign-in self-test included) DEVELOPMENT TEST build with synchronization ENABLED (NEXORA_SYNC=true) for the Nexora hosted TEST project.
+# (touch to rebuild)
+# DEVELOPMENT TEST build with synchronization ENABLED (NEXORA_SYNC=true) for the Nexora hosted TEST project.
 # Manual only. It never replaces the normal default-OFF release build (ci.yml). It embeds the project's public URL and
 # its public (anon) key only; a key whose role is not `anon` is refused by the app and by this workflow. No secret is used.
 name: windows-sync-dev-build
