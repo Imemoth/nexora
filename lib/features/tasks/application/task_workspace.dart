@@ -114,7 +114,7 @@ final class TaskWorkspace {
               1;
     final project = Project(id: ids.nextId(), name: trimmed, position: next);
     try {
-      await store.saveProject(project);
+      await (store as ProjectStore).saveProject(project);
     } on RepositoryException {
       return const Err(WorkspaceError.saveFailed);
     }

@@ -81,7 +81,6 @@ abstract final class AppStrings {
   static const newProjectAction = 'New project';
   static const newProjectTitle = 'New project';
   static const projectNameLabel = 'Project name';
-  static const createAction = 'Create';
   static const emptyAccountTitle = 'This account has no projects yet';
   static const emptyAccountBody =
       'Create a project, or import projects and tasks from this computer. Nothing is imported automatically.';

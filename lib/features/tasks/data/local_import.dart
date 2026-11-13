@@ -141,12 +141,11 @@ final class LocalImportService {
     required this.sourcePath,
     required this.target,
     required this.repository,
-    required IdGenerator ids,
+    required this.ids,
     DateTime Function()? now,
     this.backupDirectory,
     this.beforeCommit,
-  }) : _ids = ids,
-       _now = now ?? (() => DateTime.now().toUtc());
+  }) : _now = now ?? (() => DateTime.now().toUtc());
 
   final String sourcePath;
   final LocalDatabase target;
@@ -155,7 +154,7 @@ final class LocalImportService {
 
   /// Test seam: runs inside the transaction before COMMIT; throwing rolls back.
   final void Function()? beforeCommit;
-  final IdGenerator _ids;
+  final IdGenerator ids;
   final DateTime Function() _now;
 
   static String _mapKey(String sourceOwner, String kind, String id) =>
@@ -325,7 +324,7 @@ final class LocalImportService {
       late final String destinationId;
       var destinationTasks = <Task>[];
       if (destination == null) {
-        destinationId = _ids.nextId();
+        destinationId = ids.nextId();
         newProjects.add(
           Project(
             id: destinationId,
@@ -370,7 +369,7 @@ final class LocalImportService {
             continue;
           }
         }
-        final newId = _ids.nextId();
+        final newId = ids.nextId();
         idMap[t.id] = newId;
         final parent = t.parentId == null ? null : idMap[t.parentId];
         if (t.parentId != null && parent == null) {
