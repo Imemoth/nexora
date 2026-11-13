@@ -68,6 +68,25 @@ jobs:
           --dart-define=NEXORA_SUPABASE_URL=$env:NEXORA_SUPABASE_URL
           --dart-define=NEXORA_SUPABASE_ANON_KEY=$env:NEXORA_SUPABASE_ANON_KEY
 
+      - name: Prove the sign-in lifecycle inside the real GUI executable
+        # Launches the packaged nexora.exe (a GUI process without a console, like a double-click) in its self-test mode:
+        # protected-store round trips (PowerShell and native), then sign-in, restart, sign-out and sign-in again through
+        # the real runtime against a throw-away folder. No network, no UI, no secrets. The step prints the step log.
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force ./dist | Out-Null
+          $exe = (Resolve-Path 'build\windows\x64\runner\Release\nexora.exe').Path
+          $out = Join-Path $env:RUNNER_TEMP 'auth-selftest.log'
+          if (Test-Path $out) { Remove-Item $out }
+          $env:NEXORA_AUTH_SELFTEST = $out
+          $p = Start-Process -FilePath $exe -PassThru
+          $finished = $p.WaitForExit(150000)
+          if (-not $finished) { Write-Host 'SELFTEST DID NOT FINISH IN 150 s - the process is stuck'; $p.Kill() }
+          Remove-Item Env:NEXORA_AUTH_SELFTEST
+          Write-Host "finished=$finished exit=$($p.ExitCode)"
+          if (Test-Path $out) { Get-Content $out; Copy-Item $out ./dist/auth-selftest.log } else { Write-Host 'no self-test log was written' }
+          if (-not $finished -or $p.ExitCode -ne 0) { throw 'sign-in self-test failed' }
+
       - name: Package and smoke-test portable ZIP
         shell: pwsh
         run: ./tool/package_windows.ps1 -OutputDir ./dist
@@ -103,5 +122,6 @@ jobs:
             dist/nexora-windows-sync-DEVELOPMENT-TEST.zip
             dist/SHA256SUMS.txt
             dist/README-DEVELOPMENT-TEST.txt
+            dist/auth-selftest.log
           if-no-files-found: error
           retention-days: 30

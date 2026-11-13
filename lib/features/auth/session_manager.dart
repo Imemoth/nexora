@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'auth_api.dart';
+import 'auth_diagnostics.dart';
 import 'auth_failure.dart';
 import 'auth_session.dart';
 import 'secure_store.dart';
@@ -64,8 +65,10 @@ final class SessionManager {
     required SecureStore store,
     DateTime Function()? now,
     this.refreshMargin = const Duration(seconds: 60),
+    AuthLog log = const NullAuthLog(),
   }) : _authApi = api,
        _secrets = store,
+       _log = log,
        _now = now ?? (() => DateTime.now().toUtc());
 
   static const String _sessionKey = 'session';
@@ -74,6 +77,7 @@ final class SessionManager {
   final AuthApi _authApi;
   final SecureStore _secrets;
   final DateTime Function() _now;
+  final AuthLog _log;
   final Duration refreshMargin;
 
   AuthState _state = const AuthState(phase: AuthPhase.signedOut);
@@ -105,10 +109,12 @@ final class SessionManager {
   Future<AuthState> restore() async {
     String? raw;
     String? hint;
+    _log.log('restore.start');
     try {
       raw = await _secrets.read(_sessionKey);
       hint = await _secrets.read(_userKey);
     } on AuthFailure {
+      _log.log('restore.unreadable');
       await _forgetTokens();
       _set(
         const AuthState(
@@ -168,7 +174,9 @@ final class SessionManager {
   /// change on failure. A different account replaces the current one: the former
   /// account's local database is untouched and is not reachable from the new one.
   Future<AuthState> signIn(String email, String password) async {
+    _log.log('signin.api.start');
     final session = await _authApi.signInWithPassword(email.trim(), password);
+    _log.log('signin.api.ok');
     if (session.isAnonymous) {
       try {
         await _authApi.signOut(session.accessToken);
@@ -177,15 +185,41 @@ final class SessionManager {
       }
       throw const AuthAnonymousRejected();
     }
-    await _persist(session);
+    // The server accepted the credentials. Saving the session in the protected
+    // store is bounded and must not strand the user: when it fails, the session
+    // is kept in memory for this run and the UI tells the user it will not be
+    // remembered (the same rule as for a refreshed session).
+    var reason = AuthReason.none;
+    _log.log('signin.persist.start');
+    try {
+      await _persist(session);
+      _log.log('signin.persist.ok');
+    } on AuthFailure catch (error) {
+      _log.log('signin.persist.failed', {'code': error.message});
+      reason = AuthReason.storageUnreadable;
+    } on Object catch (error) {
+      _log.log('signin.persist.failed', {'type': error.runtimeType});
+      reason = AuthReason.storageUnreadable;
+    }
     _set(
       AuthState(
         phase: AuthPhase.signedIn,
         session: session,
         userId: session.userId,
+        reason: reason,
       ),
     );
+    _log.log('signin.state.set', {'phase': 'signedIn'});
     return _state;
+  }
+
+  /// Forgets the session of this run without contacting the server (used when
+  /// the account's local workspace could not be opened). Local data is never
+  /// touched; the user can retry the sign-in.
+  Future<void> abandonSession() async {
+    await _forgetTokens();
+    await _safeDelete(_userKey);
+    _set(const AuthState(phase: AuthPhase.signedOut));
   }
 
   // ------------------------------------------------------------ tokens

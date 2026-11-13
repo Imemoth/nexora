@@ -71,6 +71,10 @@ abstract final class AppStrings {
   static const signInOffline = 'No connection. Your local data is unchanged';
   static const signInRateLimited = 'Too many attempts. Try again later';
   static const signInFailed = 'Sign-in failed. Try again';
+  static const signInAccountStorage =
+      "Signed in, but this account's data folder could not be opened on this computer. Nothing was changed. Check the disk and try again";
+  static const signInTimedOut =
+      'Sign-in is taking too long. Check the connection and try again';
   static const accountLocalOnly = 'Local workspace, not synchronized';
   static const accountSessionExpired =
       'Session ended. Sign in again; your data on this device is kept';

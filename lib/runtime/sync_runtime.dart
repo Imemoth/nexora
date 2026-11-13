@@ -6,6 +6,7 @@ import 'package:nexora/app/account_panel.dart';
 import 'package:nexora/app/sync_panel.dart';
 import 'package:nexora/core/ids/id_generator.dart';
 import 'package:nexora/features/auth/account_paths.dart';
+import 'package:nexora/features/auth/auth_diagnostics.dart';
 import 'package:nexora/features/auth/auth_failure.dart';
 import 'package:nexora/features/auth/session_manager.dart';
 import 'package:nexora/features/sync/authenticated_transport.dart';
@@ -93,7 +94,9 @@ final class SyncRuntime {
     Future<void> Function(Duration)? sleep,
     SyncHook? hook,
     this.autoSyncOnSignIn = true,
-  }) : _transportFactory = transportFactory ?? _httpTransport,
+    AuthLog log = const NullAuthLog(),
+  }) : _log = log,
+       _transportFactory = transportFactory ?? _httpTransport,
        _engineSettings = engineConfig,
        _sleepFn = sleep,
        _syncHook = hook;
@@ -112,6 +115,7 @@ final class SyncRuntime {
   /// Start a cycle right after a successful sign-in (tests turn it off to
   /// control timing).
   final bool autoSyncOnSignIn;
+  final AuthLog _log;
   final TransportFactory _transportFactory;
   final SyncEngineConfig _engineSettings;
   final Future<void> Function(Duration)? _sleepFn;
@@ -135,9 +139,12 @@ final class SyncRuntime {
 
   /// Restores the session (no network) and opens the matching workspace.
   Future<ActiveWorkspace> start() async {
+    _log.log('runtime.start');
     await sessions.restore();
     await _activate();
-    _authWatch ??= sessions.states.listen((_) => _activate());
+    _authWatch ??= sessions.states.listen((_) {
+      unawaited(_activate().then<void>((_) {}, onError: (Object _) {}));
+    });
     return _active!;
   }
 
@@ -260,13 +267,9 @@ final class SyncRuntime {
   // ------------------------------------------------------------ commands
 
   Future<SignInOutcome> signIn(String email, String password) async {
+    _log.log('runtime.signin.start');
     try {
       await sessions.signIn(email, password);
-      await _activate();
-      if (autoSyncOnSignIn) {
-        unawaited(syncNow().then<void>((_) {}, onError: (Object _) {}));
-      }
-      return SignInOutcome.success;
     } on AuthInvalidCredentials {
       return SignInOutcome.invalidCredentials;
     } on AuthUnconfirmed {
@@ -277,9 +280,35 @@ final class SyncRuntime {
       return SignInOutcome.offline;
     } on AuthRateLimited {
       return SignInOutcome.rateLimited;
-    } on AuthFailure {
+    } on AuthFailure catch (error) {
+      _log.log('runtime.signin.failed', {'code': error.message});
+      return SignInOutcome.failed;
+    } on Object catch (error) {
+      _log.log('runtime.signin.failed', {'type': error.runtimeType});
       return SignInOutcome.failed;
     }
+    // Credentials accepted: open the account's own workspace. When that fails
+    // the session is dropped again (local data is untouched) so that the user
+    // sees an error and can retry, instead of a half signed-in state.
+    try {
+      _log.log('runtime.activate.start');
+      await _activate();
+      _log.log('runtime.activate.ok');
+    } on Object catch (error) {
+      _log.log('runtime.activate.failed', {'type': error.runtimeType});
+      await sessions.abandonSession();
+      try {
+        await _activate();
+      } on Object {
+        // the local workspace stays as it was
+      }
+      return SignInOutcome.accountStorageFailed;
+    }
+    if (autoSyncOnSignIn) {
+      unawaited(syncNow().then<void>((_) {}, onError: (Object _) {}));
+    }
+    _log.log('runtime.signin.ok');
+    return SignInOutcome.success;
   }
 
   Future<void> signOut() async {
@@ -309,9 +338,12 @@ final class SyncRuntime {
 
   // ---------------------------------------------------------- activation
 
+  /// Runs the activations one after another. A failed activation is reported to
+  /// its own caller but never poisons the chain: the next one still runs.
   Future<void> _activate() {
-    _activation = _activation.then((_) => _doActivate());
-    return _activation;
+    final run = _activation.then((_) => _doActivate());
+    _activation = run.then<void>((_) {}, onError: (Object _) {});
+    return run;
   }
 
   Future<void> _doActivate() async {
@@ -319,8 +351,11 @@ final class SyncRuntime {
     final targetUser = auth.phase == AuthPhase.signedOut ? null : auth.userId;
     var current = _active;
     if (current == null || current.userId != targetUser) {
+      // Open the new workspace first: when that fails (disk, permissions) the
+      // current one stays open and in use, exactly as it was.
+      final next = _open(targetUser);
       current?.close();
-      current = _open(targetUser);
+      current = next;
       _active = current;
       _workspaceChanges.add(current);
     }

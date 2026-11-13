@@ -7,7 +7,8 @@ import 'package:nexora/app/system_clock.dart';
 import 'package:nexora/core/ids/random_id_generator.dart';
 import 'package:nexora/features/auth/account_paths.dart';
 import 'package:nexora/features/auth/auth_api.dart';
-import 'package:nexora/features/auth/secure_store.dart';
+import 'package:nexora/features/auth/auth_diagnostics.dart';
+import 'package:nexora/features/auth/windows_secure_store.dart';
 import 'package:nexora/features/auth/session_manager.dart';
 import 'package:nexora/features/sync/sync_feature.dart';
 import 'package:nexora/features/tasks/application/demo_data.dart';
@@ -20,6 +21,7 @@ import 'package:nexora/features/tasks/data/sqlite_task_repository.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
 import 'package:nexora/runtime/app_host.dart';
+import 'package:nexora/runtime/auth_selftest.dart';
 import 'package:nexora/runtime/runtime_config.dart';
 import 'package:nexora/runtime/sync_runtime.dart';
 
@@ -34,6 +36,12 @@ Future<void> main(List<String> args) async {
   const clock = SystemClock();
   final ids = RandomIdGenerator();
   if (syncFeatureEnabled) {
+    // Development self-test of the sign-in lifecycle inside the real executable
+    // (no UI, no network); see lib/runtime/auth_selftest.dart.
+    final selfTest = Platform.environment['NEXORA_AUTH_SELFTEST'];
+    if (selfTest != null && selfTest.isNotEmpty) {
+      exit(await runAuthSelfTest(selfTest));
+    }
     final started = await _startWithSync(ids);
     if (started) {
       return;
@@ -79,14 +87,25 @@ Future<bool> _startWithSync(RandomIdGenerator ids) async {
   try {
     final path = localDatabasePath(Platform.environment);
     final root = File(path).parent;
+    // Development diagnostics of the sign-in lifecycle (step names and timings,
+    // never passwords or tokens): <data folder>\diagnostics\signin.log
+    final log = FileAuthLog(
+      File(
+        '${root.path}${Platform.pathSeparator}diagnostics${Platform.pathSeparator}signin.log',
+      ),
+    );
+    log.log('app.start', {'sync': true});
     final runtime = SyncRuntime(
+      log: log,
       sessions: SessionManager(
+        log: log,
         api: SupabaseAuthApi(
           baseUrl: config.supabaseUrl,
           anonKey: config.anonKey,
         ),
-        store: DpapiSecureStore(
+        store: createWindowsSecureStore(
           Directory('${root.path}${Platform.pathSeparator}session'),
+          log: log,
         ),
       ),
       paths: AccountPaths(root),

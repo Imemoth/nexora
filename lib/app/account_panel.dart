@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:nexora/app/account_actions.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
@@ -35,7 +37,18 @@ enum SignInOutcome {
   offline,
   rateLimited,
   failed,
+
+  /// The dialog stopped waiting (the operation took far too long).
+  timedOut,
+
+  /// The credentials were accepted but this account's local workspace could not
+  /// be opened on this computer; nothing was changed and the user can retry.
+  accountStorageFailed,
 }
+
+/// The longest the sign-in dialog waits for one attempt before it gives the
+/// user an error and a retry (the lower layers are bounded well below this).
+const Duration signInDialogTimeout = Duration(seconds: 120);
 
 /// What the UI needs from the authentication layer. Provided only when
 /// synchronization is enabled; the default application has no account UI.
@@ -61,6 +74,8 @@ String signInMessage(SignInOutcome outcome) => switch (outcome) {
   SignInOutcome.offline => AppStrings.signInOffline,
   SignInOutcome.rateLimited => AppStrings.signInRateLimited,
   SignInOutcome.failed => AppStrings.signInFailed,
+  SignInOutcome.accountStorageFailed => AppStrings.signInAccountStorage,
+  SignInOutcome.timedOut => AppStrings.signInTimedOut,
 };
 
 String accountNoticeText(AccountNotice notice) => switch (notice) {
@@ -180,7 +195,18 @@ class _SignInDialogState extends State<_SignInDialog> {
       _busy = true;
       _error = null;
     });
-    final outcome = await widget.panel.signIn(_email.text, _password.text);
+    SignInOutcome outcome;
+    try {
+      // Generous: the network calls and the protected store have their own,
+      // shorter limits. This only guarantees the dialog can never wait forever.
+      outcome = await widget.panel
+          .signIn(_email.text, _password.text)
+          .timeout(signInDialogTimeout);
+    } on TimeoutException {
+      outcome = SignInOutcome.timedOut;
+    } on Object {
+      outcome = SignInOutcome.failed;
+    }
     if (!mounted) {
       return;
     }

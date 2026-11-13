@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/features/auth/account_paths.dart';
 import 'package:nexora/features/auth/auth_failure.dart';
+import 'package:nexora/features/auth/native_dpapi.dart';
 import 'package:nexora/features/auth/secure_store.dart';
 
 void main() {
@@ -135,4 +138,125 @@ void main() {
       );
     });
   });
+
+  group('bounded and contained failures', () {
+    test('a protector that never answers ends in dpapi_timeout', () async {
+      final store = DpapiSecureStore(
+        dir,
+        protector: _HangingProtector(),
+        timeout: const Duration(milliseconds: 150),
+      );
+      await expectLater(
+        store.write('session', 'x'),
+        throwsA(
+          isA<AuthStorageFailure>().having(
+            (e) => e.message,
+            'message',
+            'dpapi_timeout',
+          ),
+        ),
+      );
+      expect(
+        File('${dir.path}${Platform.pathSeparator}session.dpapi').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('an unexpected protector exception is an AuthStorageFailure', () async {
+      final store = DpapiSecureStore(dir, protector: _ThrowingProtector());
+      await expectLater(
+        store.write('session', 'x'),
+        throwsA(isA<AuthStorageFailure>()),
+      );
+    });
+
+    test('a program that cannot be started is an AuthStorageFailure', () async {
+      await expectLater(
+        runProcess('nexora-no-such-program-0123', const [], ''),
+        throwsA(isA<AuthStorageFailure>()),
+      );
+    });
+
+    test(
+      'a stuck helper process is killed after the timeout (Windows)',
+      () async {
+        final watch = Stopwatch()..start();
+        await expectLater(
+          runProcess('powershell.exe', const [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            'Start-Sleep -Seconds 60',
+          ], '', timeout: const Duration(seconds: 3)),
+          throwsA(isA<AuthStorageFailure>()),
+        );
+        expect(watch.elapsed, lessThan(const Duration(seconds: 30)));
+      },
+      skip: !Platform.isWindows,
+    );
+  });
+
+  group('real Windows DPAPI, native implementation', () {
+    test('round trip, restart, cross-compatibility with PowerShell', () async {
+      const secret = 'refresh-token-ünïcode-0123456789';
+      final native = DpapiSecureStore(dir, protector: NativeDpapiProtector());
+      await native.write('session', secret);
+      final raw = File('${dir.path}${Platform.pathSeparator}session.dpapi')
+          .readAsStringSync();
+      expect(raw.contains('refresh'), isFalse);
+      // a new instance (an application restart) reads it
+      expect(
+        await DpapiSecureStore(
+          dir,
+          protector: NativeDpapiProtector(),
+        ).read('session'),
+        secret,
+      );
+      // PowerShell reads what native wrote, and the other way round
+      expect(await DpapiSecureStore(dir).read('session'), secret);
+      await DpapiSecureStore(dir).write('other', 'from-powershell');
+      expect(
+        await DpapiSecureStore(
+          dir,
+          protector: NativeDpapiProtector(),
+        ).read('other'),
+        'from-powershell',
+      );
+    }, skip: !Platform.isWindows);
+
+    test('a damaged blob is an error, never garbage', () async {
+      final native = DpapiSecureStore(dir, protector: NativeDpapiProtector());
+      await native.write('session', 'x');
+      File('${dir.path}${Platform.pathSeparator}session.dpapi')
+          .writeAsStringSync('AAAA');
+      await expectLater(
+        native.read('session'),
+        throwsA(isA<AuthStorageFailure>()),
+      );
+    }, skip: !Platform.isWindows);
+
+    test('the native protector is unavailable (and says so) off Windows', () {
+      expect(
+        NativeDpapiProtector.new,
+        throwsA(isA<AuthStorageFailure>()),
+      );
+    }, skip: Platform.isWindows);
+  });
+}
+
+final class _HangingProtector implements DataProtector {
+  @override
+  Future<Uint8List> protect(Uint8List plain) => Completer<Uint8List>().future;
+
+  @override
+  Future<Uint8List> unprotect(Uint8List blob) =>
+      Completer<Uint8List>().future;
+}
+
+final class _ThrowingProtector implements DataProtector {
+  @override
+  Future<Uint8List> protect(Uint8List plain) async => throw StateError('x');
+
+  @override
+  Future<Uint8List> unprotect(Uint8List blob) async => throw StateError('x');
 }
