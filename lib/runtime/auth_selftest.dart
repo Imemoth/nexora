@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:nexora/app/account_panel.dart';
 import 'package:nexora/app/system_clock.dart';
 import 'package:nexora/core/ids/random_id_generator.dart';
 import 'package:nexora/features/auth/account_paths.dart';
@@ -29,7 +30,10 @@ Future<int> runAuthSelfTest(String outPath) async {
     log.log('selftest.step.start', {'step': name});
     try {
       await body().timeout(const Duration(seconds: 90));
-      log.log('selftest.step.ok', {'step': name, 'ms': watch.elapsedMilliseconds});
+      log.log('selftest.step.ok', {
+        'step': name,
+        'ms': watch.elapsedMilliseconds,
+      });
     } on Object catch (error) {
       failures++;
       log.log('selftest.step.failed', {
@@ -141,7 +145,10 @@ Future<int> runAuthSelfTest(String outPath) async {
     await runtime.dispose();
   } on Object catch (error) {
     failures++;
-    log.log('selftest.crashed', {'type': error.runtimeType, 'detail': '$error'});
+    log.log('selftest.crashed', {
+      'type': error.runtimeType,
+      'detail': '$error',
+    });
   } finally {
     try {
       root.deleteSync(recursive: true);

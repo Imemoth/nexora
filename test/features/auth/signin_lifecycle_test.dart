@@ -95,20 +95,25 @@ void main() {
     }
   });
 
-  File accountDb(SyncRuntime r, String user) => File(
-    '${r.accountFolder(user).path}${Platform.pathSeparator}nexora.db',
-  );
+  File accountDb(SyncRuntime r, String user) =>
+      File('${r.accountFolder(user).path}${Platform.pathSeparator}nexora.db');
 
-  test('first sign-in: account database, session saved, state updated', () async {
-    final runtime = build();
-    await runtime.start();
-    addTearDown(runtime.dispose);
-    expect(await runtime.signIn('a@example.test', 'pw'), SignInOutcome.success);
-    expect(runtime.active.userId, userA);
-    expect(accountDb(runtime, userA).existsSync(), isTrue);
-    expect(await store.read('session'), isNotNull);
-    expect(runtime.sessions.state.phase, AuthPhase.signedIn);
-  });
+  test(
+    'first sign-in: account database, session saved, state updated',
+    () async {
+      final runtime = build();
+      await runtime.start();
+      addTearDown(runtime.dispose);
+      expect(
+        await runtime.signIn('a@example.test', 'pw'),
+        SignInOutcome.success,
+      );
+      expect(runtime.active.userId, userA);
+      expect(accountDb(runtime, userA).existsSync(), isTrue);
+      expect(await store.read('session'), isNotNull);
+      expect(runtime.sessions.state.phase, AuthPhase.signedIn);
+    },
+  );
 
   test('restart restores the session and reopens the account', () async {
     final first = build();
@@ -141,13 +146,19 @@ void main() {
     expect(runtime.sessions.state.reason, AuthReason.storageUnreadable);
   });
 
-  test('an unexpected auth-layer exception releases the dialog (failed)', () async {
-    final runtime = build(authApi: _ExplodingApi());
-    await runtime.start();
-    addTearDown(runtime.dispose);
-    expect(await runtime.signIn('a@example.test', 'pw'), SignInOutcome.failed);
-    expect(runtime.active.userId, isNull);
-  });
+  test(
+    'an unexpected auth-layer exception releases the dialog (failed)',
+    () async {
+      final runtime = build(authApi: _ExplodingApi());
+      await runtime.start();
+      addTearDown(runtime.dispose);
+      expect(
+        await runtime.signIn('a@example.test', 'pw'),
+        SignInOutcome.failed,
+      );
+      expect(runtime.active.userId, isNull);
+    },
+  );
 
   test(
     'account database failure: error outcome, local data intact, retry works',

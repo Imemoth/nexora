@@ -16,26 +16,24 @@ final class _DataBlob extends Struct {
   external Pointer<Uint8> pbData;
 }
 
-typedef _CryptNative =
-    Int32 Function(
-      Pointer<_DataBlob> dataIn,
-      Pointer<Void> description,
-      Pointer<_DataBlob> entropy,
-      Pointer<Void> reserved,
-      Pointer<Void> prompt,
-      Uint32 flags,
-      Pointer<_DataBlob> dataOut,
-    );
-typedef _CryptDart =
-    int Function(
-      Pointer<_DataBlob> dataIn,
-      Pointer<Void> description,
-      Pointer<_DataBlob> entropy,
-      Pointer<Void> reserved,
-      Pointer<Void> prompt,
-      int flags,
-      Pointer<_DataBlob> dataOut,
-    );
+typedef _CryptNative = Int32 Function(
+  Pointer<_DataBlob> dataIn,
+  Pointer<Void> description,
+  Pointer<_DataBlob> entropy,
+  Pointer<Void> reserved,
+  Pointer<Void> prompt,
+  Uint32 flags,
+  Pointer<_DataBlob> dataOut,
+);
+typedef _CryptDart = int Function(
+  Pointer<_DataBlob> dataIn,
+  Pointer<Void> description,
+  Pointer<_DataBlob> entropy,
+  Pointer<Void> reserved,
+  Pointer<Void> prompt,
+  int flags,
+  Pointer<_DataBlob> dataOut,
+);
 typedef _LocalAllocNative = Pointer<Void> Function(Uint32 flags, IntPtr bytes);
 typedef _LocalAllocDart = Pointer<Void> Function(int flags, int bytes);
 typedef _LocalFreeNative = Pointer<Void> Function(Pointer<Void> memory);
@@ -117,9 +115,7 @@ final class NativeDpapiProtector implements DataProtector {
         throw const AuthStorageFailure('dpapi_failed');
       }
       final length = outBlob.ref.cbData;
-      final result = Uint8List.fromList(
-        outBlob.ref.pbData.asTypedList(length),
-      );
+      final result = Uint8List.fromList(outBlob.ref.pbData.asTypedList(length));
       _free(outBlob.ref.pbData.cast<Void>());
       return result;
     } finally {

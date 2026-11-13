@@ -162,13 +162,16 @@ void main() {
       );
     });
 
-    test('an unexpected protector exception is an AuthStorageFailure', () async {
-      final store = DpapiSecureStore(dir, protector: _ThrowingProtector());
-      await expectLater(
-        store.write('session', 'x'),
-        throwsA(isA<AuthStorageFailure>()),
-      );
-    });
+    test(
+      'an unexpected protector exception is an AuthStorageFailure',
+      () async {
+        final store = DpapiSecureStore(dir, protector: _ThrowingProtector());
+        await expectLater(
+          store.write('session', 'x'),
+          throwsA(isA<AuthStorageFailure>()),
+        );
+      },
+    );
 
     test('a program that cannot be started is an AuthStorageFailure', () async {
       await expectLater(
@@ -182,12 +185,17 @@ void main() {
       () async {
         final watch = Stopwatch()..start();
         await expectLater(
-          runProcess('powershell.exe', const [
-            '-NoProfile',
-            '-NonInteractive',
-            '-Command',
-            'Start-Sleep -Seconds 60',
-          ], '', timeout: const Duration(seconds: 3)),
+          runProcess(
+            'powershell.exe',
+            const [
+              '-NoProfile',
+              '-NonInteractive',
+              '-Command',
+              'Start-Sleep -Seconds 60',
+            ],
+            '',
+            timeout: const Duration(seconds: 3),
+          ),
           throwsA(isA<AuthStorageFailure>()),
         );
         expect(watch.elapsed, lessThan(const Duration(seconds: 30)));
@@ -236,10 +244,7 @@ void main() {
     }, skip: !Platform.isWindows);
 
     test('the native protector is unavailable (and says so) off Windows', () {
-      expect(
-        NativeDpapiProtector.new,
-        throwsA(isA<AuthStorageFailure>()),
-      );
+      expect(NativeDpapiProtector.new, throwsA(isA<AuthStorageFailure>()));
     }, skip: Platform.isWindows);
   });
 }
@@ -249,8 +254,7 @@ final class _HangingProtector implements DataProtector {
   Future<Uint8List> protect(Uint8List plain) => Completer<Uint8List>().future;
 
   @override
-  Future<Uint8List> unprotect(Uint8List blob) =>
-      Completer<Uint8List>().future;
+  Future<Uint8List> unprotect(Uint8List blob) => Completer<Uint8List>().future;
 }
 
 final class _ThrowingProtector implements DataProtector {
