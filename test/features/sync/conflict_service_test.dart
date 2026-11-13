@@ -339,59 +339,49 @@ void main() {
       expect(b.service.list(), isEmpty);
     });
 
-    test(
-      'delete edited elsewhere: keep the item, or delete it anyway',
-      () async {
-        // keep the item (use server)
-        var (server, _, a, b) = await twoDevices();
-        await a.repo.saveTask(
-          makeTask(
-            id: 't2',
-            projectId: 'p1',
-            title: 'Changed on A',
-            notes: 'm0',
-          ),
-        );
-        await b.repo.softDeleteTask('t2');
-        await a.engine.syncNow();
-        await b.engine.syncNow();
-        var view = b.service.list().single;
-        expect(view.kind, 'delete_edited');
-        expect(view.choices, {
-          ConflictChoice.useServer,
-          ConflictChoice.keepLocal,
-        });
-        expect(
-          (await b.service.resolve(view.id, ConflictChoice.useServer)).ok,
-          isTrue,
-        );
-        expect(b.task('t2')['deleted_at'], isNull);
-        expect(server.rows['task:t2']!['deleted_at'], isNull);
+    /// I deleted a task that the other device edited (`delete_edited`).
+    Future<(FakeSyncServer, _Node, ConflictView)> deleteEdited() async {
+      final (server, _, a, b) = await twoDevices();
+      await a.repo.saveTask(
+        makeTask(id: 't2', projectId: 'p1', title: 'Changed on A', notes: 'm0'),
+      );
+      await b.repo.softDeleteTask('t2');
+      await a.engine.syncNow();
+      await b.engine.syncNow();
+      final view = b.service.list().single;
+      expect(view.kind, 'delete_edited');
+      expect(view.choices, {
+        ConflictChoice.useServer,
+        ConflictChoice.keepLocal,
+      });
+      return (server, b, view);
+    }
 
-        // delete anyway (keep local)
-        _dir.deleteSync(recursive: true);
-        _dir.createSync();
-        (server, _, a, b) = await twoDevices();
-        await a.repo.saveTask(
-          makeTask(
-            id: 't2',
-            projectId: 'p1',
-            title: 'Changed on A',
-            notes: 'm0',
-          ),
-        );
-        await b.repo.softDeleteTask('t2');
-        await a.engine.syncNow();
-        await b.engine.syncNow();
-        view = b.service.list().single;
-        expect(
-          (await b.service.resolve(view.id, ConflictChoice.keepLocal)).ok,
-          isTrue,
-        );
-        await b.engine.syncNow();
-        expect(server.rows['task:t2']!['deleted_at'], isNotNull);
-      },
-    );
+    test('delete edited elsewhere: keep the item (use server)', () async {
+      final (server, b, view) = await deleteEdited();
+
+      final outcome = await b.service.resolve(
+        view.id,
+        ConflictChoice.useServer,
+      );
+
+      expect(outcome.ok, isTrue);
+      expect(b.task('t2')['deleted_at'], isNull);
+      expect(server.rows['task:t2']!['deleted_at'], isNull);
+    });
+
+    test('delete edited elsewhere: delete it anyway (keep local)', () async {
+      final (server, b, view) = await deleteEdited();
+
+      final outcome = await b.service.resolve(
+        view.id,
+        ConflictChoice.keepLocal,
+      );
+      await b.engine.syncNow();
+
+      expect(outcome.ok, isTrue);
+      expect(server.rows['task:t2']!['deleted_at'], isNotNull);
+    });
   });
 
   group('invalid, duplicate and unknown decisions', () {
