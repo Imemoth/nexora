@@ -36,6 +36,9 @@ Rules: (1) a recommendation is not an approval; only entries marked **approved**
 | `supabase/migrations/20261112160000_nexora_sync_push.sql` (S2) | none | **not applied**; rollback `supabase/rollback/20261112160000_rollback_s2_sync_push.sql` |
 | `supabase/migrations/20261112170000_nexora_sync_resolve_revoke.sql` (S3) | none | **not applied**; rollback `supabase/rollback/20261112170000_rollback_s3_resolve_revoke.sql` |
 | `supabase/migrations/20261112180000_nexora_sync_pull.sql` (S4) | none | **not applied**; rollback `supabase/rollback/20261112180000_rollback_s4_sync_pull.sql` |
+| `supabase/migrations/20261112185000_nexora_sync_throttle.sql` (S10a) | none | **not applied**; per-user throttle (NX007); rollback `supabase/rollback/20261112185000_rollback_sync_throttle.sql` |
+| `supabase/migrations/20261112186000_nexora_sync_response_bound.sql` (S10b) | none | **not applied**; push-response bound (NX004); rollback `supabase/rollback/20261112186000_rollback_sync_response_bound.sql` |
+| `supabase/migrations/20261112190000_nexora_s9_revoke_direct_writes.sql` (S9) | none | **not applied**; revokes direct table writes, keeps SELECT; rollback `supabase/rollback/20261112190000_rollback_s9_direct_writes.sql`; applied last in the combined operation |
 Hosted history read read-only on 2026-11-12: exactly the first six rows above. Local migration files may be edited while unapplied (the S2 file was amended on 2026-11-12 for `version_before` and `conflict`); applied files are frozen.
 
 ## 3. Owner decision register

@@ -40,6 +40,12 @@
 | `operations/hosted-deployment-checklist-s2-s4.md` | checklist (prepared, not executed) | current | exact migration order, rollback, Data API exposure, hosted HTTP/JWT acceptance, 8 s timeout measurement, activation and rollback |
 | `operations/rate-limit-and-log-retention-recommendations.md` | recommendations (O-3) | current | none implemented |
 | `operations/s9-direct-grants-removal-plan.md` | plan (not authorized) | current | removal of direct table-write grants (B-10) |
+| `operations/hardening-implementation-record.md` | implementation record | current evidence for the throttle, response bound and S9 | limits, mutation and rollback evidence |
+| `operations/combined-hosted-acceptance-operation.md` | runbook (prepared, not executed) | current | ordered operation, digests, verification queries, stop-on-failure, kill switch, execution record template |
+| `operations/hosted-readonly-preflight-2026-11-12.md` | preflight record | current | read-only hosted state, no writes |
+| `operations/release-candidate-guide.md` | user guide | current | install, first run, sign-in, import, backup and recovery |
+| `operations/release-acceptance-checklist.md` | checklist | current | V1 release acceptance with evidence lines |
+| `operations/remaining-blocker-register.md` | register | current | owner decisions that block the next step |
 | `operations/auth-dashboard-audit.md` | audit | open (D-U) | |
 | `operations/supabase-access.md` | operations note | current | |
 | `operations/supabase-sql-location.md` | operations note | current (where the SQL lives) | |

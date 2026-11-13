@@ -1,6 +1,8 @@
-# Auth configuration audit (D-U) — NOT YET PERFORMED
+# Auth configuration audit (D-U) — partly read, partly UNVERIFIED
 
-Status: **unverified.** The session cannot read the Supabase Dashboard auth settings. This must be completed by the owner (or with explicit access) **before authentication or synchronization activation**.
+Status: **partly verified** (2026-11-12, read-only, see the table below and `hosted-readonly-preflight-2026-11-12.md`); everything not listed as observed is **UNVERIFIED** and must not be assumed compliant. The original statement follows.
+
+Original status: **unverified.** The session cannot read the Supabase Dashboard auth settings. This must be completed by the owner (or with explicit access) **before authentication or synchronization activation**.
 
 Project `uicccaawtjvqggeufbez`, Dashboard -> Authentication.
 
@@ -42,3 +44,19 @@ Status: **nothing below has been verified.** No hosted Auth setting was read or 
 | 17 | Auth hooks and attack protection (CAPTCHA) | Record whether any hook alters claims; claims such as `sub`, `role`, `is_anonymous` must not be changed by hooks (the server trusts `auth.uid()` and the `auth.users` row, never user-editable metadata) | Auth, Hooks and Attack Protection | _record_ |
 
 How to record results: add the observed value and the date to this table in a later change, and update decision D-U in `docs/coordination/status-register.md`. A read-only Management API call needs a personal access token that the owner provides for that one call; the token must not be stored in the repository or in logs. Until every row is recorded, authentication activation stays NO-GO.
+
+## Read-only observations of 2026-11-12 (public settings document and read-only SQL; nothing changed)
+| Requirement (release candidate) | Observed | Verdict |
+|---|---|---|
+| Anonymous sign-ins disabled | disabled | meets |
+| Public sign-up disabled (initial personal-use release) | **enabled** | **does not meet**; owner action in the dashboard (B-AUTH-1) |
+| Email provider and confirmation | email on, confirmation required | meets |
+| JWT expiry at most 3600 s | not readable | UNVERIFIED |
+| Refresh-token rotation and reuse window | not readable | UNVERIFIED |
+| Multiple concurrent device sessions (single-session-per-user off) | not readable | UNVERIFIED |
+| Password policy, leaked-password protection | not readable | UNVERIFIED |
+| Rate limits (sign-in, refresh, sign-up) | not readable | UNVERIFIED |
+| MFA compatibility and recovery | not readable; the desktop app has no MFA enrolment UI, so MFA must stay off or optional | UNVERIFIED |
+| Data API exposed schemas | `public`, `graphql_public`; `nexora_private` absent | meets |
+
+Owner decisions needed before the combined operation's HTTP step (see `remaining-blocker-register.md`): turn public sign-up off and create the accounts in the dashboard; read and record the UNVERIFIED rows (or approve a read-only Management API check); confirm JWT expiry at or below 3600 s. No dashboard setting was changed by this document.
