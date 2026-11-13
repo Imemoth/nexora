@@ -168,43 +168,39 @@ void main() {
       expect(await stack().adminRows('projects', 'name=eq.planted'), isEmpty);
     }, skip: _skip);
 
-    test(
-      'S9: direct table writes by the owner are refused; the RPC path still works',
-      () async {
-        final a = await stack().signUp('direct');
-        final token = await tokenFor(a.email, a.password);
-        final id = _id();
-        final r = await stack().request(
-          'POST',
-          '/rest/v1/projects',
-          token: token,
-          body: {'id': id, 'owner_id': a.id, 'name': 'direct write'},
-        );
-        expect(r.status, anyOf(401, 403), reason: 'INSERT must be denied');
-        final u = await stack().request(
-          'PATCH',
-          '/rest/v1/projects?id=eq.$id',
-          token: token,
-          body: {'name': 'x'},
-        );
-        expect(u.status, anyOf(401, 403), reason: 'UPDATE must be denied');
-        final d = await stack().request(
-          'DELETE',
-          '/rest/v1/projects?id=eq.$id',
-          token: token,
-        );
-        expect(d.status, anyOf(401, 403), reason: 'DELETE must be denied');
-        expect(await stack().adminRows('projects', 'id=eq.$id'), isEmpty);
-        // reads stay allowed
-        final read = await stack().request(
-          'GET',
-          '/rest/v1/projects?select=id',
-          token: token,
-        );
-        expect(read.status, 200);
-      },
-      skip: _skip,
-    );
+    test('S9: direct table writes by the owner are refused; the RPC path still works', () async {
+      final a = await stack().signUp('direct');
+      final token = await tokenFor(a.email, a.password);
+      final id = _id();
+      final r = await stack().request(
+        'POST',
+        '/rest/v1/projects',
+        token: token,
+        body: {'id': id, 'owner_id': a.id, 'name': 'direct write'},
+      );
+      expect(r.status, anyOf(401, 403), reason: 'INSERT must be denied');
+      final u = await stack().request(
+        'PATCH',
+        '/rest/v1/projects?id=eq.$id',
+        token: token,
+        body: {'name': 'x'},
+      );
+      expect(u.status, anyOf(401, 403), reason: 'UPDATE must be denied');
+      final d = await stack().request(
+        'DELETE',
+        '/rest/v1/projects?id=eq.$id',
+        token: token,
+      );
+      expect(d.status, anyOf(401, 403), reason: 'DELETE must be denied');
+      expect(await stack().adminRows('projects', 'id=eq.$id'), isEmpty);
+      // reads stay allowed
+      final read = await stack().request(
+        'GET',
+        '/rest/v1/projects?select=id',
+        token: token,
+      );
+      expect(read.status, 200);
+    }, skip: _skip);
   });
 
   group('authentication', () {
