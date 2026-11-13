@@ -5,6 +5,11 @@ name: windows-sync-dev-build
 
 on:
   workflow_dispatch:
+  # A workflow that exists only on a feature branch cannot be dispatched through the API, so a push to this branch that
+  # touches this very file also starts it (it never runs for any other change).
+  push:
+    branches: [claude/affectionate-turing-unzmd2]
+    paths: ['.github/workflows/windows-sync-dev-build.yml']
 
 permissions:
   contents: read
