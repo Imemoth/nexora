@@ -112,7 +112,9 @@ final class SessionManager {
     try {
       raw = await _secrets.read(_sessionKey);
       hint = await _secrets.read(_userKey);
-    } on AuthFailure {
+    } on Object {
+      // A protected store that fails in any way must not stop the application
+      // from starting: the session is treated as unreadable (local data stays).
       _log.log('restore.unreadable');
       await _forgetTokens();
       _set(
@@ -368,7 +370,7 @@ final class SessionManager {
   Future<void> _safeDelete(String key) async {
     try {
       await _secrets.delete(key);
-    } on AuthFailure {
+    } on Object {
       // nothing more can be done; the value is unreadable anyway
     }
   }
