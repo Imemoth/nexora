@@ -1,5 +1,7 @@
 # S1 hosted deployment record and S2 entry report (2026-11-12)
 
+**Note (2026-11-14): this record describes the state at the time it was written. Statements such as "not applied to hosted", "disabled" or "not run" are historical; the hosted TEST deployment and Phase 3 acceptance are recorded in `docs/operations/hosted-acceptance-record-2026-11-13.md` and the current status is in `docs/coordination/status-register.md`.**
+
 Target: Supabase project `uicccaawtjvqggeufbez` (PostgreSQL 17.11). Authorization: owner, for the S1 protocol-schema migration only, conditional on a rollback-only dry run and exact-state preflight. **Not authorized and not done:** RPC activation, authentication activation, synchronization, direct-write permission changes, sharing, merging Phase 3 into `main`.
 
 ## Result

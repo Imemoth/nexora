@@ -1,5 +1,7 @@
 # Phase 3 S5: SQLite outbox v2 (planning baseline, reconciled)
 
+**Status update (2026-11-14): S5 is implemented and in use (schema v2, later v3) and Phase 3 is accepted for the TEST environment. This document is the design baseline; current status is in `docs/coordination/status-register.md`.**
+
 | | |
 |---|---|
 | Status | **Implemented locally (2026-11-12, owner authorization "Phase 3 S5 Complete Implementation").** SQLite schema v2, migration, backup, outbox, patches, folding, acknowledgement, conflict mirror and recovery are in `lib/features/tasks/data/`; evidence, deviations and open integration points: `docs/operations/s5-implementation-record.md`. Synchronization stays disabled: no transport, no pull, no authentication. |

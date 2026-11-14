@@ -13,7 +13,7 @@
 | Path | Kind | Current / historical | Notes |
 |---|---|---|---|
 | `coordination/status-register.md` | register | **current, authoritative** | status, migrations, decisions, gates, blockers, evidence index |
-| `coordination/phase-3-s5-outbox-v2.md` | spec (reconstructed, corrected for OD-7 to OD-9) | current planning baseline | S5 not implemented; Session B report not yet received (B-16) |
+| `coordination/phase-3-s5-outbox-v2.md` | spec (reconstructed, corrected for OD-7 to OD-9) | current planning baseline | S5 implemented and in use; design baseline |
 | `coordination/phase-2a-sync-requirements.md` | change request CR-2A-001 | current (requirements REQ-1..8); answered in part | proposal SQL corrected 2026-11-12 (rowid order, no auto replay); see S5 doc 3a |
 | `architecture/data-contract.md` | contract | current | status column kept in step with the register |
 | `architecture/s2-wire-contract.md` | contract | current, authoritative for push | amended 2026-11-12 |
@@ -37,20 +37,21 @@
 | `operations/s3-s4-implementation-record.md` | implementation record | current evidence for S3 and S4 | RPC privilege inventory, suites, decisions |
 | `operations/s6-implementation-record.md` | implementation record | current evidence for S6 and the two-device end-to-end suite | components, data-preservation rules, limitations |
 | `operations/s7-s8-implementation-record.md` | implementation record | current evidence for S7, S8, the HTTP/JWT environment and findings | auth, per-account storage, real transport wiring, acceptance suite, limitations |
-| `operations/hosted-deployment-checklist-s2-s4.md` | checklist (prepared, not executed) | current | exact migration order, rollback, Data API exposure, hosted HTTP/JWT acceptance, 8 s timeout measurement, activation and rollback |
-| `operations/rate-limit-and-log-retention-recommendations.md` | recommendations (O-3) | current | none implemented |
-| `operations/s9-direct-grants-removal-plan.md` | plan (not authorized) | current | removal of direct table-write grants (B-10) |
+| `operations/hosted-deployment-checklist-s2-s4.md` | checklist (executed 2026-11-13) | current | exact migration order, rollback, Data API exposure, hosted HTTP/JWT acceptance, 8 s timeout measurement, activation and rollback |
+| `operations/rate-limit-and-log-retention-recommendations.md` | recommendations (O-3) | current | throttle applied; retention/purge deferred |
+| `operations/s9-direct-grants-removal-plan.md` | plan (executed 2026-11-13) | current | removal of direct table-write grants (B-10) |
 | `operations/hardening-implementation-record.md` | implementation record | current evidence for the throttle, response bound and S9 | limits, mutation and rollback evidence |
-| `operations/combined-hosted-acceptance-operation.md` | runbook (prepared, not executed) | current | ordered operation, digests, verification queries, stop-on-failure, kill switch, execution record template |
+| `operations/combined-hosted-acceptance-operation.md` | runbook (executed 2026-11-13) | current | ordered operation, digests, verification queries, stop-on-failure, kill switch, execution record template |
 | `operations/hosted-acceptance-record-2026-11-13.md` | apply and acceptance record | current | hosted TEST migrations, real HTTP/JWT acceptance, measurements, S9 results, remaining test data |
 | `operations/hosted-readonly-preflight-2026-11-12.md` | preflight record | current | read-only hosted state, no writes |
 | `operations/release-candidate-guide.md` | user guide | current | install, first run, sign-in, import, backup and recovery |
 | `operations/release-acceptance-checklist.md` | checklist | current | V1 release acceptance with evidence lines |
 | `operations/conflict-resolution-ui-record-2026-11-13.md` | feature record | current | the V1 conflict resolution screens: indicator, list, comparison, decisions, failure handling, tests |
 | `operations/windows-signin-hang-fix-record-2026-11-13.md` | fix record | current | first sign-in hang: evidence, defects, native DPAPI, diagnostics, regression tests |
+| `operations/phase-3-integration-review-2026-11-14.md` | review | current | diff review against `main`, hosted/repository consistency, integration risks |
 | `operations/v1-rc-evidence-record.md` | evidence record | current | CI run ids for the release candidate code head |
 | `operations/remaining-blocker-register.md` | register | current | owner decisions that block the next step |
-| `operations/auth-dashboard-audit.md` | audit | open (D-U) | |
+| `operations/auth-dashboard-audit.md` | audit | settled for TEST (D-U); production review deferred | |
 | `operations/supabase-access.md` | operations note | current | |
 | `operations/supabase-sql-location.md` | operations note | current (where the SQL lives) | |
 | `operations/branching-policy.md` | operations note | current | |

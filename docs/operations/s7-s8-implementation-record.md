@@ -1,5 +1,7 @@
 # S7 and S8 implementation record: authentication, sync wiring, HTTP/JWT environment, acceptance suite (local, flag OFF)
 
+**Note (2026-11-14): this record describes the state at the time it was written. Statements such as "not applied to hosted", "disabled" or "not run" are historical; the hosted TEST deployment and Phase 3 acceptance are recorded in `docs/operations/hosted-acceptance-record-2026-11-13.md` and the current status is in `docs/coordination/status-register.md`.**
+
 Authorization: owner message "Phase 3 Complete S7 + S8 Auth and Integration Package" (2026-11-12). No hosted Supabase write, no change to hosted Auth
 configuration, no activation, no real user database migration. Status, gates and decisions: `docs/coordination/status-register.md`. Server contract:
 `docs/architecture/s3-s4-wire-contract.md`. Hosted preparation: `docs/operations/hosted-deployment-checklist-s2-s4.md`.

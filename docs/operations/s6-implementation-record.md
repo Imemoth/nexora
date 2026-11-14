@@ -1,5 +1,7 @@
 # S6 implementation record: local synchronization engine (disabled by default)
 
+**Note (2026-11-14): this record describes the state at the time it was written. Statements such as "not applied to hosted", "disabled" or "not run" are historical; the hosted TEST deployment and Phase 3 acceptance are recorded in `docs/operations/hosted-acceptance-record-2026-11-13.md` and the current status is in `docs/coordination/status-register.md`.**
+
 Contract: `docs/architecture/s3-s4-wire-contract.md` (server) and `docs/coordination/phase-3-s5-outbox-v2.md` (storage). Status and gates:
 `docs/coordination/status-register.md`. The feature flag `NEXORA_SYNC` is `bool.fromEnvironment`, default **false**; nothing in the app
 creates a transport, so the shipped application makes no network call. No hosted authentication or Supabase project is needed to test the engine.
