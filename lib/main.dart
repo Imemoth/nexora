@@ -10,9 +10,11 @@ import 'package:nexora/features/tasks/application/repository_exception.dart';
 import 'package:nexora/features/tasks/application/task_workspace.dart';
 import 'package:nexora/features/tasks/data/local_database.dart';
 import 'package:nexora/features/tasks/data/local_storage.dart';
+import 'package:nexora/features/tasks/data/sqlite_settings_store.dart';
 import 'package:nexora/features/tasks/data/sqlite_task_repository.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
+import 'package:nexora/features/tasks/presentation/theme/theme_controller.dart';
 
 /// Phase 2A wiring: a durable local SQLite workspace.
 ///
@@ -44,7 +46,16 @@ Future<void> main(List<String> args) async {
       ids: ids,
     );
     await workspace.load();
-    runApp(NexoraApp(notifier: TasksNotifier(workspace)));
+    // The saved theme is read before the first frame, so there is no flash of
+    // the wrong theme. A failed read falls back to System.
+    final themeController = ThemeController(SqliteSettingsStore(db));
+    await themeController.load();
+    runApp(
+      NexoraApp(
+        notifier: TasksNotifier(workspace),
+        themeController: themeController,
+      ),
+    );
   } on RepositoryException {
     runApp(const StartupErrorApp(message: AppStrings.errorDatabaseOpen));
   }

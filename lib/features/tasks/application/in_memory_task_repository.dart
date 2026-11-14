@@ -52,6 +52,63 @@ final class InMemoryTaskRepository implements TaskRepository {
     _savedTasks.add(task);
   }
 
+  /// Ids passed to [deleteTasks] and [deleteProject], in call order. Lets tests
+  /// check leaf-first ordering.
+  final List<String> deletedIds = [];
+
+  /// When true the next delete throws a [RepositoryException] and changes
+  /// nothing.
+  bool failNextDelete = false;
+
+  @override
+  Future<void> deleteTasks(List<String> taskIdsLeafFirst) async {
+    _consumeDeleteFailure();
+    for (final id in taskIdsLeafFirst) {
+      if (!_tasks.containsKey(id)) {
+        throw RepositoryException('no live task $id to delete');
+      }
+    }
+    for (final id in taskIdsLeafFirst) {
+      _tasks.remove(id);
+      deletedIds.add(id);
+    }
+  }
+
+  @override
+  Future<void> deleteProject(
+    String projectId,
+    List<String> taskIdsLeafFirst,
+  ) async {
+    _consumeDeleteFailure();
+    if (!_projects.any((project) => project.id == projectId)) {
+      throw RepositoryException('no live project $projectId to delete');
+    }
+    final listed = taskIdsLeafFirst.toSet();
+    for (final task in _tasks.values) {
+      if (task.projectId == projectId && !listed.contains(task.id)) {
+        throw RepositoryException('project $projectId has a live task');
+      }
+    }
+    for (final id in taskIdsLeafFirst) {
+      if (!_tasks.containsKey(id)) {
+        throw RepositoryException('no live task $id to delete');
+      }
+    }
+    for (final id in taskIdsLeafFirst) {
+      _tasks.remove(id);
+      deletedIds.add(id);
+    }
+    _projects.removeWhere((project) => project.id == projectId);
+    deletedIds.add(projectId);
+  }
+
+  void _consumeDeleteFailure() {
+    if (failNextDelete) {
+      failNextDelete = false;
+      throw const RepositoryException('simulated delete failure');
+    }
+  }
+
   void _consumeLoadFailure() {
     if (failNextLoad) {
       failNextLoad = false;

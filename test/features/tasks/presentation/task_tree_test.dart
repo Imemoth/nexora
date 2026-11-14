@@ -18,7 +18,7 @@ Future<Harness> _demo() async {
 }
 
 Future<void> _pump(WidgetTester tester, Harness harness) async {
-  tester.view.physicalSize = const Size(1280, 800);
+  tester.view.physicalSize = const Size(1280, 1300);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);

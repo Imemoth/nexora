@@ -3,7 +3,13 @@ import 'package:nexora/features/tasks/application/nav_selection.dart';
 import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/application/workspace_state.dart';
 
+import 'dashboard_header.dart';
 import 'keymap.dart';
+import 'quick_add_field.dart';
+import 'status_filter_bar.dart';
+import 'tasks_notifier.dart';
+import 'theme/nexora_colors.dart';
+import 'theme_selector.dart';
 import 'keyboard_actions.dart';
 import 'strings/app_strings.dart';
 import 'sort_menu.dart';
@@ -51,11 +57,22 @@ class TaskListPane extends StatelessWidget {
                     ],
                   ),
                 ),
-                FilledButton.icon(
-                  key: const ValueKey('new-task'),
-                  onPressed: () => openCreateTask(context, notifier),
-                  icon: const Icon(Icons.add),
-                  label: const Text(AppStrings.newTaskAction),
+                Flexible(
+                  child: Wrap(
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      const ThemeSelector(),
+                      FilledButton.icon(
+                        key: const ValueKey('new-task'),
+                        onPressed: () => openCreateTask(context, notifier),
+                        icon: const Icon(Icons.add),
+                        label: const Text(AppStrings.newTaskAction),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -96,23 +113,38 @@ class TaskListPane extends StatelessWidget {
                     border: Border.all(
                       width: 2,
                       color: keyboard.list.hasPrimaryFocus
-                          ? Theme.of(context).colorScheme.primary
+                          ? NexoraColors.of(context).accentCyan
                           : Colors.transparent,
                     ),
                   ),
                   child: child,
                 ),
+                // The dashboard, filter chips and quick add scroll with the
+                // list, so they never take room from the rows. They stay in the
+                // empty state too, so a filter can always be cleared.
                 child: rows.isEmpty
-                    ? _EmptyList(
-                        state: state,
-                        onClearSearch: () => notifier.search(''),
+                    ? ListView(
+                        children: [
+                          _listHeader(state, notifier),
+                          SizedBox(
+                            height: 240,
+                            child: _EmptyList(
+                              state: state,
+                              onClearSearch: () => notifier.search(''),
+                            ),
+                          ),
+                        ],
                       )
                     : ListView.builder(
-                        itemCount: rows.length,
+                        itemCount: rows.length + 1,
                         itemBuilder: (context, index) {
-                          final row = rows[index];
+                          if (index == 0) {
+                            return _listHeader(state, notifier);
+                          }
+                          final row = rows[index - 1];
                           return TaskRow(
                             row: row,
+                            today: state.today,
                             selected: row.task.id == state.selectedTaskId,
                             onSelect: () {
                               keyboard.list.requestFocus();
@@ -128,6 +160,26 @@ class TaskListPane extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _listHeader(WorkspaceState state, TasksNotifier notifier) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+          child: DashboardHeader(state: state),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+          child: StatusFilterBar(state: state, notifier: notifier),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+          child: QuickAddField(notifier: notifier),
+        ),
+      ],
     );
   }
 

@@ -28,58 +28,83 @@ double _contrast(int a, int b) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-const _textTokens = {
-  'text1': NexoraPalette.text1,
-  'text2': NexoraPalette.text2,
-  'textMuted': NexoraPalette.textMuted,
-  'primary': NexoraPalette.primary,
-  'positive': NexoraPalette.positive,
-  'negative': NexoraPalette.negative,
-  'warning': NexoraPalette.warning,
+Map<String, int> _textTokens(NexoraTokenSet t) => {
+  'text1': t.text1,
+  'text2': t.text2,
+  'textMuted': t.textMuted,
+  'accentBlue': t.accentBlue,
+  'accentCyan': t.accentCyan,
+  'accentViolet': t.accentViolet,
+  'statusOpen': t.statusOpen,
+  'statusProgress': t.statusProgress,
+  'statusReview': t.statusReview,
+  'statusDone': t.statusDone,
+  'statusOverdue': t.statusOverdue,
 };
 
-const _surfaceTokens = {
-  'background': NexoraPalette.background,
-  'surface': NexoraPalette.surface,
-  'surface2': NexoraPalette.surface2,
+Map<String, int> _surfaces(NexoraTokenSet t) => {
+  'background': t.background,
+  'panel': t.panel,
+  'surface': t.surface,
+  'surface2': t.surface2,
 };
+
+final _themes = {'dark': NexoraPalette.dark, 'light': NexoraPalette.light};
 
 void main() {
-  test('every text token meets 4.5:1 on every surface (normal text)', () {
-    for (final text in _textTokens.entries) {
-      for (final surface in _surfaceTokens.entries) {
-        final ratio = _contrast(text.value, surface.value);
+  for (final entry in _themes.entries) {
+    final name = entry.key;
+    final tokens = entry.value;
+
+    test('$name: every text token meets 4.5:1 on every surface', () {
+      for (final text in _textTokens(tokens).entries) {
+        for (final surface in _surfaces(tokens).entries) {
+          final ratio = _contrast(text.value, surface.value);
+          expect(
+            ratio >= 4.5,
+            isTrue,
+            reason:
+                '$name ${text.key} on ${surface.key} is ${ratio.toStringAsFixed(2)}',
+          );
+        }
+      }
+    });
+
+    test('$name: text on a filled accent meets 4.5:1', () {
+      for (final fill in [tokens.accentBlue, tokens.accentViolet]) {
+        final ratio = _contrast(tokens.onAccent, fill);
+        expect(ratio >= 4.5, isTrue, reason: '$name onAccent is $ratio');
+      }
+    });
+
+    test('$name: outlined control borders and the focus ring meet 3:1', () {
+      for (final surface in _surfaces(tokens).entries) {
+        final border = _contrast(tokens.borderStrong, surface.value);
         expect(
-          ratio >= 4.5,
+          border >= 3.0,
           isTrue,
-          reason:
-              '${text.key} on ${surface.key} is ${ratio.toStringAsFixed(2)}',
+          reason: '$name borderStrong on ${surface.key} is $border',
+        );
+        final ring = _contrast(tokens.accentCyan, surface.value);
+        expect(
+          ring >= 3.0,
+          isTrue,
+          reason: '$name accentCyan on ${surface.key} is $ring',
         );
       }
-    }
-  });
+    });
 
-  test('every text token meets 3:1 on every surface (large text)', () {
-    for (final text in _textTokens.entries) {
-      for (final surface in _surfaceTokens.entries) {
-        final ratio = _contrast(text.value, surface.value);
-        expect(
-          ratio >= 3.0,
-          isTrue,
-          reason:
-              '${text.key} on ${surface.key} is ${ratio.toStringAsFixed(2)}',
-        );
+    test('$name: the palette is opaque', () {
+      final all = [
+        ..._textTokens(tokens).values,
+        ..._surfaces(tokens).values,
+        tokens.border,
+        tokens.borderStrong,
+        tokens.onAccent,
+      ];
+      for (final value in all) {
+        expect(value >> 24, 0xFF);
       }
-    }
-  });
-
-  test('the palette is opaque', () {
-    for (final value in [
-      ..._textTokens.values,
-      ..._surfaceTokens.values,
-      NexoraPalette.border,
-    ]) {
-      expect(value >> 24, 0xFF);
-    }
-  });
+    });
+  }
 }

@@ -102,26 +102,83 @@ final class SqliteTaskRepository implements TaskRepository {
   /// server-owned version is not changed by a local edit. Deleting an unknown or
   /// already deleted task is an error.
   Future<void> softDeleteTask(String id) async {
+    _run(() => _transaction(() => _tombstoneTask(id)));
+  }
+
+  @override
+  Future<void> deleteTasks(List<String> taskIdsLeafFirst) async {
     _run(
       () => _transaction(() {
-        final row = _taskRow(id);
-        if (row == null || row['deleted_at'] != null) {
-          throw RepositoryException('no live task $id to delete');
+        for (final id in taskIdsLeafFirst) {
+          _tombstoneTask(id);
         }
-        final version = row['version'] as int;
+      }),
+    );
+  }
+
+  @override
+  Future<void> deleteProject(
+    String projectId,
+    List<String> taskIdsLeafFirst,
+  ) async {
+    _run(
+      () => _transaction(() {
+        final project = _db.raw.select(
+          'SELECT version, deleted_at FROM projects WHERE id = ?',
+          [projectId],
+        );
+        if (project.isEmpty || project.single['deleted_at'] != null) {
+          throw RepositoryException('no live project $projectId to delete');
+        }
+        final live = _db.raw.select(
+          'SELECT id FROM tasks WHERE project_id = ? AND deleted_at IS NULL',
+          [projectId],
+        );
+        final listed = taskIdsLeafFirst.toSet();
+        for (final row in live) {
+          if (!listed.contains(row['id'] as String)) {
+            throw RepositoryException('project $projectId has a live task');
+          }
+        }
+        // Tasks first, leaf-first, then the project (decision D-P).
+        for (final id in taskIdsLeafFirst) {
+          _tombstoneTask(id);
+        }
+        final version = project.single['version'] as int;
         final now = _iso();
         _db.raw.execute(
-          'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?',
-          [now, now, id],
+          'UPDATE projects SET deleted_at = ?, updated_at = ? WHERE id = ?',
+          [now, now, projectId],
         );
         _enqueue(
-          entityType: 'task',
-          entityId: id,
+          entityType: 'project',
+          entityId: projectId,
           operationType: 'delete',
-          baseVersion: _baseVersionFor('task', id, version),
-          payload: {'id': id, 'deleted_at': now},
+          baseVersion: _baseVersionFor('project', projectId, version),
+          payload: {'id': projectId, 'deleted_at': now},
         );
       }),
+    );
+  }
+
+  /// Tombstones one task row and queues its delete. Runs inside a transaction.
+  void _tombstoneTask(String id) {
+    final row = _taskRow(id);
+    if (row == null || row['deleted_at'] != null) {
+      throw RepositoryException('no live task $id to delete');
+    }
+    final version = row['version'] as int;
+    final now = _iso();
+    _db.raw.execute(
+      'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?',
+      [now, now, id],
+    );
+    _enqueue(
+      entityType: 'task',
+      entityId: id,
+      operationType: 'delete',
+      baseVersion: _baseVersionFor('task', id, version),
+      payload: {'id': id, 'deleted_at': now},
     );
   }
 

@@ -1,3 +1,4 @@
+import 'package:nexora/features/tasks/application/settings_store.dart';
 import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
@@ -63,6 +64,62 @@ abstract final class AppStrings {
   static const desktopOnlyNotice =
       'Nexora needs a window at least 900 px wide.';
 
+  static const deleteAction = 'Delete';
+  static const deleteTaskAction = 'Delete task';
+  static const deleteProjectAction = 'Delete project';
+  static const deleteTaskTitle = 'Delete task?';
+  static const deleteProjectTitle = 'Delete project?';
+  static const deleteUndoNote = 'This cannot be undone.';
+  static const taskDeleted = 'Task deleted';
+  static const projectDeleted = 'Project deleted';
+  static const projectActionsTooltip = 'Project actions';
+  static const errorUnknownTask = 'That task no longer exists.';
+  static const errorDeleteFailed = 'Could not delete. Nothing was changed.';
+  static const errorLastProject = 'Keep at least one project.';
+  static const themeLabel = 'Theme';
+  static const themeLight = 'Light';
+  static const themeDark = 'Dark';
+  static const themeSystem = 'System';
+  static const savedOnDevice = 'Saved on this device';
+  static const subtasksHeader = 'Subtasks';
+  static const metricDueToday = 'Due today';
+  static const metricOverdue = 'Overdue';
+  static const metricInProgress = 'In progress';
+  static const metricProgress = 'Progress';
+
+  static const filterAll = 'All';
+  static const filterLabel = 'Filter by status';
+  static const quickAddHint = 'Add a task and press Enter';
+  static const quickAddLabel = 'Quick add';
+
+  static String filterChipLabel(String label, int count) => '$label $count';
+
+  static String deleteTaskBody(int subtaskCount) {
+    if (subtaskCount == 0) {
+      return deleteUndoNote;
+    }
+    final noun = subtaskCount == 1 ? 'subtask' : 'subtasks';
+    return 'This also deletes $subtaskCount $noun. $deleteUndoNote';
+  }
+
+  static String deleteProjectBody(int taskCount) {
+    if (taskCount == 0) {
+      return 'This deletes the project. $deleteUndoNote';
+    }
+    final noun = taskCount == 1 ? 'task' : 'tasks';
+    return 'This deletes the project and its $taskCount $noun. $deleteUndoNote';
+  }
+
+  static String progressLabel(int done, int total) => '$done of $total done';
+
+  static String themeLabelOf(ThemePreference preference) {
+    return switch (preference) {
+      ThemePreference.light => themeLight,
+      ThemePreference.dark => themeDark,
+      ThemePreference.system => themeSystem,
+    };
+  }
+
   static String errorMessage(WorkspaceError error) {
     return switch (error) {
       WorkspaceError.titleRequired => titleRequired,
@@ -74,6 +131,9 @@ abstract final class AppStrings {
       WorkspaceError.loadFailed => errorLoadFailed,
       WorkspaceError.unsavedChangesPending => errorGatePending,
       WorkspaceError.operationInProgress => errorOperationInProgress,
+      WorkspaceError.unknownTask => errorUnknownTask,
+      WorkspaceError.deleteFailed => errorDeleteFailed,
+      WorkspaceError.lastProject => errorLastProject,
     };
   }
 

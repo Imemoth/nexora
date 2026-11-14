@@ -38,6 +38,9 @@ final class TasksNotifier extends ChangeNotifier {
 
   void sort(TaskSort sort) => _workspace.requestSort(sort);
 
+  void filterByStatus(TaskStatus? status) =>
+      _workspace.requestStatusFilter(status);
+
   void toggleExpanded(String taskId) => _workspace.toggleExpanded(taskId);
 
   void editDraft({
@@ -71,6 +74,22 @@ final class TasksNotifier extends ChangeNotifier {
     required String title,
     required String parentId,
   }) => _workspace.requestCreateSubtask(title: title, parentId: parentId);
+
+  /// How many subtasks a delete of [taskId] would remove along with it.
+  int subtaskCountOf(String taskId) {
+    final total = _workspace.deletionCountForTask(taskId);
+    return total == 0 ? 0 : total - 1;
+  }
+
+  /// How many tasks a delete of [projectId] would remove along with it.
+  int taskCountInProject(String projectId) =>
+      _workspace.deletionCountForProject(projectId);
+
+  Future<Result<void, WorkspaceError>> deleteTask(String taskId) =>
+      _workspace.requestDeleteTask(taskId);
+
+  Future<Result<void, WorkspaceError>> deleteProject(String projectId) =>
+      _workspace.requestDeleteProject(projectId);
 
   Future<void> resolvePending(PendingResolution resolution) =>
       _workspace.resolvePending(resolution);
