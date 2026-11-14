@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nexora/features/tasks/presentation/details_pane.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
+import 'package:nexora/features/tasks/presentation/theme/nexora_colors.dart';
 
 /// Details editor shown over the list between 900 and 1099 px. Closing it goes
 /// through [onClose], which uses the same unsaved-change gate as selection.
@@ -13,7 +14,8 @@ class DetailsOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       elevation: 8,
-      color: Theme.of(context).colorScheme.surface,
+      color: NexoraColors.of(context).panel,
+      shadowColor: NexoraColors.of(context).glow,
       child: Column(
         children: [
           Align(

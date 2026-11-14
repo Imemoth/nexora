@@ -23,6 +23,7 @@
 | `architecture/phase-2a-data-contract-alignment.md` | alignment record | historical (written on the Phase 2A branch) | hosted status line corrected |
 | `architecture/decisions/0001-flutter-offline-first.md` | ADR | current | |
 | `architecture/decisions/0002-sync-protocol.md` | ADR | current | implementation-status table corrected |
+| `architecture/decisions/0003-v2-visuals-theme-and-delete.md` | ADR | proposed (PR #16) | V2 themes and theme preference, delete task and project, status filter, quick add |
 | `operations/phase-1-acceptance.md` | acceptance | historical record | |
 | `operations/phase-2a-windows-acceptance.md` | acceptance | historical record (owner pass) | |
 | `operations/phase-2b-apply-record.md` | apply record | historical record | |

@@ -188,6 +188,13 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
     _run(() => _transaction(() => _deleteTree('project', id)));
   }
 
+  @override
+  Future<void> deleteTaskTree(String taskId) => softDeleteTaskTree(taskId);
+
+  @override
+  Future<void> deleteProjectTree(String projectId) =>
+      softDeleteProjectTree(projectId);
+
   void _deleteTree(String entityType, String id) {
     final table = entityType == 'project' ? 'projects' : 'tasks';
     final rows = _db.raw.select('SELECT * FROM $table WHERE id = ?', [id]);

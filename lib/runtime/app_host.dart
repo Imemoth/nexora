@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
+import 'package:nexora/features/tasks/presentation/theme/theme_controller.dart';
 
 import 'sync_runtime.dart';
 
@@ -10,9 +11,18 @@ import 'sync_runtime.dart';
 /// rebuilds it when the account changes. Used only when synchronization is
 /// enabled; the default application runs [NexoraApp] directly.
 class AppHost extends StatefulWidget {
-  const AppHost({super.key, required this.runtime, this.onExitApp});
+  const AppHost({
+    super.key,
+    required this.runtime,
+    this.themeController,
+    this.onExitApp,
+  });
 
   final SyncRuntime runtime;
+
+  /// The theme choice. It outlives the account: switching account rebuilds the
+  /// app but keeps the same controller, so the theme does not change.
+  final ThemeController? themeController;
   final void Function()? onExitApp;
 
   @override
@@ -54,6 +64,7 @@ class _AppHostState extends State<AppHost> {
     return NexoraApp(
       key: ValueKey(_active.userId ?? 'local'),
       notifier: _notifier,
+      themeController: widget.themeController,
       onExitApp: widget.onExitApp,
       syncPanel: widget.runtime.syncPanel(),
       accountPanel: widget.runtime.accountPanel(),

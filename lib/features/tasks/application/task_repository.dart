@@ -1,19 +1,24 @@
 import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 
-/// Async storage contract for projects and tasks.
-///
-/// Phase 2 replaces the in-memory implementation with SQLite without changing
-/// the workspace or the UI.
+/// The persistence boundary of the workspace. Implementations throw
+/// `RepositoryException` when a call cannot complete.
 abstract interface class TaskRepository {
   Future<List<Project>> loadProjects();
 
   Future<List<Task>> loadTasks();
 
-  /// Inserts or replaces the task with the same id.
-  ///
-  /// Throws `RepositoryException` when the write cannot complete.
   Future<void> saveTask(Task task);
+
+  /// Deletes the task and every live descendant in one write, all or nothing.
+  /// Deletes are soft: rows are kept as tombstones and cannot be restored (D-T,
+  /// D-E). For a synchronized task the repository records one atomic tree
+  /// delete, so the server never sees a half-deleted tree.
+  Future<void> deleteTaskTree(String taskId);
+
+  /// Deletes the project and all its live tasks in one write, all or nothing,
+  /// like [deleteTaskTree].
+  Future<void> deleteProjectTree(String projectId);
 }
 
 /// Optional capability: a repository that can store a new project. The workspace
