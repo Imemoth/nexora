@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:nexora/features/tasks/application/reminder_service.dart';
 
@@ -83,6 +84,10 @@ final class NoDesktopIntegration implements DesktopIntegration {
 final class WindowsDesktopIntegration implements DesktopIntegration {
   WindowsDesktopIntegration({MethodChannel? channel})
     : _channel = channel ?? const MethodChannel(channelName) {
+    // `main()` builds this before `runApp`, when the services binding does not
+    // exist yet; without it the channel throws and the app never opens its
+    // database. Initializing is idempotent.
+    WidgetsFlutterBinding.ensureInitialized();
     _channel.setMethodCallHandler(_onCall);
   }
 
