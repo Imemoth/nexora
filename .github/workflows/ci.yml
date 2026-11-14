@@ -78,6 +78,16 @@ jobs:
       - name: Build Windows release
         run: flutter build windows --release
 
+      - name: Shell integration smoke (single instance, minimize to tray, restore, tray Exit)
+        # Drives the real nexora.exe with the window messages the Windows shell sends. Exit code 2 means the runner has no
+        # interactive desktop (checks not run); 1 means a check failed.
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          New-Item -ItemType Directory -Force ./dist | Out-Null
+          ./tool/windows_shell_smoke.ps1 -Log ./dist/shell-smoke.log
+          exit $LASTEXITCODE
+
       - name: Package and smoke-test portable ZIP
         shell: pwsh
         run: ./tool/package_windows.ps1 -OutputDir ./dist
@@ -104,5 +114,6 @@ jobs:
           path: |
             dist/nexora-windows-portable.zip
             dist/SHA256SUMS.txt
+            dist/shell-smoke.log
           if-no-files-found: error
           retention-days: 14

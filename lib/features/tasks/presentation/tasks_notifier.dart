@@ -38,6 +38,31 @@ final class TasksNotifier extends ChangeNotifier {
 
   void selectTask(String? taskId) => _workspace.requestSelectTask(taskId);
 
+  /// Brings [taskId] into view and selects it (used when the user clicks a
+  /// reminder notification): clears the search, opens the task's project,
+  /// expands its ancestors. With unsaved edits only the selection is requested,
+  /// so the usual unsaved-change gate decides.
+  void revealTask(String taskId) {
+    final task = state.tasks[taskId];
+    if (task == null) {
+      return;
+    }
+    if (state.draft?.isDirty ?? false) {
+      _workspace.requestSelectTask(taskId);
+      return;
+    }
+    _workspace.requestSearch('');
+    _workspace.requestSelectProject(task.projectId);
+    var parent = task.parentId;
+    while (parent != null) {
+      if (!state.expandedTaskIds.contains(parent)) {
+        _workspace.toggleExpanded(parent);
+      }
+      parent = state.tasks[parent]?.parentId;
+    }
+    _workspace.requestSelectTask(taskId);
+  }
+
   void search(String query) => _workspace.requestSearch(query);
 
   void sort(TaskSort sort) => _workspace.requestSort(sort);

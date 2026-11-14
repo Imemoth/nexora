@@ -1,6 +1,6 @@
 # Nexora status register (single source of truth)
 
-Last updated: 2026-11-14 (Phase 3 final acceptance and main-integration preparation), branch `claude/affectionate-turing-unzmd2`. **This file is the only place that states current phase and slice status, migration history, owner decisions with their approval status, gates and blockers.** Other documents describe design or evidence and link here; where another document disagrees with this register, this register is correct unless it cites that document as the exception. The documentation map is `docs/README.md`.
+Last updated: 2026-11-14 (Phase 4 final acceptance and integration preparation), branch `claude/affectionate-turing-unzmd2`. **This file is the only place that states current phase and slice status, migration history, owner decisions with their approval status, gates and blockers.** Other documents describe design or evidence and link here; where another document disagrees with this register, this register is correct unless it cites that document as the exception. The documentation map is `docs/README.md`.
 
 Rules: (1) a recommendation is not an approval; only entries marked **approved** are decisions; (2) "implemented" requires an evidence path (section 7); (3) hosted changes happen only with explicit owner authorization.
 
@@ -26,7 +26,10 @@ Rules: (1) a recommendation is not an approval; only entries marked **approved**
 | Conflict resolution UI | **Implemented**: actionable indicator, conflict list, side-by-side comparison, valid strategies with confirmation, failure handling, restart and end-to-end tests | `docs/operations/conflict-resolution-ui-record-2026-11-13.md` |
 | Synchronization and Auth activation | **Active only on the TEST project and in the sync-enabled DEVELOPMENT TEST build.** The default build keeps `NEXORA_SYNC` OFF. No production users, no production project | section 4 |
 | **Phase 3 (sync, auth, conflicts)** | **Accepted for the current TEST environment** on the owner's manual Windows acceptance (owner statement 2026-11-14): authentication and session restoration; local data import; automatic bidirectional synchronization; offline editing and automatic recovery; conflict detection; interactive conflict resolution (final CONFLICT-A / CONFLICT-B test resolved with B, applied value confirmed in the hosted database and received by device A); cross-device convergence | `docs/operations/hosted-acceptance-record-2026-11-13.md` plus the owner statement (the manual acceptance has no separate repository record) |
-| Phase 4 Windows reminders, tray, notifications | **Not started**; next development target | section 9 |
+| **Phase 4 (Windows reminders, system tray, notifications)** | **Accepted for the current TEST environment** on the owner's manual Windows acceptance (owner statement 2026-11-14; all six checks passed: reminder creation and notification delivery; minimize to system tray; notification click opens the correct task; snooze, acknowledge and reschedule; reminder persistence without duplicate notifications; single-instance behaviour). Implemented on the development branch; **integration PR to `main` awaiting owner approval** | `docs/operations/phase-4-implementation-record-2026-11-14.md` |
+| Task reminders | **Implemented, device-local** (D-RM): SQLite schema v4 table `task_reminders`, local wall-clock times with DST rules, restart-safe claim, missed handling, snooze, acknowledge, in-app reminder list; never synchronized; no hosted change | implementation record |
+| Windows tray and notifications | **Implemented**: native runner code (tray icon, shell notifications, minimize to tray, single instance, tray Exit), Dart bridge `nexora/desktop` | implementation record |
+| Phase 5 UI/UX modernization | **Not started**; next development target | section 9 |
 
 ## 2. Migration history
 | Repo file | Hosted version | State |
@@ -77,6 +80,9 @@ Status: **approved**, **conditional** (approved with the stated condition still 
 | OD-9 | Ambiguous historical outbox states (`sent`, `failed`) are preserved without automatic replay, version reset or loss | **approved** (owner direction, same gate, item 5); the v2 representation is open (S5-Q1) | S5 doc 3a C3; safety spec M3, M13 |
 | OD-11 | P-1 to P-8 (the S5 baseline) approved for implementation with sixteen requirements: rule R; immutable transmitted operations; v1 rowid order; version 0 for never-synchronized entities; ambiguous history unclassified, no automatic replay; demo records and descendants local-only; dependent operations wait for acknowledgement; 224 KiB per operation and 896 KiB per batch with exact envelope checks; 200-character titles and `meta.user_id`; `request_id` client-side only; verified backup, never deleted automatically; rejected recovery with a new `operation_id`; `blocked_by_conflict` stays a recorded terminal rejection; no local tree deletion with live children until the S3 protocol; unclassified entities never synchronize; `completed_at` derived locally | **approved** (owner authorization "Phase 3 S5 Complete Implementation", 2026-11-12); implemented | S5 doc; implementation record |
 | OD-10 | The corrected Session B report is a proposed technical specification, not an authorization of unresolved owner decisions; its backup-under-lock design, observed-base versus wire-base semantics, immutable operation history and conflict-resolution requirements are to be incorporated | **approved as direction** (same gate, items 1 and 6); **report received and incorporated 2026-11-12** (S5 doc, safety spec, wire contract, this register); the items inside it remain proposals until approved (section 3a) | S5 doc |
+| D-RM | Task reminders are device-local: stored in the active workspace's SQLite file, never synchronized, stated in the details panel | **approved** (owner direction 2026-11-14: keep the device-local model for V1) | Phase 4 record |
+| D-RW | A reminder time is a local wall-clock time resolved at evaluation (DST: skipped hour moves after the gap, repeated hour fires once at the first occurrence) | approved as built (accepted with Phase 4) | Phase 4 record |
+| D-RX | Close button exits the app; minimize goes to the tray; tray menu has Open Nexora and Exit; no notification after the app has fully exited | approved as built (accepted with Phase 4) | Phase 4 record |
 | O-1 | `completed_at`/`status` rule | **resolved as built**: Option A (validate only) | wire contract 7 |
 | O-2 | Response size bound (D-RESP) | **resolved**: bound implemented and applied (S10b, NX004) | `docs/operations/hardening-implementation-record.md` |
 | O-3 | Rate limiting and log retention/purge path | **partly resolved**: per-user throttle (S10a, NX007) applied; log retention and purge remain a production-hardening item, not in V1 test scope | security record R1-R3 |
@@ -130,7 +136,7 @@ Recommendations stay here until the owner approves them; only the decision table
 | Auth activation on the TEST project | **DONE** (owner acceptance 2026-11-14) | public sign-up enabled for development (D-U); production Auth review remains a separate step |
 | Synchronization activation for real users / production project | **NO-GO** | the TEST build is for the owner with the existing test account; no production users and no production hardening initiative |
 | Full SQLite schema v2 and v3 | **GO, done** | local file only; shipped in the DEVELOPMENT TEST build; the user's real database is migrated only with a verified backup |
-| Merge of the development branch into `main` | **HOLD** | consolidated PR prepared for owner review; no merge without explicit owner approval |
+| Merge of the development branch into `main` (Phase 4) | **HOLD** | consolidated Phase 4 PR prepared for owner review; no merge without explicit owner approval (Phase 3 was merged as `9499da6`) |
 
 ## 5. Blocker register
 | ID | Blocker | Class | State |
@@ -184,6 +190,9 @@ S2/S5 wire contract: `docs/architecture/s2-wire-contract.md` (authoritative for 
 | Release candidate | `docs/operations/release-candidate-guide.md`, `docs/operations/release-acceptance-checklist.md`, `docs/operations/v1-rc-evidence-record.md` |
 | Phase 3 final CI (development head `f5e0665`) | Windows `CI` 43437771188; PostgreSQL 17 `supabase-tests` 43430011558; `http-integration` 43429978322; `e2e-sync` 43429978475; `docs-check` 43429978295; sync-enabled DEVELOPMENT TEST build 43429978333 (artifact 14039172511, built from `de8f326`, the last code change). Documentation-only commits after that head are verified by the runs listed in the integration report. |
 | Manual Windows acceptance | owner statement 2026-11-14 (items listed in section 1); no screenshots or logs are stored in the repository |
+| Phase 4 reminders, tray, notifications | `docs/operations/phase-4-implementation-record-2026-11-14.md`; tests `test/features/reminders/`, `test/platform/`, `test/app/reminder_ui_test.dart`, `test/runtime/reminder_runtime_test.dart`; native `windows/runner/desktop_integration.{h,cpp}`; `tool/windows_shell_smoke.ps1` |
+| Phase 4 CI (development head `914435c`, code head; later commits are documentation only) | Windows `CI` 43620789345; sync-enabled DEVELOPMENT TEST build 43621629032 (artifact `nexora-windows-sync-DEVELOPMENT-TEST`); PostgreSQL 17 `supabase-tests` 43621631547; `http-integration` 43621634472; `e2e-sync` 43621637048; `docs-check` 43621640442. The run ids for the final documentation head are in the integration report. |
+| Manual Windows acceptance, Phase 4 | owner statement 2026-11-14 (six checks listed in section 1); no screenshots or logs are stored in the repository |
 
 ## 8. Contradictions that cannot be resolved from approved decisions
 1. ~~The corrected S5 specification text was missing~~ (B-3, B-16): supplied and incorporated 2026-11-12.
@@ -198,8 +207,9 @@ S2/S5 wire contract: `docs/architecture/s2-wire-contract.md` (authoritative for 
 ## 9. Remaining V1 work
 | Item | State |
 |---|---|
-| Phase 4: Windows reminders, system tray, notifications | **Next development target**; not started (the app has no notifications, tray or reminders yet) |
-| Phase 5 and later V1 polish (installer/signing, release packaging decision, performance tuning on real data) | not started; scope to be set by the owner |
+| Phase 5: UI/UX modernization | **Next development target**; not started; scope to be set with the owner |
+| Installer, signing, release packaging decision | not started; scope to be set by the owner |
 | Production hardening (Auth review, JWT expiry, log retention/purge, sign-up policy) | explicitly out of scope for now |
+| Synchronized reminders | not planned for V1 (D-RM); would need a hosted schema change, prepared locally and deployed only with separate authorization |
 | Test environment data (test@test.com, nx-accept-a/b@example.test, about 1,022 test tasks) | kept; must not be deleted without owner instruction |
-| Merge of this branch into `main` | awaiting owner approval of the consolidated PR |
+| Merge of Phase 4 into `main` | awaiting owner approval of the consolidated PR |

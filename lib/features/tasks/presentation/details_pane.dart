@@ -8,6 +8,7 @@ import 'package:nexora/features/tasks/domain/task_status.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
 
 import 'due_date_field.dart';
+import 'reminder_field.dart';
 import 'keymap.dart';
 import 'keyboard_actions.dart';
 import 'strings/app_strings.dart';
@@ -104,6 +105,10 @@ class _TaskEditor extends StatelessWidget {
           today: state.today,
           onChanged: (date) =>
               notifier.editDraft(dueDate: date, clearDueDate: date == null),
+        ),
+        ReminderField(
+          key: ValueKey('reminder-${draft.taskId}'),
+          taskId: draft.taskId,
         ),
         const SizedBox(height: 16),
         SyncedTextField(
