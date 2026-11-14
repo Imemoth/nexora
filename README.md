@@ -10,7 +10,7 @@ Private, offline-first task and notes app. V1 targets a portable Windows ZIP. An
 ## Windows support
 - **Minimum:** Windows 10 (64-bit, x64). Flutter 3.47 lists Windows 10 and 11 as supported and tests Windows 10 in CI. Windows 8 and earlier are unsupported.
 - **Local builds (optional):** Visual Studio with the "Desktop development with C++" workload, and Flutter 3.47.9.
-- **Known limitations (Phase 0):** no notifications, tray, or reminders yet (Phase 4). Corporate policies may block unsigned executables or extraction paths. Test on a clean machine before release.
+- **Known limitations:** no notifications, tray, or reminders yet (Phase 4, the next development target). Corporate policies may block unsigned executables or extraction paths. Test on a clean machine before release.
 
 ## Development
 ```bash
@@ -24,14 +24,17 @@ flutter build windows --release
 ## Portable ZIP
 `tool/package_windows.ps1` packages the full Release bundle (`nexora.exe`, Flutter engine DLLs, and `data/`). Extract the ZIP anywhere and run `nexora.exe`. No installer is needed.
 
-## Phase 1 prototype (in-memory)
-Phase 1 is a Windows desktop prototype over deterministic in-memory demo data. Nothing is saved between runs: restarting the app returns to the demo data. The app makes no network calls and uses no database.
+## Current status
+Project status, migrations, decisions, gates and blockers live in one place: [`docs/coordination/status-register.md`](docs/coordination/status-register.md) (documentation map: [`docs/README.md`](docs/README.md)). In short: the Windows app saves tasks and projects in local SQLite (schema v3) and works fully offline. **Phase 3 (account sign-in, import of local data, automatic bidirectional synchronization, offline recovery, conflict detection and interactive conflict resolution) is implemented and accepted for the current TEST environment** (hosted Supabase TEST project, test accounts only). The default build keeps synchronization **off** (`NEXORA_SYNC` build flag); a separate sync-enabled DEVELOPMENT TEST build (workflow `windows-sync-dev-build.yml`) connects to the TEST project. There are no production users and no production hardening yet. Next development target: Phase 4 (Windows reminders, tray, notifications). User guide: [`docs/operations/release-candidate-guide.md`](docs/operations/release-candidate-guide.md).
+
+## Phase 1 UI (original in-memory prototype description)
+Phase 1 built the Windows desktop UI over deterministic in-memory demo data; since Phase 2A the same UI persists to local SQLite.
 
 What it does: a three-pane layout (sidebar, task tree, details editor), smart views (Today, Next 7 Days, Overdue, All), projects, search, sort, task and subtask creation, editing with Save and Revert, and an unsaved-change gate that protects edits on every navigation and on exit. Between 900 and 1099 px the details editor becomes an overlay. Below 900 px a desktop-only notice is shown.
 
 Keyboard (Ctrl is the command key): Up and Down move through tasks; Right and Left expand or collapse; Enter focuses the title; Ctrl+F searches; Ctrl+N creates a task; Ctrl+Shift+N creates a subtask; Ctrl+S saves; Esc clears a non-empty search first, then returns focus to the list, and in the list clears the selection.
 
-Acceptance: see [`docs/operations/phase-1-acceptance.md`](docs/operations/phase-1-acceptance.md) for CI evidence, artifact checksums and the manual Live Acceptance checklist. Phase 1 is not accepted until the owner completes that checklist.
+Acceptance: see [`docs/operations/phase-1-acceptance.md`](docs/operations/phase-1-acceptance.md) for CI evidence, artifact checksums and the manual Live Acceptance checklist. Phase 1 was accepted by the owner (see the register).
 
 ## Configuration and secrets
-Phase 0 does not connect to Supabase, and the app runs with no configuration. Never commit `.env` files, service-role keys, connection strings, or tokens. Supabase access is documented in `docs/operations/supabase-access.md`.
+The default build runs with no configuration and makes no network calls (synchronization is off). The sync-enabled DEVELOPMENT TEST build is compiled with `--dart-define=NEXORA_SYNC=true` plus the project URL and the **public** anon (publishable) key of the TEST project, both public by design; the user signs in with an account on that project and the session is stored protected by Windows DPAPI. Never commit `.env` files, service-role keys, connection strings, passwords or tokens. Supabase access is documented in `docs/operations/supabase-access.md`.

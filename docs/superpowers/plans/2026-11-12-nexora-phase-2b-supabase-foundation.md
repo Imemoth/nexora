@@ -26,5 +26,5 @@
 - [x] Run `rls_and_contract_test.sql` wrapped so it rolls back (it already ends in `rollback`); expect `passed = 57`.
 - [x] `get_advisors(security)` expect no `rls_auto_enable` findings.
 
-### Task 3: SQLite parity (parallel owner) — in progress: Phase 2A PR #13 (Draft) implements REQ-1, REQ-7, REQ-8; see the status table in `docs/architecture/data-contract.md`
+### Task 3: SQLite parity (parallel owner) — done on the Phase 2A side: PR #13 is merged into `main` (REQ-1, REQ-7, REQ-8 implemented; REQ-2, REQ-3 payload, REQ-4, REQ-6 are S5); see the status table in `docs/architecture/data-contract.md`
 - [ ] Adopt the wire values and `version`/`deleted_at`/`change_seq` columns from the contract; do not modify from this branch.

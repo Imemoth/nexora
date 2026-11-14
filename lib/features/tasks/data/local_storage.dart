@@ -29,14 +29,15 @@ void ensureParentFolder(String path) {
   }
 }
 
-/// The stable local owner id. It is created once and kept in the database, so
-/// every later launch reads the same owner.
+/// The stable local owner id (`meta.user_id`, the one-user binding of the file).
+/// It is created once and kept in the database, so every later launch reads the
+/// same owner. A file migrated from schema 1 carries its old owner over.
 String ownerIdOf(LocalDatabase db, IdGenerator ids) {
-  final rows = db.raw.select("SELECT value FROM meta WHERE key = 'owner_id'");
+  final rows = db.raw.select("SELECT value FROM meta WHERE key = 'user_id'");
   if (rows.isNotEmpty) {
     return rows.single['value'] as String;
   }
   final id = ids.nextId();
-  db.raw.execute("INSERT INTO meta (key, value) VALUES ('owner_id', ?)", [id]);
+  db.raw.execute("INSERT INTO meta (key, value) VALUES ('user_id', ?)", [id]);
   return id;
 }

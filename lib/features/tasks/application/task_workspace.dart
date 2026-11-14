@@ -4,6 +4,7 @@ import 'package:nexora/core/ids/id_generator.dart';
 import 'package:nexora/core/result.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
 import 'package:nexora/features/tasks/domain/clock.dart';
+import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_creation_rules.dart';
@@ -90,6 +91,71 @@ final class TaskWorkspace {
       );
     }
   }
+
+  /// Creates a project the user asked for. Needs a repository that can store
+  /// projects ([ProjectStore]); nothing creates a project automatically.
+  Future<Result<Project, WorkspaceError>> createProject(String name) async {
+    final store = repository;
+    if (store is! ProjectStore) {
+      return const Err(WorkspaceError.saveFailed);
+    }
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      return const Err(WorkspaceError.titleRequired);
+    }
+    if (trimmed.length > maxTitleLength) {
+      return const Err(WorkspaceError.titleTooLong);
+    }
+    final next = _state.projects.isEmpty
+        ? 0
+        : _state.projects
+                  .map((p) => p.position)
+                  .reduce((a, b) => a > b ? a : b) +
+              1;
+    final project = Project(id: ids.nextId(), name: trimmed, position: next);
+    try {
+      await (store as ProjectStore).saveProject(project);
+    } on RepositoryException {
+      return const Err(WorkspaceError.saveFailed);
+    }
+    _publish(_state.copyWith(projects: [..._state.projects, project]));
+    return Ok(project);
+  }
+
+  /// Re-reads projects and tasks after a synchronization changed storage.
+  /// While a draft or a pending decision exists nothing is replaced and false is
+  /// returned: a stale draft must never overwrite what was pulled. The selection
+  /// stays unless the selected task no longer exists.
+  Future<bool> refresh() async {
+    if (_busyForRefresh) {
+      return false;
+    }
+    try {
+      final projects = await repository.loadProjects();
+      final tasks = await repository.loadTasks();
+      if (_busyForRefresh) {
+        return false;
+      }
+      final map = {for (final task in tasks) task.id: task};
+      final selected = _state.selectedTaskId;
+      _publish(
+        _state.copyWith(
+          projects: projects,
+          tasks: map,
+          clearSelectedTask: selected != null && !map.containsKey(selected),
+        ),
+      );
+      return true;
+    } on RepositoryException {
+      return false;
+    }
+  }
+
+  bool get _busyForRefresh =>
+      _state.draft != null ||
+      _state.pending != null ||
+      _saving ||
+      _transitioning;
 
   // ------------------------------------------------- navigation and visibility
 

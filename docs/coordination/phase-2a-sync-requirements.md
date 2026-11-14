@@ -60,17 +60,18 @@ Owner decisions they raised: outbox v2 approval; stored version of a pending cre
 | **REQ-3** | Operation mapping and **field-level patch payload**: `upsert` with `base_version = 0` maps to server `create`, otherwise `update`; `delete` stays `delete`. The payload of an update contains **only the fields that changed** (diff against the stored row), never the whole row | `_taskPayload(task)` and the project payload send every field (lines 178, 219, 263-286) | `update_payload_contains_only_changed_fields`, `create_payload_contains_all_required_fields`, `unchanged_save_writes_no_outbox_row` (already true, keep) |
 | **REQ-4** | New local tables: `sync_state` (singleton row: `user_id`, `device_id`, `cursor`, `state`) and `sync_conflicts_local` (mirror of server conflicts). `meta.user_id` binds the database to one user; the existing `owner_id` constant must come from it | owner id is a constructor value (`_ownerId`); no cursor, no device id, no conflicts | `db_bound_to_single_user`, `device_id_created_once_and_persisted`, `second_user_open_is_refused` |
 | **REQ-5** | A domain write and its outbox row stay in one SQLite transaction (already so). A pull must never overwrite a field that has a pending outbox op; the pulled row is stored but the local pending field keeps its value until push resolves it | `_transaction` wraps both (line 98 onward); no pull path yet | `domain_write_and_outbox_row_atomic` (inject a fault between the two statements), `pull_does_not_overwrite_pending_field` |
-| **REQ-6** | Deleting a task or project with descendants writes tombstone ops **leaf-first, then the parent**, in one transaction, in `seq` order. The server never cascades | `softDeleteTask` tombstones one row only (lines 96-117); descendants stay live | `delete_tree_writes_leaf_first_ops`, `delete_parent_does_not_leave_live_children` |
+| **REQ-6** | Deleting a task or project with descendants writes tombstone ops **leaf-first, then the parent**, in one transaction, in `seq` order. The server never cascades | `softDeleteTask` tombstones one row only (lines 96-117); descendants stay live | `delete_tree_writes_leaf_first_ops`, `delete_parent_does_not_leave_live_children` | **Held until the S3 gate (2026-11-12):** chain atomicity is not provided by S2; see `docs/coordination/phase-3-s5-outbox-v2.md` section 9.
 | **REQ-7** | Align stored values with the contract: `notes` stored as `''` (server column is `NOT NULL DEFAULT ''`); status `review` and `archived` and priority `none` are valid server values now; title max 200 | `_notesColumn` maps `''` to NULL (line 433); plan section 2.1 still says the server rejects `review`/`archived`/`none` and has nullable notes (stale since Phase 2B) | `notes_round_trip_as_empty_string`, `status_and_priority_vocabulary_matches_contract` |
 | **REQ-8** | Ids are UUIDv4, lowercase, hyphenated, validated on write | `RandomIdGenerator`; no validation at the repository boundary | `rejects_malformed_uuid`, `ids_are_lowercase` |
 
 ## 2. Further consequences the Phase 2A owner should know about
-- **Follow-up operations on the same entity.** After op 1 is acknowledged, the server version moves on. The sync engine (S6) rewrites the `base_version` of the next pending op for that entity from the ack just before sending. The outbox therefore needs `depends_on_seq` (or an equivalent per-entity ordering) so the engine knows which op is next for an entity. The repository itself keeps writing `base_version = stored version`.
+- **Follow-up operations on the same entity.** After op 1 is acknowledged, the server version moves on. The sync engine (S6) rewrites the `base_version` of the next pending op for that entity from the ack just before sending. The outbox therefore needs `depends_on_seq` (or an equivalent per-entity ordering) so the engine knows which op is next for an entity. The repository itself keeps writing `base_version = stored version`. **Superseded 2026-11-12 (S5 reconciliation):** rewriting the base from the previous acknowledgement is unsafe in general (it can suppress a real conflict); the dependency-adjusted rule R in `docs/coordination/phase-3-s5-outbox-v2.md` section 2 applies.
 - **`sort_order` type.** Local `INTEGER`, server `numeric`. Integers are a valid subset; keep integers locally.
 - **Timestamps.** `created_at` and `updated_at` are server-owned once synced. Local values are placeholders until the first pull.
 - **Local seed data** (`demo_seeded`) must not enter the outbox (already so per plan 5.3) and must not be pushed.
 
 ## 3. Proposed schema (proposal text only; not applied anywhere)
+> **Corrected 2026-11-12 (owner direction, see `docs/coordination/phase-3-s5-outbox-v2.md` section 3a):** the copy order is the verified v1 `rowid` order, never `created_at_utc`; and v1 rows in the ambiguous states `sent` and `failed` are preserved without automatic replay, version reset or loss, so the state mapping below must **not** be executed as written. The SQL is kept as a schema sketch only.
 ```sql
 -- outbox v2 (forward migration, version 2)
 ALTER TABLE sync_outbox RENAME TO sync_outbox_v1;
@@ -95,8 +96,8 @@ CREATE TABLE sync_outbox (
 INSERT INTO sync_outbox (operation_id, entity_type, entity_id, operation_type, base_version,
   payload_json, created_at_utc, state, attempts, last_error)
 SELECT operation_id, entity_type, entity_id, operation_type, base_version, payload_json,
-  created_at_utc, CASE state WHEN 'acked' THEN 'applied' WHEN 'sent' THEN 'pending' ELSE state END,
-  attempts, last_error FROM sync_outbox_v1 ORDER BY created_at_utc, rowid;
+  created_at_utc, CASE state WHEN 'acked' THEN 'applied' WHEN 'pending' THEN 'pending' END,   -- sent and failed: preserved, mechanism open (S5-Q1)
+  attempts, last_error FROM sync_outbox_v1 WHERE state IN ('acked', 'pending') ORDER BY rowid;
 CREATE TABLE sync_state (
   singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
   user_id TEXT NOT NULL, device_id TEXT NOT NULL,

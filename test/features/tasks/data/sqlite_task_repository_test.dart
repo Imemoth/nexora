@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/features/tasks/application/repository_exception.dart';
 import 'package:nexora/features/tasks/data/local_database.dart';
+import 'package:nexora/features/tasks/data/outbox_store.dart';
 import 'package:nexora/features/tasks/data/sqlite_task_repository.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
 import 'package:nexora/features/tasks/domain/project.dart';
@@ -239,8 +241,9 @@ void main() {
         await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'New'));
 
         expect((await repo.loadTasks()).single.title, 'New');
-        // Decision D-V: a local edit never changes the server-owned version.
-        expect(_rows(db, 'tasks', 'id', 't1').single['version'], 1);
+        // Decision D-V: a local edit never changes the server-owned version. A
+        // never-synchronized entity stores 0 (S5).
+        expect(_rows(db, 'tasks', 'id', 't1').single['version'], 0);
       },
     );
 
@@ -258,7 +261,7 @@ void main() {
       await repo.saveTask(task);
 
       expect(_rows(db, 'tasks', 'id', 't1'), hasLength(1));
-      expect(_rows(db, 'tasks', 'id', 't1').single['version'], 1);
+      expect(_rows(db, 'tasks', 'id', 't1').single['version'], 0);
       // The project insert and the first task insert. Repeats write nothing.
       expect(_outbox(db), hasLength(2));
     });
@@ -368,7 +371,7 @@ void main() {
         expect(await repo.loadTasks(), isEmpty);
         final row = _rows(db, 'tasks', 'id', 't1').single;
         expect(row['deleted_at'], isNotNull);
-        expect(row['version'], 1);
+        expect(row['version'], 0);
       },
     );
 
@@ -424,47 +427,74 @@ void main() {
   });
 
   group('outbox', () {
-    test('each committed change writes one outbox operation with a stable identity', () async {
-      final db = LocalDatabase.open(_newPath());
-      addTearDown(db.close);
-      final repo = _repo(db);
-      await repo.saveProject(
-        const Project(id: 'p1', name: 'Home', position: 0),
-      );
-      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'A'));
-      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'B'));
+    test(
+      'a create is queued once and an edit before sending folds into it',
+      () async {
+        final db = LocalDatabase.open(_newPath());
+        addTearDown(db.close);
+        final repo = _repo(db);
+        await repo.saveProject(
+          const Project(id: 'p1', name: 'Home', position: 0),
+        );
+        await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'A'));
+        await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'B'));
 
-      final rows = _outbox(db);
-      expect(rows, hasLength(3));
-      final operationIds = rows.map((row) => row['operation_id']).toSet();
-      expect(operationIds, hasLength(3));
-      final update = rows.last;
-      expect(update['entity_id'], 't1');
-      // The create is still pending, so the edit's base is 0 (D-V).
-      expect(update['base_version'], 0);
-      expect(update['state'], 'pending');
-      expect(update['created_at_utc'], '2026-11-12T10:00:00.000Z');
-    });
+        final rows = _outbox(db);
+        expect(rows, hasLength(2)); // project create, task create (edit folded)
+        final create = rows.last;
+        expect(create['entity_id'], 't1');
+        expect(create['op_type'], 'create');
+        expect(create['observed_base_version'], 0);
+        expect(create['base_version'], isNull); // not claimed yet
+        expect(create['state'], 'pending');
+        expect(create['created_at_utc'], '2026-11-12T10:00:00.000Z');
+        expect(jsonDecode(create['payload_json'] as String)['title'], 'B');
+        final operationIds = rows.map((row) => row['operation_id']).toSet();
+        expect(operationIds, hasLength(2));
+      },
+    );
 
-    test('once the create is acknowledged, an edit carries the stored server version', () async {
-      final db = LocalDatabase.open(_newPath());
-      addTearDown(db.close);
-      final repo = _repo(db);
-      await repo.saveProject(
-        const Project(id: 'p1', name: 'Home', position: 0),
-      );
-      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'A'));
-      // Phase 3 acknowledges the create with server version 3.
-      db.raw.execute(
-        "UPDATE sync_outbox SET state = 'acked' WHERE entity_id = 't1'",
-      );
-      db.raw.execute("UPDATE tasks SET version = 3 WHERE id = 't1'");
+    test(
+      'after the create is acknowledged an edit is a new patch-only operation',
+      () async {
+        final db = LocalDatabase.open(_newPath());
+        addTearDown(db.close);
+        final repo = _repo(db);
+        final store = OutboxStore(db);
+        await repo.saveProject(
+          const Project(id: 'p1', name: 'Home', position: 0),
+        );
+        await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'A'));
+        // Phase 3: the project create goes first, then the task create (which
+        // waits for its project), each acknowledged with a server version.
+        for (final version in [1, 3]) {
+          final batch = store.claimBatch();
+          expect(batch, hasLength(1));
+          store.acknowledge(
+            [batch.single.operationId],
+            [
+              {
+                'operation_id': batch.single.operationId,
+                'status': 'applied',
+                'version_before': 0,
+                'applied_version': version,
+                'row': {'version': version},
+                'replayed': false,
+              },
+            ],
+          );
+        }
+        expect(_rows(db, 'tasks', 'id', 't1').single['version'], 3);
 
-      await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'B'));
+        await repo.saveTask(makeTask(id: 't1', projectId: 'p1', title: 'B'));
 
-      expect(_outbox(db).last['base_version'], 3);
-      expect(_rows(db, 'tasks', 'id', 't1').single['version'], 3);
-    });
+        final edit = _outbox(db).last;
+        expect(edit['op_type'], 'update');
+        expect(edit['observed_base_version'], 3);
+        expect(jsonDecode(edit['payload_json'] as String), {'title': 'B'});
+        expect(_rows(db, 'tasks', 'id', 't1').single['version'], 3);
+      },
+    );
 
     test('a project edit leaves its stored version unchanged', () async {
       final db = LocalDatabase.open(_newPath());
@@ -475,12 +505,15 @@ void main() {
       );
 
       await repo.saveProject(
-        const Project(id: 'p1', name: 'Home 2', position: 0),
+        const Project(id: 'p1', name: 'Renamed', position: 0),
       );
 
-      expect(_rows(db, 'projects', 'id', 'p1').single['version'], 1);
-      expect(_rows(db, 'projects', 'id', 'p1').single['name'], 'Home 2');
-      expect(_outbox(db).last['base_version'], 0);
+      expect(_rows(db, 'projects', 'id', 'p1').single['version'], 0);
+      expect(_outbox(db), hasLength(1)); // folded into the pending create
+      expect(
+        jsonDecode(_outbox(db).single['payload_json'] as String)['name'],
+        'Renamed',
+      );
     });
 
     test(
@@ -497,9 +530,9 @@ void main() {
         await repo.softDeleteTask('t1');
 
         final row = _rows(db, 'tasks', 'id', 't1').single;
-        expect(row['version'], 1);
+        expect(row['version'], 0);
         expect(row['deleted_at'], isNotNull);
-        expect(_outbox(db).last['operation_type'], 'delete');
+        expect(_outbox(db).last['op_type'], 'delete');
       },
     );
 

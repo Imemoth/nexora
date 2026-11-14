@@ -1,0 +1,52 @@
+name: e2e-sync
+
+# Two independent SQLite databases + the real S5 storage + the real S6 engine against the real S1-S4 migrations on a
+# disposable PostgreSQL 17. No hosted Supabase, no secrets, no network beyond package downloads.
+# PostgREST and JWT verification are NOT exercised (claims are set per transaction): the hosted HTTP gate stays open.
+on:
+  pull_request:
+    paths: ['lib/**', 'test/e2e/**', 'test/support/**', 'supabase/migrations/**', 'pubspec.*', '.github/workflows/e2e-sync.yml']
+  push:
+    branches: ['claude/**']
+    paths: ['lib/**', 'test/e2e/**', 'test/support/**', 'supabase/migrations/**', 'pubspec.*', '.github/workflows/e2e-sync.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.47.9"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      NEXORA_E2E_PG: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Assert PostgreSQL major version is 17
+        run: |
+          v=$(psql -d postgres -tAc "select current_setting('server_version_num')::int")
+          echo "server_version_num=$v"; test "$v" -ge 170000 -a "$v" -lt 180000
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      - run: flutter pub get --enforce-lockfile
+      - name: Two-device end-to-end tests
+        run: flutter test test/e2e --reporter expanded

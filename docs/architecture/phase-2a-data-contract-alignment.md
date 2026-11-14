@@ -10,7 +10,7 @@ Scope: local SQLite only. No Supabase code, no network, no sync engine, no schem
 | Phase 3 requirements for Phase 2A (REQ-1 to REQ-8) | `docs/coordination/phase-2a-sync-requirements.md` | On `main` (PR #14, merged 2026-11-12) and on this branch after the merge of `main`. Read only. |
 | Shared data contract (frozen for Phase 3) | `docs/architecture/data-contract.md` | On `main` (PR #14). Read only. |
 | Phase 3 plan | `docs/superpowers/plans/2026-11-12-nexora-phase-3-sync.md` | On `main` (PR #14). Read only. |
-| Hosted Supabase schema | Hosted project, read only | Migrations `20261112111349`, `20261112115809`, `20261112120132`, `20261112120149` applied. S1 `20261112130000` not applied, as the contract says. |
+| Hosted Supabase schema | Hosted project, read only | Migrations `20261112111349`, `20261112115809`, `20261112120132`, `20261112120149`, F1 `20261112142732` and S1 `20261112151851` applied (as read on 2026-11-12 after this document was written; the original text said S1 was not applied). Current status: `docs/coordination/status-register.md`. |
 
 The source documents reached `main` through PR #14 and were merged into this branch. This branch still does not depend on them at run time.
 
@@ -47,9 +47,9 @@ Acceptance checks named in the request document:
 
 ## 4. Deviations, recorded
 
-- **D-1 Stored version for an unacknowledged create.** The contract says a local create carries base 0. The stored `version` of a new local row is still 1, because migration v1 has `CHECK (version > 0)`, and the server-owned default is 1. Operations derive base 0 from a pending create in the outbox (`_baseVersionFor`). This is correct for the outbox. It is not what the contract text says about the stored value. Resolution needs owner decision 2.
+- **D-1 Stored version for an unacknowledged create.** The contract says a local create carries base 0. The stored `version` of a new local row is still 1, because migration v1 has `CHECK (version > 0)`, and the server-owned default is 1. Operations derive base 0 from a pending create in the outbox (`_baseVersionFor`). This is correct for the outbox. It is not what the contract text says about the stored value. Resolution needs owner decision 2. **2026-11-12:** the Session B spec proposes storing 0 for never-synchronized rows (class S) (`docs/coordination/phase-3-s5-outbox-v2.md` section 5, S5-Q2); **proposed, not decided**.
 - **D-2 Phase 2A plan §2.1.** The plan's "+1 per committed update" and the server conflicts it listed (`review`, `archived`, `none`, nullable notes) are superseded by this document. The server accepts those values now.
-- **D-3 Title CHECK on the table.** The local CHECK allows 500 characters. The repository refuses titles above 200, and the domain caps at 200, so the table is looser than the contract but no path writes more than 200. Tightening the CHECK needs a table rebuild in a migration. Resolution needs owner decision 3.
+- **D-3 Title CHECK on the table.** The local CHECK allows 500 characters. The repository refuses titles above 200, and the domain caps at 200, so the table is looser than the contract but no path writes more than 200. Tightening the CHECK needs a table rebuild in a migration. Resolution needs owner decision 3. **2026-11-12:** the Session B spec proposes tightening to 200 in v2 and aborting migration on longer titles (`docs/coordination/phase-3-s5-outbox-v2.md`, S5-Q3); **proposed, not decided**.
 - **D-4 Outbox rows are not coalesced.** One row is written per committed change, as in migration v1. Phase 3 coalesces per entity when it sends.
 
 ## 5. Owner decisions (2026-11-12) and deferred Phase 3 items

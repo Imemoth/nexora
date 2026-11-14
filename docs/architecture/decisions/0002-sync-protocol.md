@@ -23,14 +23,29 @@ Status: accepted by the owner on 2026-11-12 (conditions below). Plan: `docs/supe
 
 ## Consequences
 - Direct write privileges are unchanged until the S9 activation gate. Synchronization stays disabled and the flag stays OFF.
-- Hosted migrations need separate owner approval; S1 is not applied.
+- Hosted migrations need separate owner approval. (Update 2026-11-12: F1 and S1 were applied to hosted under separate approvals; S2 is not applied. Current status: `docs/coordination/status-register.md`.)
 
 ## Implementation status (2026-11-12)
 | Decision | Status |
 |---|---|
-| D-V | Implemented in Phase 2A (PR #13, Draft). Server side applied |
-| D-C, D-L, D-O, D-D | Prepared in S1 (PostgreSQL 17 CI green), not applied |
-| D-A, D-P, D-T, D-E, D-N | Server enforcement in S2-S3, not built. Tombstone revert block is applied |
-| D-R | S2 gate, not built |
+| D-V | Implemented in Phase 2A (merged to `main`, PR #13). Server side applied |
+| D-C, D-L, D-O, D-D | Applied to hosted in S1 (`20261112151851`) and verified |
+| D-A, D-P, D-T, D-E, D-N | Server enforcement of D-A, D-C, D-N, D-T/D-E (update after delete) and the minimal D-P delete rules implemented in S2, **locally tested, not applied to hosted**; S3 refinements not built. Tombstone revert block is applied |
+| D-R | Implemented and tested locally in S2 (not hosted); hosted HTTP-level verification is part of the S2 gate |
 | D-S, D-U, D-F | Not started / unaudited. Synchronization is disabled |
 See the status table in `docs/architecture/data-contract.md`.
+
+## Reconciliation with the S5 specification (2026-11-12)
+Checked line by line against `docs/coordination/phase-3-s5-outbox-v2.md` (Session B corrected specification, proposed). **No decision in this ADR is changed.**
+| Decision | S5 consistency |
+|---|---|
+| D-V | Consistent: local `version` is never bumped by a local edit. The proposed class S rule stores 0 for never-synchronized rows (proposal S5-Q2); that is a representation of "never synced", not a local bump |
+| D-C, D-N | Consistent: absent key = unchanged, explicit `null` clears; notes conflict as a whole field |
+| D-A | Consistent: a conflict applies nothing; the client mirrors the conflict, never a partial result |
+| D-P | The client still deletes leaf-first and the server never cascades. The report adds that S2 gives a chain no atomicity, so **sending a chain is held until the S3 gate** and a local precheck (proposal O-13) would refuse deleting a task with live children until then. This is a sequencing constraint, not a change of D-P |
+| D-T, D-E | Consistent: tombstones permanent; update after delete is a conflict; no undelete; rejections and conflicts keep their history |
+| D-O | Consistent: an auto-resolved `sort_order` carries `conflict_id` and `auto_resolved`; the local mirror records `resolution_source = auto_policy` |
+| D-D | Consistent: device registration precedes any push; the 10-device cap and the missing revoke RPC are tracked as O-4 |
+| D-F | Consistent: nothing in S5 activates synchronization; the flag stays OFF |
+| D-L, D-R | Not affected by S5 |
+

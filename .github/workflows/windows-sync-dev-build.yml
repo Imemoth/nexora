@@ -1,0 +1,128 @@
+# (conflict screens build) touch to rebuild
+# DEVELOPMENT TEST build with synchronization ENABLED (NEXORA_SYNC=true) for the Nexora hosted TEST project.
+# Manual only. It never replaces the normal default-OFF release build (ci.yml). It embeds the project's public URL and
+# its public (anon) key only; a key whose role is not `anon` is refused by the app and by this workflow. No secret is used.
+name: windows-sync-dev-build
+
+on:
+  workflow_dispatch:
+  # A workflow that exists only on a feature branch cannot be dispatched through the API, so a push to this branch that
+  # touches this very file also starts it (it never runs for any other change).
+  push:
+    branches: [claude/affectionate-turing-unzmd2]
+    paths: ['.github/workflows/windows-sync-dev-build.yml']
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.47.9"
+  DART_VERSION: "3.13.7"
+  # Public values of the TEST project (the anon key is public by design; Row Level Security and the sync RPCs protect data).
+  NEXORA_SUPABASE_URL: "https://uicccaawtjvqggeufbez.supabase.co"
+  NEXORA_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVpY2NjYWF3dGp2cWdnZXVmYmV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ0MDQxMzUsImV4cCI6MjEwOTk4MDEzNX0.7IL6xJ5TMilYDPoTv9hq3IhUGg6GIpDjMnf5rlySy2I"
+
+jobs:
+  windows-sync-dev:
+    name: Windows sync-enabled DEVELOPMENT TEST build
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Flutter (pinned)
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Verify Flutter and Dart versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter --version
+          flutter_line="$(flutter --version | head -n 1)"
+          dart_line="$(dart --version 2>&1 | head -n 1)"
+          case "$flutter_line" in *"Flutter ${FLUTTER_VERSION} "*) ;; *) echo "Flutter version mismatch"; exit 1;; esac
+          case "$dart_line" in *"${DART_VERSION}"*) ;; *) echo "Dart version mismatch"; exit 1;; esac
+
+      - name: Resolve dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Refuse any key that is not the public anon key
+        shell: pwsh
+        run: |
+          $part = $env:NEXORA_SUPABASE_ANON_KEY.Split('.')[1].Replace('-', '+').Replace('_', '/')
+          while ($part.Length % 4 -ne 0) { $part += '=' }
+          $claims = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($part)) | ConvertFrom-Json
+          if ($claims.role -ne 'anon') { throw "refusing to embed a key with role '$($claims.role)'" }
+          Write-Host "key role: $($claims.role) (ok)"
+
+      - name: Build Windows release with synchronization enabled
+        shell: pwsh
+        run: >
+          flutter build windows --release
+          --dart-define=NEXORA_SYNC=true
+          --dart-define=NEXORA_SUPABASE_URL=$env:NEXORA_SUPABASE_URL
+          --dart-define=NEXORA_SUPABASE_ANON_KEY=$env:NEXORA_SUPABASE_ANON_KEY
+
+      - name: Prove the sign-in lifecycle inside the real GUI executable
+        # Launches the packaged nexora.exe (a GUI process without a console, like a double-click) in its self-test mode:
+        # protected-store round trips (PowerShell and native), then sign-in, restart, sign-out and sign-in again through
+        # the real runtime against a throw-away folder. No network, no UI, no secrets. The step prints the step log.
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force ./dist | Out-Null
+          $exe = (Resolve-Path 'build\windows\x64\runner\Release\nexora.exe').Path
+          $out = Join-Path $env:RUNNER_TEMP 'auth-selftest.log'
+          if (Test-Path $out) { Remove-Item $out }
+          $env:NEXORA_AUTH_SELFTEST = $out
+          $p = Start-Process -FilePath $exe -PassThru
+          $finished = $p.WaitForExit(150000)
+          if (-not $finished) { Write-Host 'SELFTEST DID NOT FINISH IN 150 s - the process is stuck'; $p.Kill() }
+          Remove-Item Env:NEXORA_AUTH_SELFTEST
+          Write-Host "finished=$finished exit=$($p.ExitCode)"
+          if (Test-Path $out) { Get-Content $out; Copy-Item $out ./dist/auth-selftest.log } else { Write-Host 'no self-test log was written' }
+          if (-not $finished -or $p.ExitCode -ne 0) { throw 'sign-in self-test failed' }
+
+      - name: Package and smoke-test portable ZIP
+        shell: pwsh
+        run: ./tool/package_windows.ps1 -OutputDir ./dist
+
+      - name: Name the artifact clearly and record hashes
+        shell: pwsh
+        run: |
+          Rename-Item ./dist/nexora-windows-portable.zip nexora-windows-sync-DEVELOPMENT-TEST.zip
+          $zip = './dist/nexora-windows-sync-DEVELOPMENT-TEST.zip'
+          $lines = @("$((Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower())  nexora-windows-sync-DEVELOPMENT-TEST.zip", "commit  $env:GITHUB_SHA", "build  DEVELOPMENT TEST, NEXORA_SYNC=true, project $env:NEXORA_SUPABASE_URL (anon key only)")
+          $tmp = Join-Path $env:RUNNER_TEMP 'dev-contents'
+          Expand-Archive -Path $zip -DestinationPath $tmp -Force
+          Get-ChildItem -Path $tmp -Recurse -File | Sort-Object FullName | ForEach-Object {
+            $rel = $_.FullName.Substring($tmp.Length + 1).Replace('\', '/')
+            $lines += "$((Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower())  $rel"
+          }
+          $lines | Set-Content -Path ./dist/SHA256SUMS.txt -Encoding ascii
+          @(
+            'NEXORA DEVELOPMENT TEST BUILD - synchronization is ENABLED. Not a production release.',
+            "Commit: $env:GITHUB_SHA",
+            'Server: the Nexora hosted TEST project (public URL and anon key only).',
+            'Use: extract, run nexora.exe, choose Sign in, use the existing test account.',
+            'The app never syncs until you sign in. Your local workspace is never uploaded automatically;',
+            'use Import local data (preview first) if you want to copy local projects into the account.'
+          ) | Set-Content -Path ./dist/README-DEVELOPMENT-TEST.txt -Encoding ascii
+          Get-Content ./dist/SHA256SUMS.txt | Select-Object -First 3 | Out-File -Append -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
+      - name: Upload DEVELOPMENT TEST artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nexora-windows-sync-DEVELOPMENT-TEST
+          path: |
+            dist/nexora-windows-sync-DEVELOPMENT-TEST.zip
+            dist/SHA256SUMS.txt
+            dist/README-DEVELOPMENT-TEST.txt
+            dist/auth-selftest.log
+          if-no-files-found: error
+          retention-days: 30

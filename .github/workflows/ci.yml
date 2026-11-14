@@ -6,6 +6,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Manual run on an exact commit of a feature branch (no PR needed); same gates, no secrets.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -56,6 +58,13 @@ jobs:
       - name: Check formatting
         run: dart format --output=none --set-exit-if-changed .
 
+      - name: Show formatting diff (only when the check failed)
+        if: failure()
+        run: |
+          dart format --output=write .
+          git --no-pager diff --stat
+          git --no-pager diff
+
       - name: Analyze
         run: flutter analyze
 
@@ -73,10 +82,27 @@ jobs:
         shell: pwsh
         run: ./tool/package_windows.ps1 -OutputDir ./dist
 
+      - name: Record SHA-256 of the ZIP and of every file in it
+        shell: pwsh
+        run: |
+          $zip = './dist/nexora-windows-portable.zip'
+          $lines = @("$((Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower())  nexora-windows-portable.zip", "commit  $env:GITHUB_SHA")
+          $tmp = Join-Path $env:RUNNER_TEMP 'rc-contents'
+          Expand-Archive -Path $zip -DestinationPath $tmp -Force
+          Get-ChildItem -Path $tmp -Recurse -File | Sort-Object FullName | ForEach-Object {
+            $rel = $_.FullName.Substring($tmp.Length + 1).Replace('\', '/')
+            $lines += "$((Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower())  $rel"
+          }
+          $lines | Set-Content -Path ./dist/SHA256SUMS.txt -Encoding ascii
+          $lines | Select-Object -First 2 | ForEach-Object { Write-Host $_ }
+          Get-Content ./dist/SHA256SUMS.txt | Select-Object -First 2 | Out-File -Append -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
       - name: Upload portable ZIP
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nexora-windows-portable
-          path: dist/nexora-windows-portable.zip
+          path: |
+            dist/nexora-windows-portable.zip
+            dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14

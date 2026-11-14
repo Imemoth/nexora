@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:nexora/core/ids/id_generator.dart';
 import 'package:nexora/core/ids/random_id_generator.dart';
 import 'package:nexora/features/tasks/application/repository_exception.dart';
@@ -12,7 +10,9 @@ import 'package:nexora/features/tasks/domain/task_status.dart';
 import 'package:nexora/features/tasks/domain/task_validation.dart';
 import 'package:sqlite3/sqlite3.dart';
 
+import 'entity_patch.dart';
 import 'local_database.dart';
+import 'outbox_store.dart';
 
 /// Durable [TaskRepository] over a [LocalDatabase].
 ///
@@ -20,16 +20,25 @@ import 'local_database.dart';
 /// `sync_outbox` operation commit together, and a failed write rolls back both.
 /// The returned future completes only after `COMMIT`, so a successful save means
 /// the change is durable.
-final class SqliteTaskRepository implements TaskRepository {
+///
+/// Phase 3 S5 (schema v2): new entities store version 0 (never synchronized);
+/// an edit queues a changed-fields-only patch that folds into a pending
+/// operation; demo data and everything created under it is `local_only`;
+/// unclassified entities (migrated legacy rows) never produce operations; a
+/// task with live children cannot be deleted until the S3 atomicity protocol.
+final class SqliteTaskRepository implements TaskRepository, ProjectStore {
   SqliteTaskRepository(
     this._db, {
     required this.ownerId,
     DateTime Function()? now,
     IdGenerator? ids,
   }) : _now = now ?? (() => DateTime.now().toUtc()),
-       _ids = ids ?? RandomIdGenerator();
+       _ids = ids ?? RandomIdGenerator() {
+    _outbox = OutboxStore(_db, ids: _ids, now: _now);
+  }
 
   final LocalDatabase _db;
+  late final OutboxStore _outbox;
 
   /// The owning user. Written to every local row.
   final String ownerId;
@@ -94,13 +103,48 @@ final class SqliteTaskRepository implements TaskRepository {
   }
 
   /// Inserts or updates a project, in one transaction with its outbox entry.
+  @override
   Future<void> saveProject(Project project) async {
     _run(() => _transaction(() => _upsertProject(project)));
   }
 
-  /// Marks a task deleted. The row is kept and a delete operation is queued. The
-  /// server-owned version is not changed by a local edit. Deleting an unknown or
-  /// already deleted task is an error.
+  /// Writes many projects and tasks in ONE transaction: all of them or none (used
+  /// by the local-data import). [tasks] must list every parent before its
+  /// children. [meta] is written in the same transaction. [beforeCommit] is a test
+  /// seam that runs after the writes and before COMMIT; if it throws, everything
+  /// is rolled back.
+  Future<void> importBatch({
+    required List<Project> projects,
+    required List<Task> tasks,
+    Map<String, String> meta = const {},
+    void Function()? beforeCommit,
+  }) async {
+    for (final task in tasks) {
+      if (task.title.length > maxTitleLength) {
+        throw RepositoryException('title exceeds $maxTitleLength characters');
+      }
+    }
+    _run(
+      () => _transaction(() {
+        for (final project in projects) {
+          _upsertProject(project);
+        }
+        for (final task in tasks) {
+          _upsertTask(task);
+        }
+        for (final entry in meta.entries) {
+          _setMeta(entry.key, entry.value);
+        }
+        beforeCommit?.call();
+      }),
+    );
+  }
+
+  /// Marks a task deleted. The row is kept and, for a synchronized task, a delete
+  /// operation is queued. The server-owned version is not changed by a local edit.
+  /// Deleting an unknown or already deleted task is an error. A task with live
+  /// children is refused (tree deletion needs the S3 atomicity protocol, so the
+  /// server never sees a half-deleted tree).
   Future<void> softDeleteTask(String id) async {
     _run(
       () => _transaction(() {
@@ -108,26 +152,104 @@ final class SqliteTaskRepository implements TaskRepository {
         if (row == null || row['deleted_at'] != null) {
           throw RepositoryException('no live task $id to delete');
         }
-        final version = row['version'] as int;
+        final children = _db.raw.select(
+          'SELECT 1 FROM tasks WHERE parent_id = ? AND deleted_at IS NULL LIMIT 1',
+          [id],
+        );
+        if (children.isNotEmpty) {
+          throw RepositoryException('task $id has live subtasks');
+        }
         final now = _iso();
         _db.raw.execute(
           'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?',
           [now, now, id],
         );
-        _enqueue(
-          entityType: 'task',
-          entityId: id,
-          operationType: 'delete',
-          baseVersion: _baseVersionFor('task', id, version),
-          payload: {'id': id, 'deleted_at': now},
-        );
+        if (row['sync_scope'] == 'synced') {
+          _outbox.recordDelete(
+            entityType: 'task',
+            entityId: id,
+            storedVersion: row['version'] as int,
+          );
+        }
       }),
     );
   }
 
+  /// Deletes a task together with every live descendant in one transaction
+  /// (S3 atomic tree delete). Each entity is tombstoned locally; for a
+  /// synchronized task one delete operation lists the whole subtree, which the
+  /// server applies completely or not at all. At most 1,000 descendants.
+  Future<void> softDeleteTaskTree(String id) async {
+    _run(() => _transaction(() => _deleteTree('task', id)));
+  }
+
+  /// Deletes a project together with all its live tasks, like [softDeleteTaskTree].
+  Future<void> softDeleteProjectTree(String id) async {
+    _run(() => _transaction(() => _deleteTree('project', id)));
+  }
+
+  void _deleteTree(String entityType, String id) {
+    final table = entityType == 'project' ? 'projects' : 'tasks';
+    final rows = _db.raw.select('SELECT * FROM $table WHERE id = ?', [id]);
+    if (rows.isEmpty || rows.single['deleted_at'] != null) {
+      throw RepositoryException('no live $entityType $id to delete');
+    }
+    final root = rows.single;
+    final descendants = entityType == 'project'
+        ? _db.raw.select(
+            'SELECT id, sync_scope FROM tasks WHERE project_id = ? AND deleted_at IS NULL',
+            [id],
+          )
+        : _db.raw.select(
+            'WITH RECURSIVE d(id) AS ('
+            'SELECT id FROM tasks WHERE parent_id = ? AND deleted_at IS NULL '
+            'UNION ALL SELECT t.id FROM tasks t JOIN d ON t.parent_id = d.id WHERE t.deleted_at IS NULL) '
+            'SELECT t.id, t.sync_scope FROM tasks t JOIN d ON d.id = t.id',
+            [id],
+          );
+    if (descendants.length > 1000) {
+      throw RepositoryException(
+        '$entityType $id has more than 1000 live descendants; delete part of it first',
+      );
+    }
+    final now = _iso();
+    for (final row in descendants) {
+      _db.raw.execute(
+        'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?',
+        [now, now, row['id']],
+      );
+    }
+    _db.raw.execute(
+      'UPDATE $table SET deleted_at = ?, updated_at = ? WHERE id = ?',
+      [now, now, id],
+    );
+    if (root['sync_scope'] != 'synced') {
+      return;
+    }
+    final syncedIds = [
+      for (final row in descendants)
+        if (row['sync_scope'] == 'synced') row['id'] as String,
+    ];
+    if (syncedIds.isEmpty) {
+      _outbox.recordDelete(
+        entityType: entityType,
+        entityId: id,
+        storedVersion: root['version'] as int,
+      );
+    } else {
+      _outbox.recordDeleteTree(
+        entityType: entityType,
+        entityId: id,
+        storedVersion: root['version'] as int,
+        descendantIds: syncedIds,
+      );
+    }
+  }
+
   /// Writes the demo projects and tasks in one transaction, only into an empty
-  /// database that was never seeded. Seeded rows are local and add no outbox
-  /// entries, so they never sync. Returns false, and changes nothing, otherwise.
+  /// database that was never seeded. Seeded rows are `local_only`: they add no
+  /// outbox entries and never synchronize, and neither does anything created
+  /// under them later. Returns false, and changes nothing, otherwise.
   Future<bool> seedDemoData({
     required List<Project> projects,
     required List<Task> tasks,
@@ -141,12 +263,12 @@ final class SqliteTaskRepository implements TaskRepository {
         for (final project in projects) {
           _db.raw.execute(
             'INSERT INTO projects (id, owner_id, name, sort_order, version, '
-            'created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)',
+            "sync_scope, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 'local_only', ?, ?)",
             [project.id, ownerId, project.name, project.position, now, now],
           );
         }
         for (final task in tasks) {
-          _insertTaskRow(task, now);
+          _insertTaskRow(task, now, 'local_only');
         }
         _setMeta('demo_seeded', now);
         return true;
@@ -177,14 +299,17 @@ final class SqliteTaskRepository implements TaskRepository {
     final row = _taskRow(task.id);
     final now = _iso();
     if (row == null) {
-      _insertTaskRow(task, now);
-      _enqueue(
-        entityType: 'task',
-        entityId: task.id,
-        operationType: 'upsert',
-        baseVersion: 0,
-        payload: _taskPayload(task),
-      );
+      final scope = _scopeForNewTask(task);
+      _insertTaskRow(task, now, scope);
+      if (scope == 'synced') {
+        _outbox.recordCreate(
+          entityType: 'task',
+          entityId: task.id,
+          patch: createPatchFromRow('task', _taskRow(task.id)!),
+          parentType: task.parentId == null ? 'project' : 'task',
+          parentId: task.parentId ?? task.projectId,
+        );
+      }
       return;
     }
     if (row['deleted_at'] != null) {
@@ -193,19 +318,45 @@ final class SqliteTaskRepository implements TaskRepository {
     if (_sameTask(row, task)) {
       return; // Repeated save of identical content writes nothing.
     }
-    final version = row['version'] as int;
-    final becameDone =
-        task.status == TaskStatus.done &&
-        row['status'] != _statusColumn(TaskStatus.done);
-    final completedAt = task.status == TaskStatus.done
-        ? (becameDone ? now : row['completed_at'] as String?)
-        : null;
+    if (row['project_id'] != task.projectId) {
+      throw RepositoryException(
+        'task ${task.id} cannot move to another project',
+      );
+    }
+    // completed_at is derived: set exactly while the task is done (local time,
+    // kept once set), null for every other status including archived.
+    final done = task.status == TaskStatus.done;
+    final completedAt = done ? ((row['completed_at'] as String?) ?? now) : null;
+    final changes = <String, Object?>{};
+    if (row['parent_id'] != task.parentId) {
+      changes['parent_id'] = task.parentId;
+    }
+    if (row['title'] != task.title) {
+      changes['title'] = task.title;
+    }
+    if (((row['notes'] as String?) ?? '') != task.notes) {
+      changes['notes'] = task.notes;
+    }
+    if (row['status'] != _statusColumn(task.status)) {
+      changes['status'] = _statusColumn(task.status);
+    }
+    if (row['priority'] != _priorityColumn(task.priority)) {
+      changes['priority'] = _priorityColumn(task.priority);
+    }
+    if (row['due_date'] != task.dueDate?.toIsoString()) {
+      changes['due_date'] = task.dueDate?.toIsoString();
+    }
+    if (row['completed_at'] != completedAt) {
+      changes['completed_at'] = completedAt;
+    }
+    if (row['sort_order'] != task.position) {
+      changes['sort_order'] = task.position;
+    }
     _db.raw.execute(
-      'UPDATE tasks SET project_id = ?, parent_id = ?, title = ?, notes = ?, '
+      'UPDATE tasks SET parent_id = ?, title = ?, notes = ?, '
       'status = ?, priority = ?, due_date = ?, completed_at = ?, sort_order = ?, '
       'updated_at = ? WHERE id = ?',
       [
-        task.projectId,
         task.parentId,
         task.title,
         task.notes,
@@ -218,20 +369,46 @@ final class SqliteTaskRepository implements TaskRepository {
         task.id,
       ],
     );
-    _enqueue(
-      entityType: 'task',
-      entityId: task.id,
-      operationType: 'upsert',
-      baseVersion: _baseVersionFor('task', task.id, version),
-      payload: _taskPayload(task),
-    );
+    if (row['sync_scope'] == 'synced') {
+      _outbox.recordEdit(
+        entityType: 'task',
+        entityId: task.id,
+        patch: changes,
+        storedVersion: row['version'] as int,
+      );
+    }
   }
 
-  void _insertTaskRow(Task task, String now) {
+  /// A new task is synchronized unless its project or parent is `local_only` or
+  /// `unclassified`, in which case it inherits that scope (so descendants of demo
+  /// data stay local, and nothing is ever sent for a parent the server lacks).
+  String _scopeForNewTask(Task task) {
+    final project = _db.raw.select(
+      'SELECT sync_scope FROM projects WHERE id = ?',
+      [task.projectId],
+    );
+    if (project.isEmpty) {
+      throw RepositoryException('unknown project ${task.projectId}');
+    }
+    final projectScope = project.single['sync_scope'] as String;
+    if (projectScope != 'synced') {
+      return projectScope;
+    }
+    final parentId = task.parentId;
+    if (parentId != null) {
+      final parent = _taskRow(parentId);
+      if (parent != null && parent['sync_scope'] != 'synced') {
+        return parent['sync_scope'] as String;
+      }
+    }
+    return 'synced';
+  }
+
+  void _insertTaskRow(Task task, String now, String scope) {
     _db.raw.execute(
       'INSERT INTO tasks (id, project_id, owner_id, parent_id, title, notes, '
-      'status, priority, due_date, completed_at, sort_order, version, created_at, '
-      'updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)',
+      'status, priority, due_date, completed_at, sort_order, version, sync_scope, '
+      'created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)',
       [
         task.id,
         task.projectId,
@@ -244,6 +421,7 @@ final class SqliteTaskRepository implements TaskRepository {
         task.dueDate?.toIsoString(),
         task.status == TaskStatus.done ? now : null,
         task.position,
+        scope,
         now,
         now,
       ],
@@ -253,82 +431,46 @@ final class SqliteTaskRepository implements TaskRepository {
   void _upsertProject(Project project) {
     final now = _iso();
     final existing = _db.raw.select(
-      'SELECT version FROM projects WHERE id = ?',
+      'SELECT version, sync_scope FROM projects WHERE id = ?',
       [project.id],
     );
     if (existing.isEmpty) {
       _db.raw.execute(
-        'INSERT INTO projects (id, owner_id, name, sort_order, version, created_at, '
-        'updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)',
+        'INSERT INTO projects (id, owner_id, name, sort_order, version, sync_scope, '
+        "created_at, updated_at) VALUES (?, ?, ?, ?, 0, 'synced', ?, ?)",
         [project.id, ownerId, project.name, project.position, now, now],
       );
-      _enqueue(
+      _outbox.recordCreate(
         entityType: 'project',
         entityId: project.id,
-        operationType: 'upsert',
-        baseVersion: 0,
-        payload: {
-          'id': project.id,
-          'name': project.name,
-          'sort_order': project.position,
-        },
+        patch: {'name': project.name, 'sort_order': project.position},
       );
       return;
     }
-    final version = existing.single['version'] as int;
+    final current = _db.raw.select(
+      'SELECT name, sort_order FROM projects WHERE id = ?',
+      [project.id],
+    ).single;
+    final changes = <String, Object?>{};
+    if (current['name'] != project.name) {
+      changes['name'] = project.name;
+    }
+    if (current['sort_order'] != project.position) {
+      changes['sort_order'] = project.position;
+    }
     _db.raw.execute(
       'UPDATE projects SET name = ?, sort_order = ?, updated_at = ? '
       'WHERE id = ?',
       [project.name, project.position, now, project.id],
     );
-    _enqueue(
-      entityType: 'project',
-      entityId: project.id,
-      operationType: 'upsert',
-      baseVersion: _baseVersionFor('project', project.id, version),
-      payload: {
-        'id': project.id,
-        'name': project.name,
-        'sort_order': project.position,
-      },
-    );
-  }
-
-  /// The `base_version` for a new operation on an entity (decision D-V).
-  ///
-  /// Local edits never change the stored version. Once a create is queued but not
-  /// yet acknowledged by the server, the entity has no server version, so its
-  /// operations carry 0. Otherwise the stored last-known server version is used.
-  int _baseVersionFor(String entityType, String entityId, int storedVersion) {
-    final pending = _db.raw.select(
-      "SELECT 1 FROM sync_outbox WHERE entity_type = ? AND entity_id = ? "
-      "AND base_version = 0 AND state IN ('pending', 'sent') LIMIT 1",
-      [entityType, entityId],
-    );
-    return pending.isEmpty ? storedVersion : 0;
-  }
-
-  void _enqueue({
-    required String entityType,
-    required String entityId,
-    required String operationType,
-    required int baseVersion,
-    required Map<String, Object?> payload,
-  }) {
-    _db.raw.execute(
-      'INSERT INTO sync_outbox (operation_id, entity_type, entity_id, '
-      'operation_type, base_version, payload_json, created_at_utc, state, attempts) '
-      "VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0)",
-      [
-        _ids.nextId(),
-        entityType,
-        entityId,
-        operationType,
-        baseVersion,
-        jsonEncode(payload),
-        _iso(),
-      ],
-    );
+    if (existing.single['sync_scope'] == 'synced') {
+      _outbox.recordEdit(
+        entityType: 'project',
+        entityId: project.id,
+        patch: changes,
+        storedVersion: existing.single['version'] as int,
+      );
+    }
   }
 
   // ------------------------------------------------------------ helpers
@@ -351,18 +493,6 @@ final class SqliteTaskRepository implements TaskRepository {
         row['due_date'] == task.dueDate?.toIsoString() &&
         row['sort_order'] == task.position;
   }
-
-  Map<String, Object?> _taskPayload(Task task) => {
-    'id': task.id,
-    'project_id': task.projectId,
-    'parent_id': task.parentId,
-    'title': task.title,
-    'notes': task.notes,
-    'status': _statusColumn(task.status),
-    'priority': _priorityColumn(task.priority),
-    'due_date': task.dueDate?.toIsoString(),
-    'sort_order': task.position,
-  };
 
   bool _hasLiveRows() {
     final rows = _db.raw.select(

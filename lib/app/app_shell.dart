@@ -7,7 +7,11 @@ import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
 import 'package:nexora/features/tasks/presentation/tasks_scope.dart';
 import 'package:nexora/features/tasks/presentation/unsaved_changes_host.dart';
 
+import 'account_actions.dart';
+import 'account_panel.dart';
+import 'conflict_panel.dart';
 import 'details_overlay.dart';
+import 'sync_panel.dart';
 import 'sidebar_nav.dart';
 
 /// Responsive desktop layout.
@@ -18,7 +22,14 @@ import 'sidebar_nav.dart';
 /// - Below 900 px: the desktop-only notice is shown, the list stays usable and
 ///   no overlay opens.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.onExitApp});
+  const AppShell({
+    super.key,
+    this.onExitApp,
+    this.syncPanel,
+    this.accountPanel,
+    this.importPanel,
+    this.conflictPanel,
+  });
 
   static const double sidebarWidth = 240;
   static const double detailsWidth = 360;
@@ -27,6 +38,18 @@ class AppShell extends StatefulWidget {
 
   /// Passed to the unsaved-change host. Tests inject a fake exit.
   final void Function()? onExitApp;
+
+  /// Shown only when synchronization is enabled and wired; null by default.
+  final SyncPanel? syncPanel;
+
+  /// Shown only together with [syncPanel]; null by default.
+  final AccountPanel? accountPanel;
+
+  /// Non-null only for a signed-in account workspace.
+  final ImportPanel? importPanel;
+
+  /// Non-null only for a signed-in account workspace.
+  final ConflictPanel? conflictPanel;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -101,9 +124,36 @@ class _AppShellState extends State<AppShell> {
               ],
             );
 
+            final account = widget.accountPanel;
+            final sync = widget.syncPanel;
+            final emptyAccount =
+                widget.importPanel != null &&
+                !state.loading &&
+                state.projects.isEmpty;
+            final shown = emptyAccount
+                ? EmptyAccountNotice(importPanel: widget.importPanel)
+                : body;
+            final content = (account == null && sync == null)
+                ? shown
+                : Column(
+                    children: [
+                      if (account != null)
+                        AccountBar(
+                          panel: account,
+                          importPanel: widget.importPanel,
+                        ),
+                      Expanded(child: shown),
+                      if (sync != null)
+                        SyncStatusBar(
+                          panel: sync,
+                          conflictPanel: widget.conflictPanel,
+                        ),
+                    ],
+                  );
+
             return Stack(
               children: [
-                body,
+                content,
                 if (overlayOpen)
                   Positioned(
                     top: 0,

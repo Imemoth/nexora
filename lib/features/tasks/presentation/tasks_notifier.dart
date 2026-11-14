@@ -7,6 +7,7 @@ import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/application/workspace_state.dart';
 import 'package:nexora/features/tasks/application/workspace_transition.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
+import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_ordering.dart';
@@ -31,6 +32,9 @@ final class TasksNotifier extends ChangeNotifier {
 
   void selectProject(String projectId) =>
       _workspace.requestSelectProject(projectId);
+
+  Future<Result<Project, WorkspaceError>> createProject(String name) =>
+      _workspace.createProject(name);
 
   void selectTask(String? taskId) => _workspace.requestSelectTask(taskId);
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status: APPROVED by the owner on 2026-11-12 (see `docs/architecture/decisions/0002-sync-protocol.md` for conditions). S0 and S1 are authorized; S1 and the standalone `guard_row` fix (`20261112125000`) are implemented on the dev branch, pass PostgreSQL 17 CI (runs 43217510081, 43219771092) and are NOT applied to the hosted project. S2 onward needs separate approval.** No hosted change, no user or data creation, no sharing, no merge, no deploy.
+**Status: APPROVED by the owner on 2026-11-12 (see `docs/architecture/decisions/0002-sync-protocol.md` for conditions). S0 and S1 are authorized; S1 passes PostgreSQL 17 CI (runs 43217510081, 43219771092, 43225149883, 43236184204) and was applied to the hosted project on 2026-11-12 as `20261112151851` (`docs/operations/s1-hosted-deployment-record.md`). The standalone `guard_row` fix (`20261112125000`) was applied to hosted on 2026-11-12 as `20261112142732` (`docs/operations/f1-hosted-fix-record.md`). S2 onward needs separate approval.** No hosted change, no user or data creation, no sharing, no merge, no deploy.
 
 **Goal:** Two or more devices of one user converge on the same projects and tasks through Supabase, with no lost edit, no duplicate application and no cross-user access.
 
@@ -78,15 +78,15 @@ Result: `{operation_id, status: applied|conflict|rejected, applied_version, row,
 - Local `version` means "last server version known", changed only by pull or by an ack. A local edit does not bump it. `base_version` of an op is that stored value.
 - Local dirty fields are derived from pending outbox ops. A pull never overwrites a field that has a pending op; the server row is stored and the field conflict is detected at push time.
 - The domain change and its outbox row are written in one SQLite transaction (already planned in 2A §5.4). A failure leaves neither.
-- An entity with an unacknowledged create has all its operations at `base_version = 0`; the engine re-bases each from the create's ack. Update operations carry only changed fields.
+- An entity with an unacknowledged create has all its operations at `base_version = 0`; the engine re-bases each from the create's ack. Update operations carry only changed fields. **Superseded 2026-11-12 (S5 reconciliation):** the engine does not blindly re-base from the ack; the dependency-adjusted rule R in `docs/coordination/phase-3-s5-outbox-v2.md` section 2 applies.
 
 ### 4.2 Outbox v2 (proposed forward migration; owner of 2A decides)
 `sync_outbox`: add `seq INTEGER PRIMARY KEY AUTOINCREMENT` (strict send order), map `upsert` to server `create|update` by `base_version = 0`, states `pending → in_flight → applied | conflict | rejected` (crash recovery returns `in_flight` to `pending`), `request_id`, `sent_at`, `server_result_json`. New tables: `sync_state(singleton: user_id, device_id, cursor, state)`, `sync_conflicts_local` (mirror). `meta.user_id` binds the database to one user.
 
 ### 4.3 Engine behaviour
-- One in-flight op per entity, in `seq` order. Before sending a follow-up op for an entity, its `base_version` is rewritten from the previous ack.
+- One in-flight op per entity, in `seq` order. Before sending a follow-up op for an entity, its `base_version` is rewritten from the previous ack. **Superseded 2026-11-12 (S5 reconciliation):** rewriting the base from the previous acknowledgement is unsafe in general (it can suppress a real conflict); the dependency-adjusted rule R in `docs/coordination/phase-3-s5-outbox-v2.md` section 2 applies.
 - After a non-applied result for an entity, later ops of that entity are held until the conflict is resolved.
-- Delete of a task or project with descendants sends tombstone ops leaf-first in one push, then the parent. A parent delete is never cascaded by the server (decision D-P).
+- Delete of a task or project with descendants sends tombstone ops leaf-first in one push, then the parent. A parent delete is never cascaded by the server (decision D-P). **Held until the S3 gate (2026-11-12):** the S2 contract applies each operation in its own sub-transaction, so a chain is not atomic; see `docs/coordination/phase-3-s5-outbox-v2.md` section 9.
 - Retry: exponential backoff with jitter, capped; transient errors keep the op `pending`; terminal `rejected` surfaces to the user and is never dropped silently.
 - Triggers: app start, after a local commit, 60 s timer while foreground, manual. No background sync, no Realtime (V1 non-goal).
 - Pull applies each page in one SQLite transaction with `defer_foreign_keys` and advances `cursor` in the same transaction. After `has_more=false` an orphan check runs; any orphan triggers a full re-pull.
@@ -101,7 +101,7 @@ Result: `{operation_id, status: applied|conflict|rejected, applied_version, row,
 - [ ] Owner approves the decisions in §8. Update `docs/architecture/data-contract.md` with: server-owned local `version`, op type mapping, `field_versions`, conflict kinds, the no-cascade delete rule.
 - [ ] Send the §4 items to the Phase 2A owner as a written change request. Do not edit their branch.
 
-### S1 Server schema increment (new migration `…_nexora_sync_protocol_schema`) — IMPLEMENTED LOCALLY, NOT APPLIED
+### S1 Server schema increment (new migration `…_nexora_sync_protocol_schema`) — APPLIED TO HOSTED (`20261112151851`, 2026-11-12)
 Actual scope (supersedes the list below where they differ): `field_versions` on both tables; guard trigger takes the per-user advisory lock before `change_seq` (D-L) and is `ENABLE ALWAYS`; conflict `kind` plus auditable resolution columns, append-only `sync_operations`, immutable conflict values (D-O); device cap (D-D); FK cascade fix; FK indexes; fix for the Phase 2B project-update defect. Tests: `supabase/tests/s1_sync_schema_test.sql`, `supabase/tests/concurrency/lock_discipline.sh`.
 **Files:** Create `supabase/migrations/<ts>_nexora_sync_protocol_schema.sql`; Test `supabase/tests/sync_schema_test.sql`.
 **Interfaces — Produces:** `projects.field_versions jsonb`, `tasks.field_versions jsonb` maintained by `nexora_private.guard_row`; `sync_conflicts.kind text` (enum check above) and `resolution_operation_id uuid`; `devices.last_push_at`; unique cap of 10 active devices per user.
@@ -117,7 +117,7 @@ Actual scope (supersedes the list below where they differ): `field_versions` on 
 ### S3 Server delete, tombstone tree rules, resolve
 **Files:** Create `supabase/migrations/<ts>_nexora_sync_delete_resolve.sql`; Test `supabase/tests/sync_tree_test.sql`.
 **Interfaces — Produces:** delete handling in `apply_operation`; `nexora_resolve_conflict`.
-- [ ] Failing tests: `delete_parent_with_live_child_conflicts`, `leaf_first_batch_deletes_tree`, `create_under_tombstoned_parent_conflicts`, `concurrent_move_cycle_conflicts`, `edit_after_delete_conflicts_no_undelete`, `delete_after_edit_conflicts`, `resolve_is_idempotent`, `resolution_keeps_both_values`.
+- [ ] Failing tests: `delete_parent_with_live_child_conflicts`, `leaf_first_batch_deletes_tree`, `create_under_tombstoned_parent_conflicts` (superseded by owner direction 2026-11-12: creation under a tombstoned parent is `rejected: parent_invalid`, implemented in S2), `concurrent_move_cycle_conflicts`, `edit_after_delete_conflicts_no_undelete`, `delete_after_edit_conflicts`, `resolve_is_idempotent`, `resolution_keeps_both_values`.
 - [ ] Implement.
 
 ### S4 Server pull and cursor concurrency
@@ -126,7 +126,7 @@ Actual scope (supersedes the list below where they differ): `field_versions` on 
 - [ ] Failing tests: `uncommitted_writer_blocks_second_writer_so_no_gap`, `pull_during_open_push_never_skips`, `pagination_resumes_without_duplicates_or_gaps`, `tombstones_are_returned`, `other_user_rows_never_returned`.
 - [ ] Implement; confirm tests fail if the advisory lock is removed (negative control).
 
-### S5 SQLite outbox v2 (Phase 2A owner)
+### S5 SQLite outbox v2 (Phase 2A owner). Planning document: `docs/coordination/phase-3-s5-outbox-v2.md`; migration safety spec: `docs/operations/s5-migration-safety-test-spec.md`; not implemented
 - [ ] Their migration v2 per §4.2 with tests: `domain_write_and_outbox_row_atomic`, `crash_in_flight_returns_to_pending`, `seq_order_survives_restart`, `db_bound_to_single_user`.
 
 ### S6 Dart sync engine against a fake transport
