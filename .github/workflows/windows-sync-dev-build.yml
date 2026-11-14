@@ -88,6 +88,16 @@ jobs:
           if (Test-Path $out) { Get-Content $out; Copy-Item $out ./dist/auth-selftest.log } else { Write-Host 'no self-test log was written' }
           if (-not $finished -or $p.ExitCode -ne 0) { throw 'sign-in self-test failed' }
 
+      - name: Shell integration smoke (single instance, minimize to tray, restore, tray Exit)
+        # Drives the real nexora.exe with the window messages the Windows shell sends. Exit code 2 means the runner has no
+        # interactive desktop (checks not run); 1 means a check failed.
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          New-Item -ItemType Directory -Force ./dist | Out-Null
+          ./tool/windows_shell_smoke.ps1 -Log ./dist/shell-smoke.log
+          exit $LASTEXITCODE
+
       - name: Package and smoke-test portable ZIP
         shell: pwsh
         run: ./tool/package_windows.ps1 -OutputDir ./dist
@@ -124,5 +134,6 @@ jobs:
             dist/SHA256SUMS.txt
             dist/README-DEVELOPMENT-TEST.txt
             dist/auth-selftest.log
+            dist/shell-smoke.log
           if-no-files-found: error
           retention-days: 30

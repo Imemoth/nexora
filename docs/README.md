@@ -48,6 +48,7 @@
 | `operations/release-acceptance-checklist.md` | checklist | current | V1 release acceptance with evidence lines |
 | `operations/conflict-resolution-ui-record-2026-11-13.md` | feature record | current | the V1 conflict resolution screens: indicator, list, comparison, decisions, failure handling, tests |
 | `operations/windows-signin-hang-fix-record-2026-11-13.md` | fix record | current | first sign-in hang: evidence, defects, native DPAPI, diagnostics, regression tests |
+| `operations/phase-4-implementation-record-2026-11-14.md` | implementation record | current evidence for Phase 4 | device-local reminders, tray, notifications, decisions, tests, limitations |
 | `operations/phase-3-integration-review-2026-11-14.md` | review | current | diff review against `main`, hosted/repository consistency, integration risks |
 | `operations/v1-rc-evidence-record.md` | evidence record | current | CI run ids for the release candidate code head |
 | `operations/remaining-blocker-register.md` | register | current | owner decisions that block the next step |
