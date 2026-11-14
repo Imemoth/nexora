@@ -1,4 +1,4 @@
-/// Stable error codes for the workspace. Presentation maps each code to text.
+/// Why a workspace operation did not happen. The UI maps each to a message.
 enum WorkspaceError {
   titleRequired,
   titleTooLong,
@@ -8,9 +8,18 @@ enum WorkspaceError {
   saveFailed,
   loadFailed,
 
-  /// A creation was requested while an unsaved-change decision is open.
+  /// A dirty draft is waiting for Save, Discard or Cancel.
   unsavedChangesPending,
 
-  /// Another save, creation or gate decision is already running.
+  /// Another change is still running.
   operationInProgress,
+
+  /// The task to delete no longer exists.
+  unknownTask,
+
+  /// The delete could not be written. Nothing was changed.
+  deleteFailed,
+
+  /// The last remaining project cannot be deleted.
+  lastProject,
 }

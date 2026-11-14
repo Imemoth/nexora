@@ -3,6 +3,7 @@ import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_ordering.dart';
+import 'package:nexora/features/tasks/domain/task_status.dart';
 
 import 'edit_draft.dart';
 import 'nav_selection.dart';
@@ -20,6 +21,7 @@ final class WorkspaceState {
     this.selection = const SmartViewSelection(SmartView.all),
     this.searchQuery = '',
     this.sort = TaskSort.position,
+    this.statusFilter,
     this.selectedTaskId,
     this.expandedTaskIds = const {},
     this.draft,
@@ -43,6 +45,10 @@ final class WorkspaceState {
   final String searchQuery;
   final TaskSort sort;
 
+  /// Shows only tasks with this status. Null shows every status. Never gated:
+  /// a selected task that it hides stays selected and the list says so.
+  final TaskStatus? statusFilter;
+
   /// The selected task. Always equal to [draft]'s task id when both are set.
   final String? selectedTaskId;
   final Set<String> expandedTaskIds;
@@ -64,6 +70,7 @@ final class WorkspaceState {
       tasks: tasks,
       selection: selection,
       query: searchQuery,
+      status: statusFilter,
       sort: sort,
       expandedIds: expandedTaskIds,
       today: today,
@@ -86,11 +93,47 @@ final class WorkspaceState {
         .length;
   }
 
-  /// Number of tasks in the current selection that match the search query,
-  /// including children hidden under collapsed parents.
-  int get resultCount {
+  /// Number of live tasks with [status], across all projects.
+  int countWithStatus(TaskStatus status) {
+    return tasks.values.where((task) => task.status == status).length;
+  }
+
+  /// Done and total task counts for the dashboard progress ring: the selected
+  /// project, or every task when a smart view is selected. Archived tasks are
+  /// left out of the total.
+  ({int done, int total}) get progress {
+    final current = selection;
+    var done = 0;
+    var total = 0;
+    for (final task in tasks.values) {
+      if (task.status == TaskStatus.archived) {
+        continue;
+      }
+      if (current is ProjectSelection && task.projectId != current.projectId) {
+        continue;
+      }
+      total++;
+      if (task.status == TaskStatus.done) {
+        done++;
+      }
+    }
+    return (done: done, total: total);
+  }
+
+  /// Number of tasks in the current selection that match the search query and
+  /// the status filter, including children hidden under collapsed parents.
+  int get resultCount => countForStatus(statusFilter);
+
+  /// Number of tasks in the current selection that match the search query and
+  /// have [status]. Null counts every status. The filter chips use this to show
+  /// what each chip would list.
+  int countForStatus(TaskStatus? status) {
     return tasks.values
-        .where((task) => matchesFilter(task, selection, searchQuery, today))
+        .where(
+          (task) =>
+              matchesFilter(task, selection, searchQuery, today) &&
+              (status == null || task.status == status),
+        )
         .length;
   }
 
@@ -101,6 +144,8 @@ final class WorkspaceState {
     NavSelection? selection,
     String? searchQuery,
     TaskSort? sort,
+    TaskStatus? statusFilter,
+    bool clearStatusFilter = false,
     String? selectedTaskId,
     bool clearSelectedTask = false,
     Set<String>? expandedTaskIds,
@@ -120,6 +165,9 @@ final class WorkspaceState {
       selection: selection ?? this.selection,
       searchQuery: searchQuery ?? this.searchQuery,
       sort: sort ?? this.sort,
+      statusFilter: clearStatusFilter
+          ? null
+          : (statusFilter ?? this.statusFilter),
       selectedTaskId: clearSelectedTask
           ? null
           : (selectedTaskId ?? this.selectedTaskId),
