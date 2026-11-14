@@ -1,5 +1,6 @@
 import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
+import 'package:nexora/features/tasks/domain/task_deletion.dart';
 
 import 'repository_exception.dart';
 import 'task_repository.dart';
@@ -63,6 +64,48 @@ final class InMemoryTaskRepository implements TaskRepository, ProjectStore {
       _projects.add(project);
     } else {
       _projects[index] = project;
+    }
+  }
+
+  /// Ids removed by [deleteTaskTree] and [deleteProjectTree], in the order they
+  /// were removed: children before their parent, the project last. Lets tests
+  /// check the order.
+  final List<String> deletedIds = [];
+
+  /// When true the next delete throws a [RepositoryException] and changes
+  /// nothing.
+  bool failNextDelete = false;
+
+  @override
+  Future<void> deleteTaskTree(String taskId) async {
+    _consumeDeleteFailure();
+    if (!_tasks.containsKey(taskId)) {
+      throw RepositoryException('no live task $taskId to delete');
+    }
+    for (final id in leafFirstDeletionOrder(_tasks, [taskId])) {
+      _tasks.remove(id);
+      deletedIds.add(id);
+    }
+  }
+
+  @override
+  Future<void> deleteProjectTree(String projectId) async {
+    _consumeDeleteFailure();
+    if (!_projects.any((project) => project.id == projectId)) {
+      throw RepositoryException('no live project $projectId to delete');
+    }
+    for (final id in projectDeletionOrder(_tasks, projectId)) {
+      _tasks.remove(id);
+      deletedIds.add(id);
+    }
+    _projects.removeWhere((project) => project.id == projectId);
+    deletedIds.add(projectId);
+  }
+
+  void _consumeDeleteFailure() {
+    if (failNextDelete) {
+      failNextDelete = false;
+      throw const RepositoryException('simulated delete failure');
     }
   }
 

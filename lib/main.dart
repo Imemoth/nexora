@@ -16,10 +16,12 @@ import 'package:nexora/features/tasks/application/repository_exception.dart';
 import 'package:nexora/features/tasks/application/task_workspace.dart';
 import 'package:nexora/features/tasks/data/local_database.dart';
 import 'package:nexora/features/tasks/data/local_storage.dart';
+import 'package:nexora/features/tasks/data/file_settings_store.dart';
 import 'package:nexora/features/tasks/data/outbox_store.dart';
 import 'package:nexora/features/tasks/data/sqlite_task_repository.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
+import 'package:nexora/features/tasks/presentation/theme/theme_controller.dart';
 import 'package:nexora/runtime/app_host.dart';
 import 'package:nexora/runtime/auth_selftest.dart';
 import 'package:nexora/runtime/runtime_config.dart';
@@ -75,7 +77,15 @@ Future<void> main(List<String> args) async {
       ids: ids,
     );
     await workspace.load();
-    runApp(NexoraApp(notifier: TasksNotifier(workspace)));
+    // The saved theme is read before the first frame, so there is no flash of
+    // the wrong theme. A failed read falls back to System.
+    final themeController = await _loadTheme(path);
+    runApp(
+      NexoraApp(
+        notifier: TasksNotifier(workspace),
+        themeController: themeController,
+      ),
+    );
   } on RepositoryException {
     runApp(const StartupErrorApp(message: AppStrings.errorDatabaseOpen));
   }
@@ -126,10 +136,25 @@ Future<bool> _startWithSync(RandomIdGenerator ids) async {
       );
     }
     await active.workspace.load();
-    runApp(AppHost(runtime: runtime));
+    runApp(AppHost(runtime: runtime, themeController: await _loadTheme(path)));
     return true;
   } on RepositoryException {
     runApp(const StartupErrorApp(message: AppStrings.errorDatabaseOpen));
     return true;
   }
+}
+
+/// The saved theme choice, read before the first frame so there is no flash of
+/// the wrong theme. It lives in `settings.json` beside the local database, so it
+/// is the same whichever account is open. A failed read falls back to System.
+Future<ThemeController> _loadTheme(String databasePath) async {
+  final controller = ThemeController(
+    FileSettingsStore(
+      File(
+        '${File(databasePath).parent.path}${Platform.pathSeparator}settings.json',
+      ),
+    ),
+  );
+  await controller.load();
+  return controller;
 }

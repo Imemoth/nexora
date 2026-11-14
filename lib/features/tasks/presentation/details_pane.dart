@@ -2,18 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:nexora/features/tasks/application/edit_draft.dart';
 import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/application/workspace_state.dart';
+import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_completion.dart';
 import 'package:nexora/features/tasks/domain/task_completion_tree.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
 
+import 'delete_flow.dart';
 import 'due_date_field.dart';
 import 'keymap.dart';
 import 'keyboard_actions.dart';
+import 'status_badge.dart';
 import 'strings/app_strings.dart';
 import 'synced_text_field.dart';
 import 'tasks_notifier.dart';
 import 'tasks_scope.dart';
+import 'theme/nexora_colors.dart';
 
 /// Right pane: the editor for the selected task. Every edit goes to the
 /// workspace draft. Save and Revert are enabled only for a dirty draft.
@@ -31,7 +35,10 @@ class DetailsPane extends StatelessWidget {
     } else {
       content = _TaskEditor(notifier: notifier, state: state, draft: draft);
     }
-    return KeymapScope(inEditor: true, child: content);
+    return KeymapScope(
+      inEditor: true,
+      child: ColoredBox(color: NexoraColors.of(context).panel, child: content),
+    );
   }
 }
 
@@ -116,6 +123,10 @@ class _TaskEditor extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _ChildSummary(completion: completionOf(draft.taskId, state.tasks)),
+        _SubtaskList(
+          subtasks: _subtasksOf(state, draft.taskId),
+          onOpen: notifier.selectTask,
+        ),
         if (formError != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -131,6 +142,16 @@ class _TaskEditor extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
+            TextButton.icon(
+              key: const ValueKey('delete-task'),
+              style: TextButton.styleFrom(
+                foregroundColor: NexoraColors.of(context).statusOverdue,
+              ),
+              onPressed: () =>
+                  deleteTaskWithConfirmation(context, notifier, draft.taskId),
+              icon: const Icon(Icons.delete_outline),
+              label: const Text(AppStrings.deleteTaskAction),
+            ),
             TextButton(
               key: const ValueKey('add-subtask'),
               onPressed: canAddSubtask
@@ -157,6 +178,14 @@ class _TaskEditor extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  List<Task> _subtasksOf(WorkspaceState state, String parentId) {
+    final children = [
+      for (final task in state.tasks.values)
+        if (task.parentId == parentId) task,
+    ]..sort((a, b) => a.position.compareTo(b.position));
+    return children;
   }
 
   bool _isTitleError(WorkspaceError? error) {
@@ -203,6 +232,79 @@ class _LabeledDropdown<T> extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+/// Read-only list of the selected task's direct subtasks. Tapping one selects
+/// it, through the same unsaved-change gate as the task list.
+class _SubtaskList extends StatelessWidget {
+  const _SubtaskList({required this.subtasks, required this.onOpen});
+
+  final List<Task> subtasks;
+  final ValueChanged<String?> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    if (subtasks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final colors = NexoraColors.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      key: const ValueKey('subtask-list'),
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(AppStrings.subtasksHeader, style: textTheme.labelMedium),
+          const SizedBox(height: 6),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colors.border),
+            ),
+            child: Column(
+              children: [
+                for (final subtask in subtasks)
+                  InkWell(
+                    key: ValueKey('subtask-${subtask.id}'),
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => onOpen(subtask.id),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            statusStyle(colors, subtask.status).icon,
+                            size: 20,
+                            color: statusStyle(colors, subtask.status).color,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              subtask.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            AppStrings.statusLabel(subtask.status),
+                            style: textTheme.labelMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
