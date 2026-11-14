@@ -1,6 +1,6 @@
 # 0003 Nexora V2: visuals, theme preference and delete
 
-Status: ported onto the sync branch (schema 3, accounts, sync, conflict UI). Format, analyze and the tests pass locally except an environment-specific DPAPI test (see the pull request). Not yet launched as a Windows app.
+Status: proposed with the V2 pull request; the owner decides. Project and sync status live in `docs/coordination/status-register.md`.
 
 ## Visuals
 - Two approved themes, dark and light, built from `NexoraPalette.dark` and `NexoraPalette.light` (`presentation/theme/palette.dart`). `NexoraColors` (a `ThemeExtension`) carries the semantic colours and gradients to widgets.
