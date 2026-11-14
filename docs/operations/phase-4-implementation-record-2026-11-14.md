@@ -34,6 +34,23 @@ Status of the phase and its gates: `docs/coordination/status-register.md`. Basel
 - Migration 4 only creates a table; older files migrate in place (tested from versions 1 and 3); a file from a newer app version is still refused.
 - The default build keeps `NEXORA_SYNC` off; reminders work in both builds, offline, with no network.
 
+## 4a. Acceptance and evidence
+- **Owner manual Windows acceptance (2026-11-14): all six checks passed:** reminder creation and notification delivery; minimize to system tray; notification click opens the correct task; snooze, acknowledge and reschedule; reminder persistence without duplicate notifications; single-instance behaviour. Phase 4 is accepted for the current TEST environment; the device-local model (D-RM) stays for V1.
+- **CI on the code head `914435c`:** Windows `CI` 43620789345 (includes the shell smoke and the packaged-app smoke); sync-enabled DEVELOPMENT TEST build 43621629032; PostgreSQL 17 `supabase-tests` 43621631547; `http-integration` 43621634472; `e2e-sync` 43621637048; `docs-check` 43621640442. All succeeded.
+- **Defect found by CI and fixed before acceptance:** the first Windows build compiled but the packaged app never opened its database, because `main()` created the method channel before the Flutter binding existed. The channel constructor now initializes the binding; regression test `test/platform/desktop_start_test.dart` fails without the fix.
+- Build artifact: `nexora-windows-sync-DEVELOPMENT-TEST` of run 43621629032 (ZIP, `SHA256SUMS.txt` with the commit, README, shell-smoke log).
+
+## 4b. Integration review (diff against `main` `9499da6`)
+37 files (22 added, 15 modified), all within Phase 4 scope. Checked and found clean: no change to `pubspec.yaml`/`pubspec.lock` (no new dependency), `supabase/` (no hosted or local migration), golden images, or any Phase 3 sync, auth or conflict code beyond passing the reminder service through `SyncRuntime`/`AppHost`. Risks and handling:
+| # | Risk | Handling |
+|---|---|---|
+| 1 | Native runner code (`windows/runner`) is new and only compiled on Windows CI | built and packaged on CI, shell smoke passed, six manual checks passed |
+| 2 | Close button exits, so no reminders after a full exit | documented limitation (D-RX) |
+| 3 | Local schema moves to version 4; a file migrated by this build is refused by an older build | additive table, tested from versions 1 and 3; the refusal of newer files is intended |
+| 4 | The default build now includes the tray and notification code (sync stays off) | reminders and tray work with no network; `NEXORA_SYNC` default unchanged |
+| 5 | The shell smoke step is `continue-on-error` in both workflows | passed on the accepted head; can be made blocking after merge if the owner wants |
+| 6 | Single-instance mutex is per user session; a stuck process blocks a second launch from showing a window | second launch asks the first to show itself; development self-tests skip the check |
+
 ## 5. Tests
 `test/features/reminders/` (domain and DST with a fake New York zone, store and migration, service: schedule, fire once, restart, race, missed, acknowledge, snooze, cancel, reschedule, completed task, failing channel, summary, spring-forward, fall-back, periodic tick, per-file isolation), `test/platform/desktop_integration_test.dart` (channel protocol, fallback when the native runner is absent, click and exit events), `test/app/reminder_ui_test.dart` (editor, banner, acknowledge, snooze, click selects the task, tray Exit saves then ends, still ends on hang or failure), `test/runtime/reminder_runtime_test.dart` (per account, restart, never synchronized, offline). Native tray behaviour is exercised on Windows CI by `tool/windows_shell_smoke.ps1` (single instance, minimize to tray, restore, tray Exit) when the runner has an interactive desktop.
 

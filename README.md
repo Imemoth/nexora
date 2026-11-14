@@ -10,7 +10,7 @@ Private, offline-first task and notes app. V1 targets a portable Windows ZIP. An
 ## Windows support
 - **Minimum:** Windows 10 (64-bit, x64). Flutter 3.47 lists Windows 10 and 11 as supported and tests Windows 10 in CI. Windows 8 and earlier are unsupported.
 - **Local builds (optional):** Visual Studio with the "Desktop development with C++" workload, and Flutter 3.47.9.
-- **Known limitations:** no notifications, tray, or reminders yet (Phase 4, the next development target). Corporate policies may block unsigned executables or extraction paths. Test on a clean machine before release.
+- **Known limitations:** reminders are stored on this device only (not synchronized), and notifications stop when the app has fully exited (minimize to the tray to keep them). Corporate policies may block unsigned executables or extraction paths. Test on a clean machine before release.
 
 ## Development
 ```bash
@@ -25,7 +25,7 @@ flutter build windows --release
 `tool/package_windows.ps1` packages the full Release bundle (`nexora.exe`, Flutter engine DLLs, and `data/`). Extract the ZIP anywhere and run `nexora.exe`. No installer is needed.
 
 ## Current status
-Project status, migrations, decisions, gates and blockers live in one place: [`docs/coordination/status-register.md`](docs/coordination/status-register.md) (documentation map: [`docs/README.md`](docs/README.md)). In short: the Windows app saves tasks and projects in local SQLite (schema v3) and works fully offline. **Phase 3 (account sign-in, import of local data, automatic bidirectional synchronization, offline recovery, conflict detection and interactive conflict resolution) is implemented and accepted for the current TEST environment** (hosted Supabase TEST project, test accounts only). The default build keeps synchronization **off** (`NEXORA_SYNC` build flag); a separate sync-enabled DEVELOPMENT TEST build (workflow `windows-sync-dev-build.yml`) connects to the TEST project. There are no production users and no production hardening yet. Next development target: Phase 4 (Windows reminders, tray, notifications). User guide: [`docs/operations/release-candidate-guide.md`](docs/operations/release-candidate-guide.md).
+Project status, migrations, decisions, gates and blockers live in one place: [`docs/coordination/status-register.md`](docs/coordination/status-register.md) (documentation map: [`docs/README.md`](docs/README.md)). In short: the Windows app saves tasks and projects in local SQLite (schema v3) and works fully offline. **Phase 3 (account sign-in, import of local data, automatic bidirectional synchronization, offline recovery, conflict detection and interactive conflict resolution) is implemented and accepted for the current TEST environment** (hosted Supabase TEST project, test accounts only). The default build keeps synchronization **off** (`NEXORA_SYNC` build flag); a separate sync-enabled DEVELOPMENT TEST build (workflow `windows-sync-dev-build.yml`) connects to the TEST project. There are no production users and no production hardening yet. **Phase 4 (device-local task reminders, Windows notifications, system tray, single instance) is implemented and accepted for the TEST environment** and awaits merge approval. Next development target: Phase 5 (UI/UX modernization). User guide: [`docs/operations/release-candidate-guide.md`](docs/operations/release-candidate-guide.md).
 
 ## Phase 1 UI (original in-memory prototype description)
 Phase 1 built the Windows desktop UI over deterministic in-memory demo data; since Phase 2A the same UI persists to local SQLite.
