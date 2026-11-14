@@ -10,7 +10,7 @@ Private, offline-first task and notes app. V1 targets a portable Windows ZIP. An
 ## Windows support
 - **Minimum:** Windows 10 (64-bit, x64). Flutter 3.47 lists Windows 10 and 11 as supported and tests Windows 10 in CI. Windows 8 and earlier are unsupported.
 - **Local builds (optional):** Visual Studio with the "Desktop development with C++" workload, and Flutter 3.47.9.
-- **Known limitations (Phase 0):** no notifications, tray, or reminders yet (Phase 4). Corporate policies may block unsigned executables or extraction paths. Test on a clean machine before release.
+- **Known limitations:** no notifications, tray, or reminders yet (Phase 4, the next development target). Corporate policies may block unsigned executables or extraction paths. Test on a clean machine before release.
 
 ## Development
 ```bash
@@ -25,7 +25,7 @@ flutter build windows --release
 `tool/package_windows.ps1` packages the full Release bundle (`nexora.exe`, Flutter engine DLLs, and `data/`). Extract the ZIP anywhere and run `nexora.exe`. No installer is needed.
 
 ## Current status
-Project status, migrations, decisions, gates and blockers live in one place: [`docs/coordination/status-register.md`](docs/coordination/status-register.md) (documentation map: [`docs/README.md`](docs/README.md)). In short: the Windows app saves tasks and projects locally in SQLite (Phase 2A, merged); the Supabase schema foundation is applied to the hosted project; synchronization and sign-in are **not** active and the app makes no network calls.
+Project status, migrations, decisions, gates and blockers live in one place: [`docs/coordination/status-register.md`](docs/coordination/status-register.md) (documentation map: [`docs/README.md`](docs/README.md)). In short: the Windows app saves tasks and projects in local SQLite (schema v3) and works fully offline. **Phase 3 (account sign-in, import of local data, automatic bidirectional synchronization, offline recovery, conflict detection and interactive conflict resolution) is implemented and accepted for the current TEST environment** (hosted Supabase TEST project, test accounts only). The default build keeps synchronization **off** (`NEXORA_SYNC` build flag); a separate sync-enabled DEVELOPMENT TEST build (workflow `windows-sync-dev-build.yml`) connects to the TEST project. There are no production users and no production hardening yet. Next development target: Phase 4 (Windows reminders, tray, notifications). User guide: [`docs/operations/release-candidate-guide.md`](docs/operations/release-candidate-guide.md).
 
 ## Phase 1 UI (original in-memory prototype description)
 Phase 1 built the Windows desktop UI over deterministic in-memory demo data; since Phase 2A the same UI persists to local SQLite.
@@ -37,4 +37,4 @@ Keyboard (Ctrl is the command key): Up and Down move through tasks; Right and Le
 Acceptance: see [`docs/operations/phase-1-acceptance.md`](docs/operations/phase-1-acceptance.md) for CI evidence, artifact checksums and the manual Live Acceptance checklist. Phase 1 was accepted by the owner (see the register).
 
 ## Configuration and secrets
-The app does not connect to Supabase and runs with no configuration (synchronization is disabled). Never commit `.env` files, service-role keys, connection strings, or tokens. Supabase access is documented in `docs/operations/supabase-access.md`.
+The default build runs with no configuration and makes no network calls (synchronization is off). The sync-enabled DEVELOPMENT TEST build is compiled with `--dart-define=NEXORA_SYNC=true` plus the project URL and the **public** anon (publishable) key of the TEST project, both public by design; the user signs in with an account on that project and the session is stored protected by Windows DPAPI. Never commit `.env` files, service-role keys, connection strings, passwords or tokens. Supabase access is documented in `docs/operations/supabase-access.md`.

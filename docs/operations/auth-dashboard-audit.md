@@ -1,5 +1,7 @@
 # Auth configuration audit (D-U) — partly read, partly UNVERIFIED
 
+**Status update (2026-11-14): decision D-U is settled for the TEST environment (public sign-up stays enabled during development; anonymous users are rejected by client and protocol; see the register). Remaining items below are a production Auth review, which is out of scope for now.**
+
 Status: **partly verified** (2026-11-12, read-only, see the table below and `hosted-readonly-preflight-2026-11-12.md`); everything not listed as observed is **UNVERIFIED** and must not be assumed compliant. The original statement follows.
 
 Original status: **unverified.** The session cannot read the Supabase Dashboard auth settings. This must be completed by the owner (or with explicit access) **before authentication or synchronization activation**.

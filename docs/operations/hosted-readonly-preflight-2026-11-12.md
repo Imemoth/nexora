@@ -1,5 +1,7 @@
 # Hosted read-only preflight, 2026-11-12
 
+**Note (2026-11-14): this record describes the state at the time it was written. Statements such as "not applied to hosted", "disabled" or "not run" are historical; the hosted TEST deployment and Phase 3 acceptance are recorded in `docs/operations/hosted-acceptance-record-2026-11-13.md` and the current status is in `docs/coordination/status-register.md`.**
+
 Scope: read-only checks of the hosted project (`uicccaawtjvqggeufbez`, PostgreSQL 17.11) made while preparing the release candidate. **No hosted write, no Auth configuration change, no service-role key** was used. Queries were `select` statements through the read-only query tool; the public Auth settings document was read with the publishable key only. No key value is recorded here.
 
 ## Results

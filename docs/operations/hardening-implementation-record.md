@@ -1,5 +1,7 @@
 # V1 hardening implementation record (throttle, response bound, S9, limit measurements)
 
+**Note (2026-11-14): this record describes the state at the time it was written. Statements such as "not applied to hosted", "disabled" or "not run" are historical; the hosted TEST deployment and Phase 3 acceptance are recorded in `docs/operations/hosted-acceptance-record-2026-11-13.md` and the current status is in `docs/coordination/status-register.md`.**
+
 Scope: SQL and protocol hardening for the V1 release candidate. Everything here was built and tested on **disposable local PostgreSQL 16**
 (the CI workflow `supabase-schema-tests` runs the same scripts on PostgreSQL 17 service containers). **Nothing was applied to any hosted
 project; no hosted tool was used.** Hosted application is part of the single combined deployment operation and needs explicit authorization.

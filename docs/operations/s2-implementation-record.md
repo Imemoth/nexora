@@ -1,5 +1,7 @@
 # Phase 3 S2 implementation record (2026-11-12)
 
+**Note (2026-11-14): this record describes the state at the time it was written. Statements such as "not applied to hosted", "disabled" or "not run" are historical; the hosted TEST deployment and Phase 3 acceptance are recorded in `docs/operations/hosted-acceptance-record-2026-11-13.md` and the current status is in `docs/coordination/status-register.md`.**
+
 **S2 is implemented locally and verified on PostgreSQL 17 CI. It is NOT applied to the hosted project, not exposed, and synchronization is not activated.** Contract: `docs/architecture/s2-wire-contract.md`. Plan: `docs/superpowers/plans/2026-11-12-nexora-phase-3-s2-push-rpc.md`.
 
 Status of the whole project: `docs/coordination/status-register.md`. Amended 2026-11-12 by the consolidation (section "Consolidation validation"); the sections below keep the original S2 evidence (head `5df65e6`) and note what changed.

@@ -1,5 +1,7 @@
 # S2 security-hardening decision record (2026-11-12)
 
+**Note (2026-11-14): this record describes the state at the time it was written. Statements such as "not applied to hosted", "disabled" or "not run" are historical; the hosted TEST deployment and Phase 3 acceptance are recorded in `docs/operations/hosted-acceptance-record-2026-11-13.md` and the current status is in `docs/coordination/status-register.md`.**
+
 Scope: privileges and abuse resistance of the S2 functions in `supabase/migrations/20261112160000_nexora_sync_push.sql` (local and PostgreSQL 17 CI only, **not applied to hosted**). Method: catalog review, direct-call tests, mutation checks, and read-only queries on the hosted project. **No hosted permission, object or data was changed.** Recommendations below are not approvals.
 
 ## 1. Privilege inventory (as implemented; tested by `s2_auth_grants_test.sql` and `s2_security_direct_test.sql`)

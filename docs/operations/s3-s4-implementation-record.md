@@ -1,5 +1,7 @@
 # S3 and S4 implementation record (local, not applied to hosted)
 
+**Note (2026-11-14): this record describes the state at the time it was written. Statements such as "not applied to hosted", "disabled" or "not run" are historical; the hosted TEST deployment and Phase 3 acceptance are recorded in `docs/operations/hosted-acceptance-record-2026-11-13.md` and the current status is in `docs/coordination/status-register.md`.**
+
 Contract: `docs/architecture/s3-s4-wire-contract.md`. Status, gates and decisions: `docs/coordination/status-register.md`.
 Authorization: owner message "Phase 3 Complete S3 + S4 + S6 Implementation" (2026-11-12). No hosted write was made; neither migration
 was applied to the hosted project.

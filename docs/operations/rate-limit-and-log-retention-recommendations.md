@@ -1,5 +1,7 @@
 # Rate-limit and operation-log retention: recommendations (decision O-3)
 
+**Status update (2026-11-14): the per-user throttle and the push-response bound are applied to the hosted TEST project (2026-11-13). Log retention and purge remain open and belong to production hardening, which is out of scope for now.**
+
 **Update (V1 release-candidate package): the per-user throttle (section 2 item 3) is now implemented in `supabase/migrations/20261112185000_nexora_sync_throttle.sql` and tested locally; numbers and mechanics are in `docs/architecture/s3-s4-wire-contract.md` section 7. It is not applied to any hosted project. Operation-log retention (section 3 and the DESIGN in section 3a) is a design only: nothing is implemented. Everything not named here as implemented remains a recommendation, not applied or approved.** Decision O-3 stays open in `docs/coordination/status-register.md`. Background: risks R1 to R3 in `docs/operations/security-hardening-decision-record.md` and finding 5 in `docs/operations/s2-implementation-record.md`. Hosted state: none of the S2 to S4 functions is applied, so no traffic exists today.
 
 ## 1. What grows and what can be abused

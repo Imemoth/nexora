@@ -1,5 +1,7 @@
 # S9 plan: remove the direct table-write grants on `projects` and `tasks` (blocker B-10)
 
+**Status update (2026-11-14): S9 was applied to the hosted TEST project on 2026-11-13 (`20261113094553`); see `docs/operations/hosted-acceptance-record-2026-11-13.md`.**
+
 **Status update (V1 release-candidate package): the migration `supabase/migrations/20261112190000_nexora_s9_revoke_direct_writes.sql` and its rollback `supabase/rollback/20261112190000_rollback_s9_direct_writes.sql` are written and proven on disposable PostgreSQL (see section 9). They are NOT applied to any hosted project; hosted application stays unauthorized. The rest of this page is the original plan, kept as written.**
 
 **Original statement: this is a plan. It was NOT authorized, NOT written as a migration and NOT applied anywhere.** S9 is the activation-gate slice in `docs/coordination/status-register.md`. Reason for the plan: while `authenticated` can INSERT and UPDATE `public.projects` and `public.tasks` directly, a client can bypass the synchronization protocol (conflict detection, idempotency, history). The per-user advisory lock still serializes those writes and the guard triggers still enforce ownership and invariants, so the risk is protocol bypass and not data theft; it is recorded as R5 in `docs/operations/security-hardening-decision-record.md`.

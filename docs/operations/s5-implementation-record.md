@@ -1,5 +1,7 @@
 # Phase 3 S5 implementation record (2026-11-12)
 
+**Note (2026-11-14): this record describes the state at the time it was written. Statements such as "not applied to hosted", "disabled" or "not run" are historical; the hosted TEST deployment and Phase 3 acceptance are recorded in `docs/operations/hosted-acceptance-record-2026-11-13.md` and the current status is in `docs/coordination/status-register.md`.**
+
 **S5 (SQLite schema v2 and the outbox) is implemented locally and passes Windows CI. Synchronization is not active: there is no transport, no pull, no authentication, and nothing was written to the hosted project.** Authority: owner authorization "Phase 3 S5 Complete Implementation" (decision OD-11 in `docs/coordination/status-register.md`). Specification: `docs/coordination/phase-3-s5-outbox-v2.md`. Tests mapped in `docs/operations/s5-migration-safety-test-spec.md` section 5.
 
 ## What was built

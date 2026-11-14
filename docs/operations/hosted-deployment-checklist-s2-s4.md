@@ -1,5 +1,7 @@
 # Hosted deployment checklist for S2, S3 and S4 (prepared, NOT executed)
 
+**Status update (2026-11-14): this procedure was executed as part of the combined operation on 2026-11-13; the record is `docs/operations/hosted-acceptance-record-2026-11-13.md`. The text below is the original preparation and is kept for history.**
+
 Status of the slices and gates: `docs/coordination/status-register.md`. This document is a procedure to be performed later. **Nothing in it has been run against the hosted project.** Every step that writes hosted state is marked **[owner approval required]**; read-only steps are marked **[read-only]**. Contract: `docs/architecture/s2-wire-contract.md` and `docs/architecture/s3-s4-wire-contract.md`. Related records: `docs/operations/s1-hosted-deployment-record.md` (the pattern used for S1), `docs/operations/security-hardening-decision-record.md`, `docs/operations/s2-implementation-record.md`, `docs/operations/s3-s4-implementation-record.md`.
 
 ## 1. Migration order and file digests
