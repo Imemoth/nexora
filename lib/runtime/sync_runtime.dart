@@ -16,7 +16,11 @@ import 'package:nexora/features/sync/supabase_sync_transport.dart';
 import 'package:nexora/features/sync/sync_engine.dart';
 import 'package:nexora/features/sync/sync_status.dart';
 import 'package:nexora/features/sync/sync_transport.dart';
+import 'package:nexora/features/tasks/application/reminder_service.dart';
 import 'package:nexora/features/tasks/application/repository_exception.dart';
+import 'package:nexora/features/tasks/data/reminder_store.dart';
+import 'package:nexora/features/tasks/domain/reminder.dart';
+import 'package:nexora/features/tasks/presentation/strings/reminder_strings.dart';
 import 'package:nexora/features/tasks/application/task_workspace.dart';
 import 'package:nexora/features/tasks/domain/clock.dart';
 import 'package:nexora/features/tasks/data/local_database.dart';
@@ -66,10 +70,12 @@ final class ActiveWorkspace {
   SyncEngine? engine;
   SyncStateStore? state;
   SyncScheduler? scheduler;
+  ReminderService? reminders;
   bool refreshPending = false;
   StreamSubscription<Object?>? _watch;
 
   void close() {
+    reminders?.dispose();
     scheduler?.stop();
     _watch?.cancel();
     workspace.dispose();
@@ -96,6 +102,8 @@ final class SyncRuntime {
     Future<void> Function(Duration)? sleep,
     SyncHook? hook,
     this.autoSyncOnSignIn = true,
+    this.reminderNotifier,
+    this.reminderClock = const SystemReminderClock(),
     this._log = const NullAuthLog(),
   }) : _transportFactory = transportFactory ?? _httpTransport,
        _engineSettings = engineConfig,
@@ -116,6 +124,11 @@ final class SyncRuntime {
   /// Start a cycle right after a successful sign-in (tests turn it off to
   /// control timing).
   final bool autoSyncOnSignIn;
+
+  /// When set, every workspace this runtime opens gets a device-local reminder
+  /// service that shows its notifications through it.
+  final ReminderNotifier? reminderNotifier;
+  final ReminderClock reminderClock;
   final AuthLog _log;
   final TransportFactory _transportFactory;
   final SyncEngineConfig _engineSettings;
@@ -427,6 +440,18 @@ final class SyncRuntime {
       workspace: workspace,
       repository: repository,
     );
+    final notifier = reminderNotifier;
+    if (notifier != null) {
+      // Reminders live in this workspace's own database file, so they follow
+      // the account and never cross to another one.
+      active.reminders = ReminderService(
+        store: ReminderStore(db),
+        clock: reminderClock,
+        notifier: notifier,
+        texts: ReminderStrings.notificationTexts,
+      );
+      unawaited(active.reminders!.start().catchError((Object _) {}));
+    }
     active._watch = workspace.states.listen((state) {
       if (active.refreshPending && state.draft == null) {
         active.refreshPending = false;

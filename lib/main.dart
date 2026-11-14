@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -24,6 +25,11 @@ import 'package:nexora/runtime/app_host.dart';
 import 'package:nexora/runtime/auth_selftest.dart';
 import 'package:nexora/runtime/runtime_config.dart';
 import 'package:nexora/runtime/sync_runtime.dart';
+import 'package:nexora/features/tasks/application/reminder_service.dart';
+import 'package:nexora/features/tasks/data/reminder_store.dart';
+import 'package:nexora/features/tasks/domain/reminder.dart';
+import 'package:nexora/features/tasks/presentation/strings/reminder_strings.dart';
+import 'package:nexora/platform/desktop_integration.dart';
 
 /// Phase 2A wiring: a durable local SQLite workspace.
 ///
@@ -35,6 +41,7 @@ import 'package:nexora/runtime/sync_runtime.dart';
 Future<void> main(List<String> args) async {
   const clock = SystemClock();
   final ids = RandomIdGenerator();
+  final desktop = WindowsDesktopIntegration.forPlatform();
   if (syncFeatureEnabled) {
     // Development self-test of the sign-in lifecycle inside the real executable
     // (no UI, no network); see lib/runtime/auth_selftest.dart.
@@ -47,7 +54,7 @@ Future<void> main(List<String> args) async {
     if (selfTest != null && selfTest.isNotEmpty) {
       exit(await runAuthSelfTest(selfTest));
     }
-    final started = await _startWithSync(ids);
+    final started = await _startWithSync(ids, desktop);
     if (started) {
       return;
     }
@@ -75,7 +82,20 @@ Future<void> main(List<String> args) async {
       ids: ids,
     );
     await workspace.load();
-    runApp(NexoraApp(notifier: TasksNotifier(workspace)));
+    final reminders = ReminderService(
+      store: ReminderStore(db),
+      clock: const SystemReminderClock(),
+      notifier: desktop,
+      texts: ReminderStrings.notificationTexts,
+    );
+    unawaited(reminders.start().catchError((Object _) {}));
+    runApp(
+      NexoraApp(
+        notifier: TasksNotifier(workspace),
+        desktop: desktop,
+        reminders: reminders,
+      ),
+    );
   } on RepositoryException {
     runApp(const StartupErrorApp(message: AppStrings.errorDatabaseOpen));
   }
@@ -84,7 +104,10 @@ Future<void> main(List<String> args) async {
 /// The synchronization build (`--dart-define=NEXORA_SYNC=true`). Without project
 /// settings no account can sign in, nothing is sent, and the local workspace
 /// opens as usual (returns false so the default start runs).
-Future<bool> _startWithSync(RandomIdGenerator ids) async {
+Future<bool> _startWithSync(
+  RandomIdGenerator ids,
+  DesktopIntegration desktop,
+) async {
   final config = RuntimeConfig.load(Platform.environment);
   if (config == null) {
     return false;
@@ -118,6 +141,7 @@ Future<bool> _startWithSync(RandomIdGenerator ids) async {
       config: config,
       ids: ids,
       clock: const SystemClock(),
+      reminderNotifier: desktop,
     );
     final active = await runtime.start();
     if (active.userId == null) {
@@ -126,7 +150,7 @@ Future<bool> _startWithSync(RandomIdGenerator ids) async {
       );
     }
     await active.workspace.load();
-    runApp(AppHost(runtime: runtime));
+    runApp(AppHost(runtime: runtime, desktop: desktop));
     return true;
   } on RepositoryException {
     runApp(const StartupErrorApp(message: AppStrings.errorDatabaseOpen));

@@ -4,6 +4,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'migration_v2.dart';
 import 'migrations.dart';
 import 'schema_v3.dart';
+import 'schema_v4.dart';
 
 export 'migration_v2.dart' show MigrationReport, MigrationStepHook;
 
@@ -17,7 +18,7 @@ final class LocalDatabase {
   LocalDatabase._(this.raw, this.schemaVersion, this.migrationReport);
 
   /// The schema version this build understands.
-  static const int currentVersion = 3;
+  static const int currentVersion = 4;
 
   /// The raw handle. Repository code uses it inside transactions.
   final Database raw;
@@ -70,6 +71,9 @@ final class LocalDatabase {
       }
       if (version < 3) {
         _applyVersion3(raw);
+      }
+      if (version < 4) {
+        _applyVersion4(raw);
       }
       return LocalDatabase._(raw, currentVersion, report);
     } on SqliteException catch (error) {
@@ -128,6 +132,22 @@ final class LocalDatabase {
         raw.execute(statement);
       }
       raw.userVersion = 3;
+      raw.execute('COMMIT;');
+    } catch (_) {
+      raw.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
+  /// Migration 4: one additive table for device-local reminders (see
+  /// `schema_v4.dart`).
+  static void _applyVersion4(Database raw) {
+    raw.execute('BEGIN IMMEDIATE;');
+    try {
+      for (final statement in schemaV4Statements) {
+        raw.execute(statement);
+      }
+      raw.userVersion = 4;
       raw.execute('COMMIT;');
     } catch (_) {
       raw.execute('ROLLBACK;');

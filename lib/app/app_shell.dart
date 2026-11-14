@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:nexora/features/tasks/presentation/details_pane.dart';
 import 'package:nexora/features/tasks/presentation/keyboard_actions.dart';
+import 'package:nexora/features/tasks/presentation/reminder_banner.dart';
+import 'package:nexora/features/tasks/presentation/reminders_notifier.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/features/tasks/presentation/task_list_pane.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
@@ -151,9 +153,18 @@ class _AppShellState extends State<AppShell> {
                     ],
                   );
 
+            final withReminders = ReminderScope.maybeOf(context) == null
+                ? content
+                : Column(
+                    children: [
+                      const ReminderBanner(),
+                      Expanded(child: content),
+                    ],
+                  );
+
             return Stack(
               children: [
-                content,
+                withReminders,
                 if (overlayOpen)
                   Positioned(
                     top: 0,

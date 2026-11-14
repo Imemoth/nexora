@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
+import 'package:nexora/platform/desktop_integration.dart';
 
 import 'sync_runtime.dart';
 
@@ -10,10 +11,18 @@ import 'sync_runtime.dart';
 /// rebuilds it when the account changes. Used only when synchronization is
 /// enabled; the default application runs [NexoraApp] directly.
 class AppHost extends StatefulWidget {
-  const AppHost({super.key, required this.runtime, this.onExitApp});
+  const AppHost({
+    super.key,
+    required this.runtime,
+    this.onExitApp,
+    this.desktop,
+  });
 
   final SyncRuntime runtime;
   final void Function()? onExitApp;
+
+  /// Tray and native notifications; null disables them.
+  final DesktopIntegration? desktop;
 
   @override
   State<AppHost> createState() => _AppHostState();
@@ -55,6 +64,9 @@ class _AppHostState extends State<AppHost> {
       key: ValueKey(_active.userId ?? 'local'),
       notifier: _notifier,
       onExitApp: widget.onExitApp,
+      desktop: widget.desktop,
+      reminders: _active.reminders,
+      beforeExit: widget.runtime.dispose,
       syncPanel: widget.runtime.syncPanel(),
       accountPanel: widget.runtime.accountPanel(),
       importPanel: widget.runtime.importPanel(),
