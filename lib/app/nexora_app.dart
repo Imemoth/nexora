@@ -4,6 +4,8 @@ import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/platform/desktop_integration.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
 import 'package:nexora/features/tasks/presentation/tasks_scope.dart';
+import 'package:nexora/features/tasks/presentation/theme/theme_controller.dart';
+import 'package:nexora/features/tasks/presentation/theme/theme_scope.dart';
 
 import 'app_shell.dart';
 import 'account_actions.dart';
@@ -28,6 +30,7 @@ class NexoraApp extends StatelessWidget {
     this.desktop,
     this.reminders,
     this.beforeExit,
+    this.themeController,
   });
 
   final TasksNotifier notifier;
@@ -59,39 +62,57 @@ class NexoraApp extends StatelessWidget {
   /// Called before an explicit Exit ends the process.
   final Future<void> Function()? beforeExit;
 
+  /// The device-level theme choice (Light, Dark, System). Null keeps Dark and
+  /// hides the theme selector (a widget test that pumps the app alone).
+  final ThemeController? themeController;
+
   @override
   Widget build(BuildContext context) {
+    final controller = themeController;
+    final app = controller == null
+        ? _buildApp(ThemeMode.dark)
+        : ThemeScope(
+            controller: controller,
+            child: ListenableBuilder(
+              listenable: controller,
+              builder: (context, _) => _buildApp(controller.mode),
+            ),
+          );
     return TasksScope(
       notifier: notifier,
       child: DesktopBridge(
         desktop: desktop,
         reminders: reminders,
         beforeExit: beforeExit,
-        child: MaterialApp(
-          title: AppStrings.appName,
-          debugShowCheckedModeBanner: false,
-          themeMode: ThemeMode.dark,
-          theme: buildNexoraDarkTheme(),
-          darkTheme: buildNexoraDarkTheme(),
-          builder: (context, child) {
-            final scaler = textScaler;
-            final content = child ?? const SizedBox.shrink();
-            if (scaler == null) {
-              return content;
-            }
-            return MediaQuery(
-              data: MediaQuery.of(context).copyWith(textScaler: scaler),
-              child: content,
-            );
-          },
-          home: AppShell(
-            onExitApp: onExitApp,
-            syncPanel: syncPanel,
-            accountPanel: accountPanel,
-            importPanel: importPanel,
-            conflictPanel: conflictPanel,
-          ),
-        ),
+        child: app,
+      ),
+    );
+  }
+
+  Widget _buildApp(ThemeMode mode) {
+    return MaterialApp(
+      title: AppStrings.appName,
+      debugShowCheckedModeBanner: false,
+      themeMode: mode,
+      theme: buildNexoraLightTheme(),
+      darkTheme: buildNexoraDarkTheme(),
+      builder: (context, child) {
+        final scaler = textScaler;
+        final content = child ?? const SizedBox.shrink();
+        if (scaler == null) {
+          return content;
+        }
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: scaler),
+          child: content,
+        );
+      },
+      home: AppShell(
+        onExitApp: onExitApp,
+        syncPanel: syncPanel,
+        accountPanel: accountPanel,
+        importPanel: importPanel,
+        conflictPanel: conflictPanel,
       ),
     );
   }

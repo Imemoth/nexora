@@ -28,58 +28,106 @@ double _contrast(int a, int b) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-const _textTokens = {
-  'text1': NexoraPalette.text1,
-  'text2': NexoraPalette.text2,
-  'textMuted': NexoraPalette.textMuted,
-  'primary': NexoraPalette.primary,
-  'positive': NexoraPalette.positive,
-  'negative': NexoraPalette.negative,
-  'warning': NexoraPalette.warning,
+const _themes = {'dark': NexoraPalette.dark, 'light': NexoraPalette.light};
+
+Map<String, int> _text(NexoraTokenSet t) => {
+  'text1': t.text1,
+  'text2': t.text2,
+  'textMuted': t.textMuted,
+  'accentCyan': t.accentCyan,
+  'statusOpen': t.statusOpen,
+  'statusProgress': t.statusProgress,
+  'statusReview': t.statusReview,
+  'statusDone': t.statusDone,
+  'statusOverdue': t.statusOverdue,
 };
 
-const _surfaceTokens = {
-  'background': NexoraPalette.background,
-  'surface': NexoraPalette.surface,
-  'surface2': NexoraPalette.surface2,
+Map<String, int> _grounds(NexoraTokenSet t) => {
+  'background': t.background,
+  'panel': t.panel,
+  'surface': t.surface,
+  'surface2': t.surface2,
 };
 
 void main() {
-  test('every text token meets 4.5:1 on every surface (normal text)', () {
-    for (final text in _textTokens.entries) {
-      for (final surface in _surfaceTokens.entries) {
-        final ratio = _contrast(text.value, surface.value);
+  for (final theme in _themes.entries) {
+    final name = theme.key;
+    final t = theme.value;
+
+    test('$name: every text token meets 4.5:1 on all four grounds', () {
+      for (final text in _text(t).entries) {
+        for (final ground in _grounds(t).entries) {
+          final ratio = _contrast(text.value, ground.value);
+          expect(
+            ratio >= 4.5,
+            isTrue,
+            reason:
+                '${text.key} on ${ground.key} is ${ratio.toStringAsFixed(2)}',
+          );
+        }
+      }
+    });
+
+    test('$name: borderStrong and the focus ring hold 3:1 on all grounds', () {
+      for (final ground in _grounds(t).entries) {
+        final strong = _contrast(t.borderStrong, ground.value);
+        expect(
+          strong >= 3.3,
+          isTrue,
+          reason: 'borderStrong on ${ground.key} is $strong',
+        );
+        final ring = _contrast(t.accentCyan, ground.value);
+        expect(ring >= 3.0, isTrue, reason: 'focus ring on ${ground.key}');
+      }
+    });
+
+    test('$name: onAccent holds 4.5:1 on every accent fill', () {
+      for (final fill in {
+        'accentBlue': t.accentBlue,
+        'accentCyan': t.accentCyan,
+        'accentViolet': t.accentViolet,
+      }.entries) {
+        final ratio = _contrast(t.onAccent, fill.value);
         expect(
           ratio >= 4.5,
           isTrue,
-          reason:
-              '${text.key} on ${surface.key} is ${ratio.toStringAsFixed(2)}',
+          reason: 'onAccent on ${fill.key} is ${ratio.toStringAsFixed(2)}',
         );
       }
-    }
-  });
+    });
 
-  test('every text token meets 3:1 on every surface (large text)', () {
-    for (final text in _textTokens.entries) {
-      for (final surface in _surfaceTokens.entries) {
-        final ratio = _contrast(text.value, surface.value);
+    test('$name: onSeverity holds 5.9:1 on both severity fills', () {
+      for (final fill in {
+        'severityWarning': t.severityWarning,
+        'severityCritical': t.severityCritical,
+      }.entries) {
+        final ratio = _contrast(t.onSeverity, fill.value);
         expect(
-          ratio >= 3.0,
+          ratio >= 5.9,
           isTrue,
-          reason:
-              '${text.key} on ${surface.key} is ${ratio.toStringAsFixed(2)}',
+          reason: 'onSeverity on ${fill.key} is ${ratio.toStringAsFixed(2)}',
         );
       }
-    }
-  });
+    });
 
-  test('the palette is opaque', () {
-    for (final value in [
-      ..._textTokens.values,
-      ..._surfaceTokens.values,
-      NexoraPalette.border,
-    ]) {
-      expect(value >> 24, 0xFF);
-    }
-  });
+    test('$name: severity tokens alias the status colours; all opaque', () {
+      expect(t.severityWarning, t.statusReview);
+      expect(t.severityCritical, t.statusOverdue);
+      expect(t.onSeverity, t.onAccent);
+      for (final value in [
+        ..._text(t).values,
+        ..._grounds(t).values,
+        t.border,
+        t.borderStrong,
+        t.accentBlue,
+        t.accentViolet,
+        t.onAccent,
+        t.severityWarning,
+        t.severityCritical,
+        t.onSeverity,
+      ]) {
+        expect(value >> 24, 0xFF);
+      }
+    });
+  }
 }
