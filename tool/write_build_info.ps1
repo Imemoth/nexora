@@ -19,7 +19,10 @@ param(
     [string] $BuildType,
 
     [Parameter(Mandatory = $true)]
-    [string] $OutputPath
+    [string] $OutputPath,
+
+    # The build offers sign-in and synchronization (NEXORA_SYNC=true).
+    [switch] $SyncEnabled
 )
 
 $ErrorActionPreference = 'Stop'
@@ -53,6 +56,7 @@ $info = [ordered]@{
     version        = $match.Groups[1].Value
     buildNumber    = $match.Groups[2].Value
     buildType      = $BuildType
+    syncEnabled    = [bool] $SyncEnabled
     sourceCommit   = $source
     sourceShort    = $source.Substring(0, 7)
     checkoutCommit = $checkout
@@ -64,4 +68,4 @@ if ($dir) {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
 }
 ($info | ConvertTo-Json) | Set-Content -LiteralPath $OutputPath -Encoding utf8
-Write-Output "BUILD-INFO: $($info.version)+$($info.buildNumber) $($info.buildType) commit $($info.sourceShort) run $($info.ciRun)"
+Write-Output "BUILD-INFO: $($info.version)+$($info.buildNumber) $($info.buildType) sync=$($info.syncEnabled) commit $($info.sourceShort) run $($info.ciRun)"

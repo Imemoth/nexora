@@ -18,6 +18,11 @@ abstract final class AppStrings {
   static const clearSearch = 'Clear';
   static const searchHint = 'Search title and notes';
   static const selectedTaskHidden = 'Selected task is hidden in this view';
+  static String revealShowInProject(String project) =>
+      project.isEmpty ? 'Show its project' : 'Show in $project';
+  static const revealClearSearch = 'Clear search';
+  static const revealShowAllStatuses = 'Show all statuses';
+  static const revealExpandParents = 'Expand parents';
   static const readyForReview = 'Ready for review';
   static const sortTooltip = 'Sort';
   static const expandTask = 'Expand';
@@ -38,6 +43,9 @@ abstract final class AppStrings {
   static const aboutCommit = 'Source commit';
   static const aboutBuild = 'Build';
   static const aboutRun = 'CI run';
+  static const aboutSync = 'Synchronization';
+  static const syncOn = 'On: sign-in and sync (TEST project)';
+  static const syncOff = 'Off: local only, no sign-in';
   static const buildTypeRelease = 'Release build';
   static const buildTypeDevelopmentTest = 'DEVELOPMENT TEST';
   static const buildTypeLocal = 'Local build (not made by CI)';
@@ -122,7 +130,8 @@ abstract final class AppStrings {
   static const clearDueTime = 'Remove time';
   static const dueTimeNeedsDate = 'Choose a date first.';
   static const dueTimeLocalOnly =
-      'Time of day is not synchronized yet, so it is off while signed in.';
+      'The server does not store a time of day yet, so it is off while signed '
+      'in. Dates work as usual.';
   static const dueTimeHelp =
       'The date alone means the whole day. A time is a wall-clock time and '
       'never shifts with time zones.';
@@ -172,6 +181,14 @@ abstract final class AppStrings {
   static const importFailed =
       'The import did not run and nothing was changed. Your backup and local data are intact';
   static const importBackupNote = 'Backup of this account saved at';
+  static String importDueTimesLost(int n) =>
+      '$n ${n == 1 ? 'task has' : 'tasks have'} a due time. The server cannot '
+      'store due times yet, so ${n == 1 ? 'it is' : 'they are'} imported with the '
+      'date only; the time is not kept.';
+  static const importDueTimesKept =
+      'Due times are kept: they are imported and synchronized with their dates.';
+  static String importCandidateDueTimesDropped(int n) =>
+      '$n without their time';
   static String importTaskCount(int n) => n == 1 ? '1 task' : '$n tasks';
   static String importSkippedNote(
     int localOnly,

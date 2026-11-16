@@ -124,16 +124,19 @@ void main() {
       commit: 'a2ef9970bebeebfc7f7bdf75e75a70710b8d9761',
       buildType: 'development-test',
       runId: '99-1',
+      syncEnabled: true,
     );
     expect(
       info.toReport(
         appName: 'Nexora',
         buildTypeLabel: 'DEVELOPMENT TEST',
         unknownCommitLabel: 'unknown',
+        syncLabel: 'On',
       ),
       'Nexora 1.0.0+3\n'
       'Commit: a2ef9970bebeebfc7f7bdf75e75a70710b8d9761\n'
       'Build: DEVELOPMENT TEST\n'
+      'Synchronization: On\n'
       'CI run: 99-1',
     );
   });
@@ -144,8 +147,9 @@ void main() {
         appName: 'Nexora',
         buildTypeLabel: 'Local build',
         unknownCommitLabel: 'unknown',
+        syncLabel: 'Off',
       ),
-      'Nexora unknown\nCommit: unknown\nBuild: Local build',
+      'Nexora unknown\nCommit: unknown\nBuild: Local build\nSynchronization: Off',
     );
   });
 }

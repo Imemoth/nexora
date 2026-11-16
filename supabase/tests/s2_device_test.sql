@@ -9,11 +9,12 @@ begin
   perform pg_temp.mkuser(a); perform pg_temp.mkuser(b);
 
   r := pg_temp.reg(a, da, 'Laptop');
-  perform pg_temp.assert('register_creates_device', r = jsonb_build_object('device_id', da, 'created', true, 'active_devices', 1));
+  -- `features` (due-time migration) is an addition to the answer; every earlier key is unchanged.
+  perform pg_temp.assert('register_creates_device', (r - 'features') = jsonb_build_object('device_id', da, 'created', true, 'active_devices', 1));
   perform pg_temp.assert('owner_comes_from_the_token', (select user_id from public.devices where id = da) = a);
   perform pg_temp.assert('label_stored', (select label from public.devices where id = da) = 'Laptop');
   r := pg_temp.reg(a, da, 'Renamed');
-  perform pg_temp.assert('register_is_idempotent', r = jsonb_build_object('device_id', da, 'created', false, 'active_devices', 1));
+  perform pg_temp.assert('register_is_idempotent', (r - 'features') = jsonb_build_object('device_id', da, 'created', false, 'active_devices', 1));
   perform pg_temp.assert('label_not_overwritten_by_re_register', (select label from public.devices where id = da) = 'Laptop');
   perform pg_temp.assert('last_seen_at_set', (select last_seen_at from public.devices where id = da) is not null);
 

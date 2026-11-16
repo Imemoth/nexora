@@ -95,7 +95,9 @@ begin
           ('nexora_sync_pull(uuid,bigint,integer)','postgres'),('nexora_sync_pull(uuid,bigint,integer)','authenticated'),
           ('nexora_private.pull(uuid,bigint,integer)','postgres'),('nexora_private.pull(uuid,bigint,integer)','authenticated'),
           ('nexora_private.guard_conflict_seq()','postgres'),
-          ('nexora_private.throttle(uuid,text,integer)','postgres')) v(fn, g))));
+          ('nexora_private.throttle(uuid,text,integer)','postgres'),
+          -- due time (20261116100000): a pure helper for the date/time pairing rule, owner-only like the other private helpers
+          ('nexora_private.pair_due_time(jsonb,jsonb)','postgres')) v(fn, g))));
   perform pg_temp.assert('every_expected_execute_grant_exists',
     (select count(*) from pg_proc p, lateral aclexplode(p.proacl) a2
       where p.pronamespace in ('public'::regnamespace,'nexora_private'::regnamespace) and a2.privilege_type='EXECUTE'

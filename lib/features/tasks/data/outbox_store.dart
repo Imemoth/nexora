@@ -920,8 +920,9 @@ final class OutboxStore {
     final sets = <String>[];
     for (final field in [...fields, 'deleted_at']) {
       sets.add('$field = ?');
+      // An older server answers no `due_time`: it has none, so neither do we.
       values.add(
-        snapshot.containsKey(field)
+        snapshot.containsKey(field) || field == 'due_time'
             ? serverColumnValue(field, snapshot)
             : local[field],
       );

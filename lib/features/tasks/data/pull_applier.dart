@@ -261,8 +261,14 @@ final class PullApplier {
     final sets = <String>[];
     final values = <Object?>[];
     var preserved = false;
+    // The date and the time are one unit: a pending local edit of either keeps
+    // both, so a pulled row can never leave a time without its date.
+    final held = {...pending.fields};
+    if (held.contains('due_date') || held.contains('due_time')) {
+      held.addAll(const ['due_date', 'due_time']);
+    }
     for (final field in [...fields, 'deleted_at']) {
-      if (pending.fields.contains(field)) {
+      if (held.contains(field)) {
         preserved = true;
         continue;
       }
@@ -308,8 +314,8 @@ final class PullApplier {
     }
     _raw.execute(
       'INSERT INTO tasks (id, project_id, owner_id, parent_id, title, notes, status, priority, '
-      'due_date, completed_at, sort_order, version, sync_scope, deleted_at, created_at, updated_at) '
-      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?)",
+      'due_date, due_time, completed_at, sort_order, version, sync_scope, deleted_at, created_at, updated_at) '
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?)",
       [
         item.id,
         row['project_id'],
@@ -320,6 +326,8 @@ final class PullApplier {
         row['status'],
         row['priority'],
         row['due_date'],
+        // `17:30:00` from PostgreSQL becomes `17:30`; an older server has no key.
+        row['due_date'] == null ? null : _columnValue('due_time', row),
         _columnValue('completed_at', row),
         _columnValue('sort_order', row),
         row['version'],

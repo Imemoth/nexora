@@ -9,7 +9,7 @@ on:
   # A workflow that exists only on a feature branch cannot be dispatched through the API, so a push to this branch that
   # touches this very file also starts it (it never runs for any other change).
   push:
-    branches: [claude/affectionate-turing-unzmd2]
+    branches: [claude/affectionate-turing-unzmd2, feature/phase-5-ui-ux]
     paths: ['.github/workflows/windows-sync-dev-build.yml']
 
 permissions:
@@ -111,7 +111,7 @@ jobs:
 
       - name: Write BUILD-INFO.json next to nexora.exe
         shell: pwsh
-        run: ./tool/write_build_info.ps1 -BuildType development-test -OutputPath build/windows/x64/runner/Release/BUILD-INFO.json
+        run: ./tool/write_build_info.ps1 -BuildType development-test -SyncEnabled -OutputPath build/windows/x64/runner/Release/BUILD-INFO.json
 
       - name: Package and smoke-test portable ZIP
         shell: pwsh

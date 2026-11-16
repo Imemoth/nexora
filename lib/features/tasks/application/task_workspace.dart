@@ -36,17 +36,23 @@ final class TaskWorkspace {
     required this.repository,
     required this.clock,
     required this.ids,
-    this.dueTimeSupported = true,
-  }) : _state = WorkspaceState.initial(clock.today());
+    bool dueTimeSupported = true,
+    bool Function()? dueTimeSupportOf,
+  }) : _dueTimeFixed = dueTimeSupported,
+       _dueTimeOf = dueTimeSupportOf,
+       _state = WorkspaceState.initial(clock.today());
 
   final TaskRepository repository;
   final Clock clock;
   final IdGenerator ids;
 
-  /// Whether a due date may carry a time of day. False for a synchronized
-  /// workspace until the hosted schema can store it (see ADR 0004): the
-  /// presentation then shows the time controls disabled with the reason.
-  final bool dueTimeSupported;
+  /// Whether a due date may carry a time of day. A signed-in workspace follows
+  /// what its server reported (ADR 0004): off until the server lists `due_time`,
+  /// then on; [dueTimeSupportOf] is asked every time, so a server that is migrated
+  /// (or rolled back) takes effect at the next refresh without a restart.
+  bool get dueTimeSupported => _dueTimeOf?.call() ?? _dueTimeFixed;
+  final bool _dueTimeFixed;
+  final bool Function()? _dueTimeOf;
   final StreamController<WorkspaceState> _controller =
       StreamController<WorkspaceState>.broadcast();
   WorkspaceState _state;
@@ -83,6 +89,10 @@ final class TaskWorkspace {
         _state.copyWith(
           projects: projects,
           tasks: {for (final task in tasks) task.id: task},
+          // A fresh load presents the tree anew: the default expansion applies
+          // again (see `_withDefaultExpansion`).
+          expandedTaskIds: const {},
+          expansionDefaulted: const {},
           loading: false,
           clearSelectedTask: true,
           clearDraft: true,
@@ -692,24 +702,33 @@ final class TaskWorkspace {
     }
     return switch (transition) {
       TransitionSelectTask(:final taskId) => taskId != draft.taskId,
-      TransitionSelectView(:final view) => !_stillVisible(
+      TransitionSelectView(:final view) => _wouldHide(
         draft.taskId,
         SmartViewSelection(view),
         _state.searchQuery,
       ),
-      TransitionSelectProject(:final projectId) => !_stillVisible(
+      TransitionSelectProject(:final projectId) => _wouldHide(
         draft.taskId,
         ProjectSelection(projectId),
         _state.searchQuery,
       ),
       TransitionSelectDashboard() => true,
-      TransitionSearch(:final query) => !_stillVisible(
+      TransitionSearch(:final query) => _wouldHide(
         draft.taskId,
         _state.selection,
         query,
       ),
       TransitionCreate() || TransitionExit() || TransitionSignOut() => true,
     };
+  }
+
+  /// True when moving to [selection] and [query] would hide a task that the
+  /// current view shows. A task that is already hidden (for example a related
+  /// subtask the search does not match) is not hidden *by* this move, so nothing
+  /// is lost by it and it needs no confirmation.
+  bool _wouldHide(String taskId, NavSelection selection, String query) {
+    return _stillVisible(taskId, _state.selection, _state.searchQuery) &&
+        !_stillVisible(taskId, selection, query);
   }
 
   bool _stillVisible(String taskId, NavSelection selection, String query) {
@@ -774,9 +793,13 @@ final class TaskWorkspace {
     final nextSelection = selection ?? _state.selection;
     final nextQuery = query ?? _state.searchQuery;
     final selectedId = _state.selectedTaskId;
+    // The selection survives when the task is still shown, or when it was
+    // already hidden (revealing a task the current search, filter or view cannot
+    // show, then widening one of them, must not lose it).
     final keep =
         selectedId != null &&
-        _stillVisible(selectedId, nextSelection, nextQuery);
+        (_stillVisible(selectedId, nextSelection, nextQuery) ||
+            !_stillVisible(selectedId, _state.selection, _state.searchQuery));
     return _state.copyWith(
       selection: nextSelection,
       searchQuery: nextQuery,
@@ -933,10 +956,41 @@ final class TaskWorkspace {
     final stale =
         next.incoming != null &&
         (next.draft == null || next.selectedTaskId != _state.selectedTaskId);
-    _state = (stale ? next.copyWith(clearIncoming: true) : next).copyWith(
-      today: clock.today(),
-    );
+    _state = _withDefaultExpansion(
+      stale ? next.copyWith(clearIncoming: true) : next,
+    ).copyWith(today: clock.today());
     _controller.add(_state);
+  }
+
+  /// The default expansion: a parent task that stands at the top of the current
+  /// list (depth 0) and has children shows its **direct** children, once.
+  ///
+  /// * Only top-of-list parents qualify, so the default never cascades: a child
+  ///   that is itself a parent stays collapsed until the user opens it (mouse,
+  ///   arrow keys, or revealing a task inside it).
+  /// * "Once" is recorded in [WorkspaceState.expansionDefaulted]. After that the
+  ///   user owns the state of that parent: a collapse is not undone by a
+  ///   refresh, a sort, a search or a filter.
+  /// * A parent that gains its first child later (a pulled or a new subtask) has
+  ///   not been defaulted yet, so it opens to show it.
+  WorkspaceState _withDefaultExpansion(WorkspaceState next) {
+    if (next.selection is DashboardSelection) {
+      return next;
+    }
+    final fresh = <String>{
+      for (final row in next.visibleRows)
+        if (row.depth == 0 &&
+            row.hasChildren &&
+            !next.expansionDefaulted.contains(row.task.id))
+          row.task.id,
+    };
+    if (fresh.isEmpty) {
+      return next;
+    }
+    return next.copyWith(
+      expandedTaskIds: {...next.expandedTaskIds, ...fresh},
+      expansionDefaulted: {...next.expansionDefaulted, ...fresh},
+    );
   }
 
   WorkspaceError _titleCode(TitleError error) {

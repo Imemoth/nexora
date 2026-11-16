@@ -2,6 +2,15 @@
 
 How to tell exactly which build is running, how to raise the version, and how to trace a released artifact back to its source.
 
+## 0. Which Windows build is which
+| Build | Workflow and artifact | `BUILD-INFO.json` | About shows |
+|---|---|---|---|
+| **Local-only release build** | `ci.yml`, artifact `nexora-windows-portable` (`nexora-windows-portable.zip`) | `buildType: release`, `syncEnabled: false` | Build **Release build**, Synchronization **Off: local only, no sign-in**; no Sign in anywhere in the app |
+| **Sign-in and synchronization DEVELOPMENT TEST build** | `windows-sync-dev-build.yml`, artifact `nexora-windows-sync-DEVELOPMENT-TEST` (`nexora-windows-sync-DEVELOPMENT-TEST.zip`) | `buildType: development-test`, `syncEnabled: true` | Build **DEVELOPMENT TEST** (warning colour and note), Synchronization **On: sign-in and sync (TEST project)**; the sync card and Sign in |
+| A developer's own build | none | none | Build **Local build (not made by CI)**, commit **unknown** |
+
+The two CI builds have the same version and (for one commit) the same source commit; they differ in build type and `syncEnabled`. The sync build embeds only the public URL and anon key of the TEST project (a key whose role is not `anon` is refused by the app and by the workflow); no service-role key, token or password is built in, logged or shown. The workflow starts by a manual dispatch, or by a push to `feature/phase-5-ui-ux` that touches the workflow file.
+
 ## 1. One source of truth
 The version is the `version:` line of `pubspec.yaml` (`x.y.z+n`). Nothing else is edited by hand:
 
@@ -11,7 +20,7 @@ The version is the `version:` line of `pubspec.yaml` (`x.y.z+n`). Nothing else i
 | About screen (Nexora version) | the app reads its own bundled `pubspec.yaml` (declared as an asset) and parses that line; there is no copy of the number in Dart |
 | `BUILD-INFO.json` and `SHA256SUMS.txt` in CI artifacts | `tool/write_build_info.ps1` reads `pubspec.yaml` |
 
-Raising the version: edit the one `version:` line (`1.0.0+1` becomes `1.1.0+2`), commit, and let CI build. The part before `+` is the release version; the part after is a build counter you raise when you ship another build of the same release. Do not edit `Runner.rc`, a Dart constant or a workflow for this.
+Current version: **1.1.0+2** (was 1.0.0+1; the release version rises because the local file schema, the synchronization protocol and the interface changed). Raising the version: edit the one `version:` line (`1.0.0+1` became `1.1.0+2`), commit, and let CI build. The part before `+` is the release version; the part after is a build counter you raise when you ship another build of the same release. Do not edit `Runner.rc`, a Dart constant or a workflow for this.
 
 ## 2. The identity CI writes
 Both Windows workflows pass three values to `flutter build windows` as `--dart-define`s and write a file next to `nexora.exe`:
@@ -32,6 +41,7 @@ Account menu (bottom of the sidebar), **About Nexora**:
 | Field | Value |
 |---|---|
 | Version | `1.0.0+1` from `pubspec.yaml`; `unknown` if the bundled file cannot be read |
+| Synchronization | `On: sign-in and sync (TEST project)` or `Off: local only, no sign-in`, from the build-time flag `NEXORA_SYNC` (it travels in `BUILD-INFO.json` as `syncEnabled`) |
 | Source commit | first seven characters of `NEXORA_COMMIT`; **`unknown`** when it was not provided or is not a valid commit id. Never guessed |
 | Build | `Release build`, **`DEVELOPMENT TEST`** (warning colour, with a note that it is not a release), or `Local build (not made by CI)` |
 | CI run | only when provided |

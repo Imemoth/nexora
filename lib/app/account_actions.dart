@@ -12,7 +12,11 @@ final class ImportCandidateView {
     required this.taskCount,
     required this.warnings,
     this.sameNameProjectId,
+    this.dueTimeCount = 0,
   });
+
+  /// Tasks of this project that have a due time.
+  final int dueTimeCount;
 
   final String id;
   final String name;
@@ -27,7 +31,12 @@ final class ImportPreviewView {
     this.skippedLocalOnly = 0,
     this.skippedUnclassified = 0,
     this.skippedDeleted = 0,
+    this.dueTimesTransferable = false,
   });
+
+  /// False while the account's server cannot store due times: the import then
+  /// keeps dates and drops times, and the preview says so.
+  final bool dueTimesTransferable;
 
   final List<ImportCandidateView> candidates;
   final int skippedLocalOnly;
@@ -197,6 +206,8 @@ class _ImportDialog extends StatefulWidget {
 
 class _ImportDialogState extends State<_ImportDialog> {
   ImportPreviewView? _preview;
+
+  bool get _dueTimesKept => _preview?.dueTimesTransferable ?? false;
   List<DestinationView> _destinations = const [];
   final Set<String> _selected = {};
   final Map<String, String?> _destination = {};
@@ -289,6 +300,30 @@ class _ImportDialogState extends State<_ImportDialog> {
                     key: ValueKey('import-empty'),
                   ),
                 for (final c in preview.candidates) _row(c),
+                if (!preview.dueTimesTransferable &&
+                    preview.candidates.any((c) => c.dueTimeCount > 0))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      AppStrings.importDueTimesLost(
+                        preview.candidates.fold(
+                          0,
+                          (sum, c) => sum + c.dueTimeCount,
+                        ),
+                      ),
+                      key: const ValueKey('import-due-time-warning'),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                if (preview.dueTimesTransferable &&
+                    preview.candidates.any((c) => c.dueTimeCount > 0))
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      AppStrings.importDueTimesKept,
+                      key: ValueKey('import-due-time-kept'),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 Text(
                   AppStrings.importSkippedNote(
@@ -351,6 +386,8 @@ class _ImportDialogState extends State<_ImportDialog> {
                 if (blocked) AppStrings.importAlreadyDone,
                 if (c.warnings.contains(ImportWarningView.sameNameExists))
                   AppStrings.importSameName,
+                if (c.dueTimeCount > 0 && !_dueTimesKept)
+                  AppStrings.importCandidateDueTimesDropped(c.dueTimeCount),
               ].join('. '),
             ),
             onChanged: _busy

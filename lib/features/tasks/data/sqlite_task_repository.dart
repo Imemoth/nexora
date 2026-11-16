@@ -34,7 +34,9 @@ final class SqliteTaskRepository
     required this.ownerId,
     DateTime Function()? now,
     IdGenerator? ids,
-  }) : _now = now ?? (() => DateTime.now().toUtc()),
+    bool Function()? dueTimeSyncs,
+  }) : _dueTimeSyncs = dueTimeSyncs ?? (() => true),
+       _now = now ?? (() => DateTime.now().toUtc()),
        _ids = ids ?? RandomIdGenerator() {
     _outbox = OutboxStore(_db, ids: _ids, now: _now);
   }
@@ -46,6 +48,11 @@ final class SqliteTaskRepository
   final String ownerId;
   final DateTime Function() _now;
   final IdGenerator _ids;
+
+  /// Whether the server of this account stores a due time. A task that
+  /// synchronizes refuses a new or changed time while it does not (the time would
+  /// exist on this device only). Always true for a repository that never syncs.
+  final bool Function() _dueTimeSyncs;
 
   // ---------------------------------------------------------------- reads
 
@@ -72,9 +79,7 @@ final class SqliteTaskRepository
     return _run(() {
       final rows = _db.raw.select(
         'SELECT id, project_id, parent_id, title, notes, status, priority, '
-        'due_date, sort_order, '
-        '(SELECT due_time FROM task_due_times d WHERE d.task_id = tasks.id) '
-        'AS due_time FROM tasks WHERE deleted_at IS NULL '
+        'due_date, due_time, sort_order FROM tasks WHERE deleted_at IS NULL '
         'ORDER BY project_id, parent_id, sort_order, id',
       );
       return [
@@ -88,7 +93,7 @@ final class SqliteTaskRepository
             status: _statusFromColumn(row['status'] as String),
             priority: _priorityFromColumn(row['priority'] as String),
             dueDate: _dateFromColumn(row['due_date'] as String?),
-            // A time without a date cannot exist; ignore a stray row.
+            // A time without a date cannot exist (check constraint); be strict anyway.
             dueTime: row['due_date'] == null
                 ? null
                 : DueTime.tryParse(row['due_time'] as String?),
@@ -311,7 +316,6 @@ final class SqliteTaskRepository
     if (row == null) {
       final scope = _scopeForNewTask(task);
       _insertTaskRow(task, now, scope);
-      _writeDueTime(task);
       if (scope == 'synced') {
         _outbox.recordCreate(
           entityType: 'task',
@@ -327,10 +331,16 @@ final class SqliteTaskRepository
       throw RepositoryException('task ${task.id} was deleted');
     }
     if (_sameTask(row, task)) {
-      // Repeated save of identical content writes nothing. A time-only change
-      // is device-local: it never touches `tasks`, the version or the outbox.
-      _writeDueTime(task);
-      return;
+      return; // Repeated save of identical content writes nothing.
+    }
+    if (row['sync_scope'] == 'synced' &&
+        task.dueTime != null &&
+        task.dueTime!.toHm() != row['due_time'] &&
+        !_dueTimeSyncs()) {
+      // The time would never leave this device: refuse instead of pretending.
+      throw const RepositoryException(
+        'the server does not store a due time yet',
+      );
     }
     if (row['project_id'] != task.projectId) {
       throw RepositoryException(
@@ -360,6 +370,25 @@ final class SqliteTaskRepository
     if (row['due_date'] != task.dueDate?.toIsoString()) {
       changes['due_date'] = task.dueDate?.toIsoString();
     }
+    if (row['due_time'] != task.dueTime?.toHm()) {
+      changes['due_time'] = task.dueTime?.toHm();
+    }
+    // The date and the time travel together (see `pairDueTime`): moving the date
+    // of a task that has a time sends the time as well, so the server keeps it.
+    final paired = Map<String, Object?>.of(
+      pairDueTime('task', {
+        'due_date': task.dueDate?.toIsoString(),
+        'due_time': task.dueTime?.toHm(),
+      }, changes),
+    );
+    changes
+      ..clear()
+      ..addAll(paired);
+    if (!_dueTimeSyncs()) {
+      // An older server has no such field: never send it (the time stays local
+      // and is cleared with its date).
+      changes.remove('due_time');
+    }
     if (row['completed_at'] != completedAt) {
       changes['completed_at'] = completedAt;
     }
@@ -368,7 +397,7 @@ final class SqliteTaskRepository
     }
     _db.raw.execute(
       'UPDATE tasks SET parent_id = ?, title = ?, notes = ?, '
-      'status = ?, priority = ?, due_date = ?, completed_at = ?, sort_order = ?, '
+      'status = ?, priority = ?, due_date = ?, due_time = ?, completed_at = ?, sort_order = ?, '
       'updated_at = ? WHERE id = ?',
       [
         task.parentId,
@@ -377,14 +406,14 @@ final class SqliteTaskRepository
         _statusColumn(task.status),
         _priorityColumn(task.priority),
         task.dueDate?.toIsoString(),
+        task.dueDate == null ? null : task.dueTime?.toHm(),
         completedAt,
         task.position,
         now,
         task.id,
       ],
     );
-    _writeDueTime(task);
-    if (row['sync_scope'] == 'synced') {
+    if (row['sync_scope'] == 'synced' && changes.isNotEmpty) {
       _outbox.recordEdit(
         entityType: 'task',
         entityId: task.id,
@@ -392,23 +421,6 @@ final class SqliteTaskRepository
         storedVersion: row['version'] as int,
       );
     }
-  }
-
-  /// Stores the optional time of [task]'s due date, or removes it. The time
-  /// never travels: it is not part of any outbox patch (ADR 0004).
-  void _writeDueTime(Task task) {
-    final time = task.dueDate == null ? null : task.dueTime;
-    if (time == null) {
-      _db.raw.execute('DELETE FROM task_due_times WHERE task_id = ?', [
-        task.id,
-      ]);
-      return;
-    }
-    _db.raw.execute(
-      'INSERT INTO task_due_times (task_id, due_time) VALUES (?, ?) '
-      'ON CONFLICT (task_id) DO UPDATE SET due_time = excluded.due_time',
-      [task.id, time.toHm()],
-    );
   }
 
   /// A new task is synchronized unless its project or parent is `local_only` or
@@ -439,8 +451,8 @@ final class SqliteTaskRepository
   void _insertTaskRow(Task task, String now, String scope) {
     _db.raw.execute(
       'INSERT INTO tasks (id, project_id, owner_id, parent_id, title, notes, '
-      'status, priority, due_date, completed_at, sort_order, version, sync_scope, '
-      'created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)',
+      'status, priority, due_date, due_time, completed_at, sort_order, version, sync_scope, '
+      'created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)',
       [
         task.id,
         task.projectId,
@@ -451,6 +463,7 @@ final class SqliteTaskRepository
         _statusColumn(task.status),
         _priorityColumn(task.priority),
         task.dueDate?.toIsoString(),
+        task.dueDate == null ? null : task.dueTime?.toHm(),
         task.status == TaskStatus.done ? now : null,
         task.position,
         scope,
@@ -523,6 +536,7 @@ final class SqliteTaskRepository
         row['status'] == _statusColumn(task.status) &&
         row['priority'] == _priorityColumn(task.priority) &&
         row['due_date'] == task.dueDate?.toIsoString() &&
+        row['due_time'] == task.dueTime?.toHm() &&
         row['sort_order'] == task.position;
   }
 

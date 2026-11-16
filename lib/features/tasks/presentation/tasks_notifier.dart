@@ -69,6 +69,32 @@ final class TasksNotifier extends ChangeNotifier {
     _workspace.requestSelectTask(taskId);
   }
 
+  /// Opens a related subtask (a row of the details panel): expands every
+  /// collapsed ancestor so it can appear in the tree, then selects it.
+  ///
+  /// Nothing the user chose is undone: the search, the status filter, the view
+  /// and any unsaved draft stay as they are. Selection goes through the
+  /// unsaved-change gate like any other. When the current search, filter or view
+  /// cannot show the task, the list says so and offers one explicit action for
+  /// each cause (`WorkspaceState.hiddenReasons`).
+  void revealSubtask(String taskId) {
+    expandAncestorsOf(taskId);
+    _workspace.requestSelectTask(taskId);
+  }
+
+  /// Expands every collapsed ancestor of [taskId] (never the task itself).
+  /// Expansion is a view matter: it does not touch the draft and is never gated.
+  void expandAncestorsOf(String taskId) {
+    var parent = state.tasks[taskId]?.parentId;
+    final seen = <String>{};
+    while (parent != null && seen.add(parent)) {
+      if (!state.expandedTaskIds.contains(parent)) {
+        _workspace.toggleExpanded(parent);
+      }
+      parent = state.tasks[parent]?.parentId;
+    }
+  }
+
   void search(String query) => _workspace.requestSearch(query);
 
   void sort(TaskSort sort) => _workspace.requestSort(sort);

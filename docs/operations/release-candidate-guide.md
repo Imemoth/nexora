@@ -48,3 +48,10 @@ Phase 5 changes how Nexora looks and adds a few controls; your data and the sync
 - **Editor:** Save and Revert stay pinned at the top and show "Saved" or "Edited, not saved". The reminder block below the task is saved immediately, on this device only, and is not part of Save or Revert. **Delete task** (and **Delete project** from the selected project's menu) asks first, says how many subtasks or tasks go too, and cannot be undone; the last project cannot be deleted.
 - **Dashboard:** counts for Today, Overdue, Next 7 Days and All, the reminders on this device (with Dismiss all), what needs attention, the current sync state and project progress.
 
+## 12. Version 1.1.0+2: the sign-in and synchronization test build
+- **Two builds, one version.** `nexora-windows-portable.zip` is local only (About: Synchronization Off). `nexora-windows-sync-DEVELOPMENT-TEST.zip` (workflow `windows-sync-dev-build`) offers Sign in and synchronization against the TEST project; About shows **DEVELOPMENT TEST** and Synchronization **On**. Both carry `BUILD-INFO.json`; see `versioning-and-build-identity.md`.
+- **Upgrading from 1.0.0+1 (local only).** Opening the local file with 1.1.0+2 migrates it in place (schema 5 to 6; due times are kept). **A 1.0.0+1 build cannot open it afterwards.** Before the first start of the new version, copy `%LOCALAPPDATA%\Nexora\nexora.db` (and `nexora.db-wal` if present) to a safe place.
+- **Local and account workspaces stay separate.** Signing in never uploads local tasks. Use *Import local data* (account menu): the preview lists projects and, while the server cannot store due times, says plainly that times are imported as dates only.
+- **Due times and the server.** The time row is available in the local workspace. While signed in it works only after the TEST server was migrated (`docs/operations/due-time-hosted-migration.md`, owner approval needed); until then the time row is disabled with the reason, and dates sync as before.
+- **Tree.** A parent shows its direct children by default; deeper levels open on request. Clicking a related subtask in the details panel opens the path to it.
+

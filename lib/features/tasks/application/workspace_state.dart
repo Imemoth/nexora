@@ -3,6 +3,7 @@ import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_ordering.dart';
+import 'package:nexora/features/tasks/domain/task_search.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
 
 import 'edit_draft.dart';
@@ -26,6 +27,21 @@ final class IncomingNotice {
   final Set<String> overlap;
 }
 
+/// Why the selected task is not a row of the current list.
+enum HiddenReason {
+  /// It is not in the selected view or project.
+  notInView,
+
+  /// The search text does not match it.
+  searchMismatch,
+
+  /// The status filter excludes it.
+  statusFiltered,
+
+  /// A parent above it is collapsed.
+  collapsedAncestor,
+}
+
 /// Immutable snapshot of everything the presentation shows.
 final class WorkspaceState {
   const WorkspaceState({
@@ -38,6 +54,7 @@ final class WorkspaceState {
     this.statusFilter,
     this.selectedTaskId,
     this.expandedTaskIds = const {},
+    this.expansionDefaulted = const {},
     this.draft,
     this.incoming,
     this.pending,
@@ -68,6 +85,12 @@ final class WorkspaceState {
   /// The selected task. Always equal to [draft]'s task id when both are set.
   final String? selectedTaskId;
   final Set<String> expandedTaskIds;
+
+  /// Parents the default expansion has already been applied to. A parent in
+  /// here is never expanded automatically again, so a collapse the user chose
+  /// survives rebuilds, refreshes and changes of view, search and filter.
+  /// Cleared only when the workspace is loaded afresh.
+  final Set<String> expansionDefaulted;
 
   /// Editable copy of the selected task. Null when nothing is selected.
   final EditDraft? draft;
@@ -106,6 +129,31 @@ final class WorkspaceState {
       return false;
     }
     return !visibleRows.any((row) => row.task.id == id);
+  }
+
+  /// Every reason the selected task is not shown in the list (empty when it is
+  /// shown or nothing is selected). Each reason has one explicit, non-destructive
+  /// way out, offered by the list; nothing is changed on the user's behalf.
+  Set<HiddenReason> get hiddenReasons {
+    final id = selectedTaskId;
+    final task = id == null ? null : tasks[id];
+    if (task == null || !selectedTaskHidden) {
+      return const {};
+    }
+    final reasons = <HiddenReason>{};
+    if (!inSelection(task, selection, today)) {
+      reasons.add(HiddenReason.notInView);
+    }
+    if (!matchesSearch(task, searchQuery)) {
+      reasons.add(HiddenReason.searchMismatch);
+    }
+    if (statusFilter != null && task.status != statusFilter) {
+      reasons.add(HiddenReason.statusFiltered);
+    }
+    if (reasons.isEmpty) {
+      reasons.add(HiddenReason.collapsedAncestor);
+    }
+    return reasons;
   }
 
   /// Number of tasks in [selection], ignoring the search query.
@@ -159,6 +207,7 @@ final class WorkspaceState {
     String? selectedTaskId,
     bool clearSelectedTask = false,
     Set<String>? expandedTaskIds,
+    Set<String>? expansionDefaulted,
     EditDraft? draft,
     bool clearDraft = false,
     IncomingNotice? incoming,
@@ -185,6 +234,7 @@ final class WorkspaceState {
           ? null
           : (selectedTaskId ?? this.selectedTaskId),
       expandedTaskIds: expandedTaskIds ?? this.expandedTaskIds,
+      expansionDefaulted: expansionDefaulted ?? this.expansionDefaulted,
       draft: clearDraft ? null : (draft ?? this.draft),
       incoming: clearIncoming || clearDraft
           ? null

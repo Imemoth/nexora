@@ -88,3 +88,42 @@ Scope: eight items reported after the first Windows look. No hosted change, no s
 | Windows GUI acceptance (Dark and Light, 100 % and 150 %, the five window sizes, real Ctrl+F keyboard interaction) | **not run**; no Windows machine here. Supporting renders (Linux, real bundled fonts, not Windows): `docs/operations/evidence/phase-5-followup/` |
 | Hosted Supabase | not touched; no test wrote to it |
 
+## 9. Next build 1.1.0+2: sign-in and synchronization, synchronized due times, hierarchy interactions
+Baseline at the start (head `c726b48`, Linux, the two-device e2e enabled against a local PostgreSQL 16): 965 passed, 25 skipped, 26 failed. The 26 are the known platform-specific set: 22 golden comparisons (Windows renders), `workspace_sqlite_test` "database location" (Windows path separators), `S8-03`, `S8-09`, `S8-10` (in-memory secure store off Windows). SQL baseline: every suite in `supabase/tests/run_local.sh` passed.
+
+### 9.1 What was implemented
+| # | Item | Result |
+|---|---|---|
+| 1 | Sign-in and synchronization build | The build already existed (`windows-sync-dev-build.yml`, `NEXORA_SYNC=true`, public TEST URL and anon key, no secret); it was not rebuilt. Version raised to **1.1.0+2**; the workflow also starts on a push to this branch that touches it; `BUILD-INFO.json` gains `syncEnabled`; About shows **Synchronization On/Off** next to the build type, so a DEVELOPMENT TEST sync build and a local-only build cannot be confused (`versioning-and-build-identity.md` section 0). Local and account workspaces, per-account files, the preview-first import, the unsaved-edit gates and conflict handling are unchanged (the existing runtime, import and conflict suites pass). |
+| 2 | Synchronized optional due times | Local schema 6 (`tasks.due_time`, migrates version 5 times in place); `due_time` in the patch, pull, restore, merge and conflict code; capability from the server's `features` answer (remembered offline); pairing of date and time; **hosted migration `20261116100000_nexora_due_time.sql` prepared, rolled back and tested on a disposable database, NOT applied** (`due-time-hosted-migration.md`). Date-only stays date-only; Today and Overdue stay date-based (ADR 0004 section 5.7). |
+| 2b | Import | The preview states how many tasks have a time and, while the server cannot store times, that they are imported with the date only; with a migrated server times are kept. |
+| 3 | New subtask dialog | The parent sits in a framed accent card (icon, heavier label, bold selected text with its ancestry), current task preselected, other valid parents of the same project selectable. |
+| 4 | Default expansion | A parent at the top of the current list shows its direct children, once (`expansionDefaulted`); never recursive; an explicit collapse survives refresh, sort, search, filter and view changes; a parent that gains its first child opens; a fresh load starts again. |
+| 5 | Related subtask | `revealSubtask`: every collapsed ancestor opens, the task is selected through the unsaved-change gate, the list takes focus and scrolls to the row. Search, filters and view are never cleared; when they hide the task, the list says why and offers one explicit action per cause (Show in project, Clear search, Show all statuses, Expand parents). A selection that was already hidden is kept when the user widens one of them. |
+| 6 | New task dialog | Project first, then Title; Tab order Project, Title, Cancel, Create; the title still has the initial focus (type and Enter), the default project is unchanged. |
+| 7 | Regression checks | Stale-UI behaviour covered by `workspace_refresh_test` and the runtime refresh tests (verified in a real sync-enabled build only after the hosted gate and a Windows run: F12); Ctrl+F by `ctrl_f_focus_test`, real keyboard not run (F19); manual expansion, keyboard, search, filter and sort rules together in `default_expansion_test` and the UI tests. |
+
+### 9.2 Existing tests changed (forced by the design)
+| Test | Change | Why |
+|---|---|---|
+| `task_workspace_editing_test` (2), `task_workspace_navigation_test`, `task_workspace_transaction_test`, `tasks_notifier_test`, `keyboard_test` (3), `task_tree_test` (3) | parents are expanded by default, so tests that started from "collapsed" now collapse first or drop the first toggle; the list tests' viewport is taller | default expansion (item 4) |
+| `reminder_store_test` (4) | schema 6; stepped-back file drops the column | schema 6 |
+| `due_time_sqlite_test` | rewritten for the column, migration from 5 and 4, and the wire | schema 6 |
+| `panel_resize_test` | Tab loop allows more stops | more rows are visible by default |
+| `supabase/tests/s2_auth_grants_test.sql`, `s2_device_test.sql`, `verify_rollbacks.sh` | the ACL matrix lists the new private helper; the registration answer may carry `features`; the old rollback chain skips the new migration | the migration adds a helper and a key |
+| `test/support/fake_sync_server.dart`, `workspace_harness.dart` | `features` answer; `dueTimeSupportOf` | capability |
+
+### 9.3 Verification (local; what was run, exact numbers)
+| Check | Result |
+|---|---|
+| `flutter analyze`, `dart format --set-exit-if-changed .` | clean |
+| `flutter test` (Linux, Flutter 3.47.9, e2e against local PostgreSQL 16) | **1053 passed, 25 skipped, 26 failed**; the 26 are exactly the baseline set |
+| New Dart tests | `due_time_sync_test` (17, two devices on the migrated server), `default_expansion_test`, `reveal_subtask_test`, `reveal_subtask_ui_test`, `create_dialogs_test`, additions to `import_ui_test`, `sync_runtime_test`, `about_test`, `task_workspace_editing_test`, `due_time_sqlite_test` |
+| SQL (`run_local.sh`, PostgreSQL 16; CI uses 17) | **ALL SUITES PASSED**, including `due_time_test.sql` (47 assertions); `verify_due_time_migration.sh` all PASS; `verify_rollbacks.sh` ALL PASSED |
+| Goldens | 17 of 22 render differently from the head `c726b48` (default expansion and the new list layout; the four Dashboard goldens and the empty state are unchanged). **They must be regenerated on the Windows runner** (workflow `regenerate-goldens`); not done here |
+| Windows C++ and the Windows GUI | not compiled/run here; CI builds it |
+| Hosted Supabase | **not touched**; no test wrote to it |
+
+### 9.4 Blocked or waiting
+The hosted due-time migration (owner approval of the exact operation); Windows acceptance rows F10 to F20; regenerated goldens; a real sync-enabled run against the TEST project (needs the migration for the time, and the account for everything else).
+

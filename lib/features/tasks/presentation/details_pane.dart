@@ -566,7 +566,16 @@ class _Subtasks extends StatelessWidget {
         ),
         if (children.isNotEmpty) const SizedBox(height: 8),
         for (final child in children)
-          _SubtaskRow(task: child, onTap: () => notifier.selectTask(child.id)),
+          _SubtaskRow(
+            task: child,
+            onTap: () {
+              // Reveal the path to it in the tree (every collapsed ancestor
+              // opens), select it, and give the list the keyboard so the row
+              // shows its focus ring and the arrow keys continue from it.
+              notifier.revealSubtask(child.id);
+              TaskKeyboardFocus.of(notifier).list.requestFocus();
+            },
+          ),
         const SizedBox(height: 8),
         DashedBorder(
           color: c.borderStrong,

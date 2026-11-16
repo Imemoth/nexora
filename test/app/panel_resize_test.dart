@@ -27,7 +27,7 @@ Matcher _near(double v) => closeTo(v, 25);
 
 /// Moves keyboard focus onto the handle with the Tab key, as a user would.
 Future<void> _tabTo(WidgetTester tester, String label) async {
-  for (var i = 0; i < 120; i++) {
+  for (var i = 0; i < 400; i++) {
     if (FocusManager.instance.primaryFocus?.debugLabel == label) {
       return;
     }

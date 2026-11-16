@@ -237,6 +237,7 @@ final class SyncRuntime {
       target: current.db,
       repository: current.repository,
       ids: ids,
+      dueTimeSupported: () => SyncStateStore(current.db).serverSupportsDueTime,
     );
     return ImportPanel(
       preview: () async {
@@ -248,6 +249,7 @@ final class SyncRuntime {
                 id: c.project.id,
                 name: c.project.name,
                 taskCount: c.tasks.length,
+                dueTimeCount: c.dueTimeCount,
                 sameNameProjectId: c.sameNameProjectId,
                 warnings: {
                   if (c.warnings.contains(ImportWarning.alreadyImported))
@@ -260,6 +262,7 @@ final class SyncRuntime {
           skippedLocalOnly: p.skipped.localOnly,
           skippedUnclassified: p.skipped.unclassified,
           skippedDeleted: p.skipped.deleted,
+          dueTimesTransferable: p.dueTimesTransferable,
         );
       },
       destinations: () async {
@@ -424,18 +427,22 @@ final class SyncRuntime {
     ensureParentFolder(path);
     final db = LocalDatabase.open(path);
     OutboxStore(db, ids: ids).recoverInFlight();
+    // A due time synchronizes only when the account's server said it stores one
+    // (`features` of device registration, remembered in the file). The local-only
+    // workspace never synchronizes, so it always can.
+    bool dueTimeOk() =>
+        userId == null || SyncStateStore(db).serverSupportsDueTime;
     final repository = SqliteTaskRepository(
       db,
       ownerId: ownerIdOf(db, ids),
       ids: ids,
+      dueTimeSyncs: dueTimeOk,
     );
     final workspace = TaskWorkspace(
       repository: repository,
       clock: clock,
       ids: ids,
-      // A synchronized workspace cannot store a time of day until the hosted
-      // schema can (ADR 0004); the local-only workspace can.
-      dueTimeSupported: userId == null,
+      dueTimeSupportOf: dueTimeOk,
     );
     final active = ActiveWorkspace._(
       userId: userId,

@@ -46,3 +46,4 @@ jobs:
           path: test/golden/goldens/
           if-no-files-found: error
           retention-days: 7
+# regenerated for 1.1.0+2 (default expansion and the new list layout change 17 of the 22 images)

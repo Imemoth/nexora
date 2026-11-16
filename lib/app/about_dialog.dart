@@ -13,6 +13,9 @@ String buildTypeLabel(BuildInfo info) => switch (info.kind) {
   BuildKind.local => AppStrings.buildTypeLocal,
 };
 
+String syncLabel(BuildInfo info) =>
+    info.syncEnabled ? AppStrings.syncOn : AppStrings.syncOff;
+
 /// Opens About: the exact build that is running.
 Future<void> showAboutNexoraDialog(BuildContext context) {
   return showDialog<void>(
@@ -63,6 +66,12 @@ class AboutNexoraDialog extends StatelessWidget {
               color: dev ? c.statusReview : null,
               bold: dev,
             ),
+            _Row(
+              label: AppStrings.aboutSync,
+              valueKey: const ValueKey('about-sync'),
+              value: syncLabel(info),
+              bold: info.syncEnabled,
+            ),
             if (info.runId != null)
               _Row(
                 label: AppStrings.aboutRun,
@@ -96,6 +105,7 @@ class AboutNexoraDialog extends StatelessWidget {
                   appName: AppStrings.appName,
                   buildTypeLabel: buildTypeLabel(info),
                   unknownCommitLabel: AppStrings.commitUnknown,
+                  syncLabel: syncLabel(info),
                 ),
               ),
             );

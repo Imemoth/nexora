@@ -6,6 +6,7 @@ import 'migrations.dart';
 import 'schema_v3.dart';
 import 'schema_v4.dart';
 import 'schema_v5.dart';
+import 'schema_v6.dart';
 
 export 'migration_v2.dart' show MigrationReport, MigrationStepHook;
 
@@ -19,7 +20,7 @@ final class LocalDatabase {
   LocalDatabase._(this.raw, this.schemaVersion, this.migrationReport);
 
   /// The schema version this build understands.
-  static const int currentVersion = 5;
+  static const int currentVersion = 6;
 
   /// The raw handle. Repository code uses it inside transactions.
   final Database raw;
@@ -78,6 +79,9 @@ final class LocalDatabase {
       }
       if (version < 5) {
         _applyVersion5(raw);
+      }
+      if (version < 6) {
+        _applyVersion6(raw);
       }
       return LocalDatabase._(raw, currentVersion, report);
     } on SqliteException catch (error) {
@@ -167,6 +171,21 @@ final class LocalDatabase {
         raw.execute(statement);
       }
       raw.userVersion = 5;
+      raw.execute('COMMIT;');
+    } catch (_) {
+      raw.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
+  /// Migration 6: the due time becomes a column of `tasks` (see `schema_v6.dart`).
+  static void _applyVersion6(Database raw) {
+    raw.execute('BEGIN IMMEDIATE;');
+    try {
+      for (final statement in schemaV6Statements) {
+        raw.execute(statement);
+      }
+      raw.userVersion = 6;
       raw.execute('COMMIT;');
     } catch (_) {
       raw.execute('ROLLBACK;');

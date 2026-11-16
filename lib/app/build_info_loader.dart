@@ -6,6 +6,7 @@ import 'package:nexora/core/build_info.dart';
 const String _commit = String.fromEnvironment('NEXORA_COMMIT');
 const String _buildType = String.fromEnvironment('NEXORA_BUILD_TYPE');
 const String _runId = String.fromEnvironment('NEXORA_BUILD_RUN');
+const bool _sync = bool.fromEnvironment('NEXORA_SYNC');
 
 /// Reads the running build's identity: the version from the bundled
 /// `pubspec.yaml` (its single source), the commit, build type and CI run from
@@ -15,6 +16,7 @@ Future<BuildInfo> loadBuildInfo({
   String commit = _commit,
   String buildType = _buildType,
   String runId = _runId,
+  bool syncEnabled = _sync,
 }) async {
   WidgetsFlutterBinding.ensureInitialized();
   String? yaml;
@@ -28,6 +30,7 @@ Future<BuildInfo> loadBuildInfo({
     commit: commit,
     buildType: buildType,
     runId: runId,
+    syncEnabled: syncEnabled,
   );
 }
 

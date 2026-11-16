@@ -76,6 +76,36 @@ void main() {
     expect(find.text(AppStrings.buildTypeRelease), findsNothing);
   });
 
+  testWidgets('a synchronization build says so', (tester) async {
+    await _openAbout(
+      tester,
+      BuildInfo.fromSources(
+        pubspecYaml: 'version: 1.1.0+2\n',
+        commit: _sha,
+        buildType: 'development-test',
+        syncEnabled: true,
+      ),
+    );
+    expect(_text(tester, 'about-sync'), AppStrings.syncOn);
+    expect(
+      _text(tester, 'about-build-type'),
+      AppStrings.buildTypeDevelopmentTest,
+    );
+  });
+
+  testWidgets('a local-only release build says that', (tester) async {
+    await _openAbout(
+      tester,
+      BuildInfo.fromSources(
+        pubspecYaml: 'version: 1.1.0+2\n',
+        commit: _sha,
+        buildType: 'release',
+      ),
+    );
+    expect(_text(tester, 'about-sync'), AppStrings.syncOff);
+    expect(_text(tester, 'about-build-type'), AppStrings.buildTypeRelease);
+  });
+
   testWidgets('a local build has an explicit unknown commit, never a guess', (
     tester,
   ) async {
@@ -145,13 +175,14 @@ void main() {
         commit: _sha,
         buildType: 'development-test',
         runId: '7-1',
+        syncEnabled: true,
       ),
     );
     await tester.tap(find.byKey(const ValueKey('about-copy')));
     await tester.pumpAndSettle();
     expect(
       copied,
-      'Nexora 1.0.0+1\nCommit: $_sha\nBuild: DEVELOPMENT TEST\nCI run: 7-1',
+      'Nexora 1.0.0+1\nCommit: $_sha\nBuild: DEVELOPMENT TEST\nSynchronization: ${AppStrings.syncOn}\nCI run: 7-1',
     );
     expect(find.text(AppStrings.aboutCopied), findsOneWidget);
   });

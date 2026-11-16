@@ -98,8 +98,15 @@ void main() {
     ) async {
       final harness = await _harness();
       await _pump(tester, harness);
+      harness.workspace.toggleExpanded(
+        'parent',
+      ); // collapse (default: expanded)
       harness.workspace.requestSelectTask('parent');
       await tester.pumpAndSettle();
+      expect(
+        harness.workspace.state.expandedTaskIds,
+        isNot(contains('parent')),
+      );
 
       await _key(tester, LogicalKeyboardKey.arrowRight);
 
@@ -112,8 +119,7 @@ void main() {
     ) async {
       final harness = await _harness();
       await _pump(tester, harness);
-      harness.workspace.requestSelectTask('parent');
-      harness.workspace.toggleExpanded('parent');
+      harness.workspace.requestSelectTask('parent'); // expanded by default
       await tester.pumpAndSettle();
 
       await _key(tester, LogicalKeyboardKey.arrowRight);
@@ -128,8 +134,7 @@ void main() {
       (tester) async {
         final harness = await _harness();
         await _pump(tester, harness);
-        harness.workspace.requestSelectTask('parent');
-        harness.workspace.toggleExpanded('parent');
+        harness.workspace.requestSelectTask('parent'); // expanded by default
         await tester.pumpAndSettle();
 
         await _key(tester, LogicalKeyboardKey.arrowLeft);

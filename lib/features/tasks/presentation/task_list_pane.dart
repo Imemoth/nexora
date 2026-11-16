@@ -64,19 +64,7 @@ class TaskListPane extends StatelessWidget {
           if (state.selectedTaskHidden)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: DashedBorder(
-                color: c.borderStrong,
-                radius: 8,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Text(
-                  AppStrings.selectedTaskHidden,
-                  key: const ValueKey('hidden-notice'),
-                  style: NexoraText.caption.copyWith(color: c.text2),
-                ),
-              ),
+              child: _HiddenNotice(state: state, notifier: notifier),
             ),
           const SizedBox(height: 14),
           Expanded(
@@ -107,26 +95,13 @@ class TaskListPane extends StatelessWidget {
                                     openCreateTask(context, notifier),
                               );
                             }
-                            final focused = keyboard.list.hasPrimaryFocus;
-                            return ListView.builder(
-                              padding: const EdgeInsets.all(6),
-                              itemCount: rows.length,
-                              itemBuilder: (context, index) {
-                                final row = rows[index];
-                                return TaskRow(
-                                  row: row,
-                                  today: state.today,
-                                  selected: row.task.id == state.selectedTaskId,
-                                  listFocused: focused,
-                                  contextLabel: labels[row.task.id],
-                                  onSelect: () {
-                                    keyboard.list.requestFocus();
-                                    notifier.selectTask(row.task.id);
-                                  },
-                                  onToggle: () =>
-                                      notifier.toggleExpanded(row.task.id),
-                                );
-                              },
+                            return _TaskRows(
+                              rows: rows,
+                              state: state,
+                              notifier: notifier,
+                              keyboard: keyboard,
+                              labels: labels,
+                              focused: keyboard.list.hasPrimaryFocus,
                             );
                           },
                         ),
@@ -175,6 +150,223 @@ class TaskListPane extends StatelessWidget {
       }
     }
     return labels;
+  }
+}
+
+/// Says that the selected task is not a row of this list, and why, and offers one
+/// explicit action per cause. It never changes anything by itself: the user's
+/// search, filter and view stay until they choose otherwise.
+class _HiddenNotice extends StatelessWidget {
+  const _HiddenNotice({required this.state, required this.notifier});
+
+  final WorkspaceState state;
+  final TasksNotifier notifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = NexoraColors.of(context);
+    final reasons = state.hiddenReasons;
+    final task = state.tasks[state.selectedTaskId];
+    final project = task == null
+        ? null
+        : state.projects.where((p) => p.id == task.projectId).firstOrNull;
+    final actions = <Widget>[
+      if (reasons.contains(HiddenReason.notInView) && task != null)
+        _NoticeAction(
+          key: const ValueKey('reveal-project'),
+          label: AppStrings.revealShowInProject(project?.name ?? ''),
+          onPressed: () => notifier.selectProject(task.projectId),
+        ),
+      if (reasons.contains(HiddenReason.searchMismatch))
+        _NoticeAction(
+          key: const ValueKey('reveal-clear-search'),
+          label: AppStrings.revealClearSearch,
+          onPressed: () => notifier.search(''),
+        ),
+      if (reasons.contains(HiddenReason.statusFiltered))
+        _NoticeAction(
+          key: const ValueKey('reveal-clear-filter'),
+          label: AppStrings.revealShowAllStatuses,
+          onPressed: () => notifier.filterStatus(null),
+        ),
+      if (reasons.contains(HiddenReason.collapsedAncestor) && task != null)
+        _NoticeAction(
+          key: const ValueKey('reveal-expand'),
+          label: AppStrings.revealExpandParents,
+          onPressed: () => notifier.expandAncestorsOf(task.id),
+        ),
+    ];
+    return DashedBorder(
+      color: c.borderStrong,
+      radius: 8,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            AppStrings.selectedTaskHidden,
+            key: const ValueKey('hidden-notice'),
+            style: NexoraText.caption.copyWith(color: c.text2),
+          ),
+          ...actions,
+        ],
+      ),
+    );
+  }
+}
+
+class _NoticeAction extends StatelessWidget {
+  const _NoticeAction({
+    super.key,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(0, 30),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+      ),
+      child: Text(label),
+    );
+  }
+}
+
+/// The rows of the list. Keeps the selected row in view: when the selection
+/// changes (a click, the arrow keys, or revealing a related subtask) the list
+/// scrolls just enough to show it, including a row that has not been built yet.
+class _TaskRows extends StatefulWidget {
+  const _TaskRows({
+    required this.rows,
+    required this.state,
+    required this.notifier,
+    required this.keyboard,
+    required this.labels,
+    required this.focused,
+  });
+
+  final List<VisibleTaskRow> rows;
+  final WorkspaceState state;
+  final TasksNotifier notifier;
+  final TaskKeyboardFocus keyboard;
+  final Map<String, String> labels;
+  final bool focused;
+
+  @override
+  State<_TaskRows> createState() => _TaskRowsState();
+}
+
+class _TaskRowsState extends State<_TaskRows> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void didUpdateWidget(covariant _TaskRows oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final id = widget.state.selectedTaskId;
+    final rowsChanged =
+        oldWidget.rows.length != widget.rows.length ||
+        oldWidget.state.expandedTaskIds != widget.state.expandedTaskIds;
+    if (id != null && (id != oldWidget.state.selectedTaskId || rowsChanged)) {
+      _scrollTo(id);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// The element of the built row of [id], found by its `row-<id>` key. (A
+  /// `GlobalKey` per row would be simpler but breaks Tab traversal in the list.)
+  BuildContext? _contextOf(String id) {
+    BuildContext? found;
+    void visit(Element element) {
+      if (found != null) {
+        return;
+      }
+      if (element.widget.key == ValueKey('row-$id')) {
+        found = element;
+        return;
+      }
+      element.visitChildren(visit);
+    }
+
+    (context as Element).visitChildren(visit);
+    return found;
+  }
+
+  /// Shows the row of [id]. A row far outside the built range is first brought
+  /// near by an estimate, then centred exactly once it exists.
+  void _scrollTo(String id, {int attempt = 0}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.hasClients) {
+        return;
+      }
+      final index = widget.rows.indexWhere((r) => r.task.id == id);
+      if (index < 0) {
+        return;
+      }
+      final rowContext = _contextOf(id);
+      if (rowContext != null) {
+        Scrollable.ensureVisible(
+          rowContext,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 120),
+        );
+        return;
+      }
+      if (attempt >= 6) {
+        return;
+      }
+      final position = _controller.position;
+      // The list estimates its total length from the rows it has built, so the
+      // average row height follows from the scroll extent. Aim at the row's
+      // middle; the next attempt centres it exactly once it is built.
+      final perRow =
+          (position.maxScrollExtent + position.viewportDimension) /
+          widget.rows.length;
+      final target = (index * perRow - position.viewportDimension / 2).clamp(
+        0.0,
+        position.maxScrollExtent,
+      );
+      _controller.jumpTo(target);
+      _scrollTo(id, attempt: attempt + 1);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    return ListView.builder(
+      controller: _controller,
+      padding: const EdgeInsets.all(6),
+      itemCount: widget.rows.length,
+      itemBuilder: (context, index) {
+        final row = widget.rows[index];
+        return TaskRow(
+          row: row,
+          today: state.today,
+          selected: row.task.id == state.selectedTaskId,
+          listFocused: widget.focused,
+          contextLabel: widget.labels[row.task.id],
+          onSelect: () {
+            widget.keyboard.list.requestFocus();
+            widget.notifier.selectTask(row.task.id);
+          },
+          onToggle: () => widget.notifier.toggleExpanded(row.task.id),
+        );
+      },
+    );
   }
 }
 

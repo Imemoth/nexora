@@ -1,4 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexora/features/tasks/application/in_memory_task_repository.dart';
+import 'package:nexora/features/tasks/application/task_workspace.dart';
+import 'package:nexora/features/tasks/domain/due_time.dart';
 import 'package:nexora/features/tasks/application/nav_selection.dart';
 import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/application/workspace_transition.dart';
@@ -8,7 +11,9 @@ import 'package:nexora/features/tasks/domain/task_ordering.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
 
+import '../../../support/fixed_clock.dart';
 import '../../../support/result_matchers.dart';
+import '../../../support/sequential_id_generator.dart';
 import '../../../support/task_fixtures.dart';
 import '../../../support/workspace_harness.dart';
 
@@ -393,7 +398,13 @@ void main() {
 
       ws.requestSort(TaskSort.title);
 
-      expect(ws.state.visibleRows.map((r) => r.task.id), ['a', 'b', 'parent']);
+      // `parent` is expanded by default, so its child follows it.
+      expect(ws.state.visibleRows.map((r) => r.task.id), [
+        'a',
+        'b',
+        'parent',
+        'child',
+      ]);
     });
 
     test('search matches notes and narrows the rows', () async {
@@ -413,30 +424,27 @@ void main() {
       expect(h.workspace.state.visibleRows, isEmpty);
     });
 
-    test(
-      'expanded parents show their children with depth and completion',
-      () async {
-        final h = await loadedHarness(
-          tasks: [
-            makeTask(id: 'parent', title: 'Parent'),
-            makeTask(id: 'c1', parentId: 'parent', status: TaskStatus.done),
-            makeTask(id: 'c2', parentId: 'parent'),
-          ],
-        );
-        final ws = h.workspace;
-        ws.toggleExpanded('parent');
+    test('a parent shows its direct children by default, with depth and completion', () async {
+      final h = await loadedHarness(
+        tasks: [
+          makeTask(id: 'parent', title: 'Parent'),
+          makeTask(id: 'c1', parentId: 'parent', status: TaskStatus.done),
+          makeTask(id: 'c2', parentId: 'parent'),
+        ],
+      );
+      final ws = h.workspace;
+      // No toggle: the default expansion shows the children (Phase 5 follow-up).
 
-        final rows = ws.state.visibleRows;
+      final rows = ws.state.visibleRows;
 
-        expect(rows.map((r) => r.task.id), ['parent', 'c1', 'c2']);
-        expect(rows[0].hasChildren, isTrue);
-        expect(rows[0].expanded, isTrue);
-        expect(rows[0].completion?.total, 2);
-        expect(rows[0].completion?.done, 1);
-        expect(rows[1].depth, 1);
-        expect(rows[1].completion, isNull);
-      },
-    );
+      expect(rows.map((r) => r.task.id), ['parent', 'c1', 'c2']);
+      expect(rows[0].hasChildren, isTrue);
+      expect(rows[0].expanded, isTrue);
+      expect(rows[0].completion?.total, 2);
+      expect(rows[0].completion?.done, 1);
+      expect(rows[1].depth, 1);
+      expect(rows[1].completion, isNull);
+    });
 
     test('counts ignore search and match the selection', () async {
       final h = await loadedHarness(tasks: sampleTasks());
@@ -459,6 +467,38 @@ void main() {
       ws.requestSearch('');
       ws.requestSelectProject('p2');
       expect(ws.state.resultCount, 1);
+    });
+  });
+
+  group('due time support follows the server (ADR 0004)', () {
+    test('the support is asked every time, so a server migrated later takes effect at once', () async {
+      var supported = false;
+      final repository = InMemoryTaskRepository(
+        projects: testProjects,
+        tasks: [makeTask(id: 'a', dueDate: testToday)],
+      );
+      final ws = TaskWorkspace(
+        repository: repository,
+        clock: FixedClock(testToday),
+        ids: SequentialIdGenerator(['n1']),
+        dueTimeSupportOf: () => supported,
+      );
+      await ws.load();
+      ws.requestSelectTask('a');
+
+      ws.editDraft(dueTime: const DueTime(9, 0));
+      expect(ws.state.draft!.dueTime, isNull); // refused while unsupported
+      expect(ws.dueTimeSupported, isFalse);
+
+      supported = true; // the migrated server was reported
+      expect(ws.dueTimeSupported, isTrue);
+      ws.editDraft(dueTime: const DueTime(9, 0));
+      expect(ws.state.draft!.dueTime, const DueTime(9, 0));
+
+      supported = false; // rolled back: removing the time is still allowed
+      ws.editDraft(clearDueTime: true);
+      expect(ws.state.draft!.dueTime, isNull);
+      expect(ws.state.draft!.dueDate, testToday);
     });
   });
 }

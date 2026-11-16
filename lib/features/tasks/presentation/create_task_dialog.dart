@@ -118,75 +118,103 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
   Widget build(BuildContext context) {
     final projects = widget.notifier.state.projects;
     final canCreate = _isSubtask || projects.isNotEmpty;
-    return AlertDialog(
-      title: Text(
-        _isSubtask ? AppStrings.newSubtaskTitle : AppStrings.newTaskTitle,
+    final title = FocusTraversalOrder(
+      order: const NumericFocusOrder(2),
+      child: TextField(
+        key: const ValueKey('create-title'),
+        controller: _title,
+        // Creating is the point of the dialog: the title is ready to type into
+        // (the default project or parent is already chosen), and Enter creates.
+        autofocus: true,
+        onSubmitted: (_) => _submit(),
+        decoration: InputDecoration(
+          labelText: AppStrings.fieldTitle,
+          errorText: _error,
+          border: const OutlineInputBorder(),
+        ),
       ),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_isSubtask) ...[
-              _ParentPicker(
-                notifier: widget.notifier,
-                initialParentId: widget.parentId!,
-                value: _parentId!,
-                onChanged: (id) => setState(() => _parentId = id),
-              ),
-              const SizedBox(height: 12),
-            ],
-            TextField(
-              key: const ValueKey('create-title'),
-              controller: _title,
-              autofocus: true,
-              onSubmitted: (_) => _submit(),
-              decoration: InputDecoration(
-                labelText: AppStrings.fieldTitle,
-                errorText: _error,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            if (!_isSubtask && projects.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                AppStrings.fieldProject,
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
-              DropdownButton<String>(
-                key: const ValueKey('create-project'),
-                isExpanded: true,
-                value: _projectId,
-                items: [
-                  for (final project in projects)
-                    DropdownMenuItem<String>(
-                      value: project.id,
-                      child: Text(project.name),
+    );
+    // Tab order is the visual order: Project (or the parent), Title, Cancel,
+    // Create. Shift+Tab from the title reaches the project.
+    return FocusTraversalGroup(
+      policy: OrderedTraversalPolicy(),
+      child: AlertDialog(
+        title: Text(
+          _isSubtask ? AppStrings.newSubtaskTitle : AppStrings.newTaskTitle,
+        ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_isSubtask) ...[
+                FocusTraversalOrder(
+                  order: const NumericFocusOrder(1),
+                  child: _ParentPicker(
+                    notifier: widget.notifier,
+                    initialParentId: widget.parentId!,
+                    value: _parentId!,
+                    onChanged: (id) => setState(() => _parentId = id),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                title,
+              ] else ...[
+                if (projects.isNotEmpty) ...[
+                  Text(
+                    AppStrings.fieldProject,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(1),
+                    child: DropdownButton<String>(
+                      key: const ValueKey('create-project'),
+                      isExpanded: true,
+                      value: _projectId,
+                      items: [
+                        for (final project in projects)
+                          DropdownMenuItem<String>(
+                            value: project.id,
+                            child: Text(
+                              project.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _projectId = value);
+                        }
+                      },
                     ),
+                  ),
+                  const SizedBox(height: 12),
                 ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _projectId = value);
-                  }
-                },
-              ),
+                title,
+              ],
             ],
-          ],
+          ),
         ),
+        actions: [
+          FocusTraversalOrder(
+            order: const NumericFocusOrder(3),
+            child: TextButton(
+              key: const ValueKey('create-cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(AppStrings.cancelAction),
+            ),
+          ),
+          FocusTraversalOrder(
+            order: const NumericFocusOrder(4),
+            child: FilledButton(
+              key: const ValueKey('create-submit'),
+              onPressed: canCreate && !_busy ? _submit : null,
+              child: const Text(AppStrings.createAction),
+            ),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          key: const ValueKey('create-cancel'),
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text(AppStrings.cancelAction),
-        ),
-        FilledButton(
-          key: const ValueKey('create-submit'),
-          onPressed: canCreate && !_busy ? _submit : null,
-          child: const Text(AppStrings.createAction),
-        ),
-      ],
     );
   }
 }
@@ -226,6 +254,9 @@ class _ParentPicker extends StatelessWidget {
     );
     // Keep the dropdown valid even if the origin is no longer a valid parent.
     final selected = choices.any((ch) => ch.task.id == value) ? value : null;
+    final selectedChoice = choices
+        .where((ch) => ch.task.id == selected)
+        .firstOrNull;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -240,68 +271,102 @@ class _ParentPicker extends StatelessWidget {
               style: NexoraText.caption.copyWith(color: c.textMuted),
             ),
           ),
-        Text(
-          AppStrings.fieldParentTask,
-          style: Theme.of(context).textTheme.labelMedium,
-        ),
-        DropdownButton<String>(
-          key: const ValueKey('create-parent'),
-          isExpanded: true,
-          value: selected,
-          itemHeight: null,
-          selectedItemBuilder: (_) => [
-            for (final choice in choices)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  AppStrings.parentChoiceSummary([
-                    ...choice.ancestors,
-                    choice.task.title,
-                  ]),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-          ],
-          items: [
-            for (final choice in choices)
-              DropdownMenuItem<String>(
-                key: ValueKey('create-parent-${choice.task.id}'),
-                value: choice.task.id,
-                child: Padding(
-                  padding: EdgeInsets.only(left: choice.depth * 14.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        choice.task.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (choice.ancestors.isNotEmpty)
-                        Text(
-                          AppStrings.parentChoiceSummary(choice.ancestors),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: NexoraText.caption.copyWith(
-                            color: c.textMuted,
-                          ),
-                        ),
-                    ],
+        // The parent is the one decision this dialog is about: it gets a calm
+        // accent frame, an icon and a heavier label, in both themes.
+        Container(
+          key: const ValueKey('create-parent-card'),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+          decoration: BoxDecoration(
+            color: c.accentCyan.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: c.accentCyan, width: 1.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.subdirectory_arrow_right,
+                    size: 16,
+                    color: c.accentCyan,
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  Text(
+                    AppStrings.fieldParentTask.toUpperCase(),
+                    style: NexoraText.overline.copyWith(color: c.accentCyan),
+                  ),
+                ],
               ),
-          ],
-          onChanged: (id) {
-            if (id != null) {
-              onChanged(id);
-            }
-          },
-        ),
-        Text(
-          AppStrings.parentHelp,
-          style: NexoraText.caption.copyWith(color: c.textMuted),
+              DropdownButton<String>(
+                key: const ValueKey('create-parent'),
+                isExpanded: true,
+                value: selected,
+                itemHeight: null,
+                underline: const SizedBox.shrink(),
+                selectedItemBuilder: (_) => [
+                  for (final choice in choices)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        AppStrings.parentChoiceSummary([
+                          ...choice.ancestors,
+                          choice.task.title,
+                        ]),
+                        key: choice.task.id == selected
+                            ? const ValueKey('create-parent-selected')
+                            : null,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: NexoraText.bodyStrong.copyWith(color: c.text1),
+                      ),
+                    ),
+                ],
+                items: [
+                  for (final choice in choices)
+                    DropdownMenuItem<String>(
+                      key: ValueKey('create-parent-${choice.task.id}'),
+                      value: choice.task.id,
+                      child: Padding(
+                        padding: EdgeInsets.only(left: choice.depth * 14.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              choice.task.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (choice.ancestors.isNotEmpty)
+                              Text(
+                                AppStrings.parentChoiceSummary(
+                                  choice.ancestors,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: NexoraText.caption.copyWith(
+                                  color: c.textMuted,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+                onChanged: (id) {
+                  if (id != null) {
+                    onChanged(id);
+                  }
+                },
+              ),
+              if (selectedChoice != null)
+                Text(
+                  AppStrings.parentHelp,
+                  style: NexoraText.caption.copyWith(color: c.textMuted),
+                ),
+            ],
+          ),
         ),
       ],
     );

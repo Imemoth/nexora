@@ -28,6 +28,7 @@ final class BuildInfo {
     this.buildNumber,
     this.commit,
     this.runId,
+    this.syncEnabled = false,
   });
 
   /// Nothing known: used where no build information was provided.
@@ -48,6 +49,7 @@ final class BuildInfo {
     String commit = '',
     String buildType = '',
     String runId = '',
+    bool syncEnabled = false,
   }) {
     final parsed = pubspecYaml == null
         ? null
@@ -62,6 +64,7 @@ final class BuildInfo {
       },
       commit: normalizeCommit(commit),
       runId: _normalizeRun(runId),
+      syncEnabled: syncEnabled,
     );
   }
 
@@ -104,6 +107,11 @@ final class BuildInfo {
   /// The CI run, `<run id>-<attempt>`, for finding the workflow run.
   final String? runId;
 
+  /// Whether this build offers sign-in and synchronization (`NEXORA_SYNC`).
+  /// A build can be a development test build and still be local only, so the
+  /// About screen states this separately.
+  final bool syncEnabled;
+
   /// `1.0.0+1`, or `1.0.0` without a build number.
   String get versionLabel =>
       buildNumber == null ? version : '$version+$buildNumber';
@@ -126,11 +134,13 @@ final class BuildInfo {
     required String appName,
     required String buildTypeLabel,
     required String unknownCommitLabel,
+    required String syncLabel,
   }) {
     return [
       '$appName $versionLabel',
       'Commit: ${commit ?? unknownCommitLabel}',
       'Build: $buildTypeLabel',
+      'Synchronization: $syncLabel',
       if (runId != null) 'CI run: $runId',
     ].join('\n');
   }

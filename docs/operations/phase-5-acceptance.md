@@ -39,3 +39,20 @@ The 15-row acceptance above is **not** complete and is not marked so. These chec
 | F8 | About shows the version, short commit and build type, and they equal `BUILD-INFO.json` in the ZIP; the DEVELOPMENT TEST build is marked | not run |
 | F9 | The 18 regenerated goldens look right | regenerated on the Windows runner (`regenerate-goldens` run 43843747533, head `0bd2bff`) and committed; still needs the owner's look |
 
+## Next-build checks (1.1.0+2; all **not run**; the 15 rows above and F1 to F9 stay as stated)
+Run on the CI-built portable ZIPs: the local-only release build and the sign-in **DEVELOPMENT TEST** build. Dark and Light; 100 % and 150 %; 1920x1080, 1366x768, 1024x768 and one width below 900. Rows F10 to F14 need the hosted due-time migration (`docs/operations/due-time-hosted-migration.md`, not applied, owner approval) and the existing TEST account.
+
+| # | Check | Status |
+|---|---|---|
+| F10 | About shows 1.1.0+2, the short commit of the artifact's `BUILD-INFO.json` and the right build type: **Release build / Off** for the local ZIP, **DEVELOPMENT TEST / On** for the sync ZIP; the sync build shows the sync card and Sign in, the local build never does | not run |
+| F11 | Sign in (TEST account); the account workspace is empty or its own; nothing local was uploaded; *Import local data* lists projects first, warns about due times while the server cannot store them, and nothing happens until confirmed | not run |
+| F12 | **Stale UI:** on device B edit and add tasks; on device A (project open, a task selected) the list, details, sidebar counts and Dashboard update without switching project; with unsaved edits on A they stay and the banner shows | not run |
+| F13 | **Due time synchronized** (after the hosted migration): set, change, clear, move the date, clear the date on A; B shows the same; date-only tasks stay date-only; two-device conflict on the time resolves; an older build changing the date clears the time | not run |
+| F14 | Time row disabled with the reason on a server without the migration, enabled after it (no restart needed beyond the next sync) | not run |
+| F15 | New subtask dialog: the parent card is clearly visible in both themes, the current task preselected, another parent choosable | not run |
+| F16 | Task tree: parents show direct children at start, deeper levels stay closed; collapse and expand by mouse and arrow keys; a collapse survives a refresh, sort, search and filter | not run |
+| F17 | Related subtask in the details panel: nested levels open to the task, it is selected, in view and focused; with a search or status filter active nothing is cleared and the notice offers explicit actions; with unsaved edits the gate asks | not run |
+| F18 | New task dialog: Project above Title, Tab order Project, Title, Cancel, Create, Enter creates | not run |
+| F19 | Real-keyboard **Ctrl+F** from the list, a sidebar item and the Dashboard | not run |
+| F20 | Goldens regenerated on Windows for this layout (default expansion changes the demo-data screens) | not run |
+
