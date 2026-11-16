@@ -1,0 +1,48 @@
+# Regenerates the golden images on the pinned Windows runner (the only platform they are valid on) and uploads them as
+# an artifact. It never commits or pushes. Manual only; a push that touches this file also starts it, because a
+# workflow that exists only on a feature branch cannot be dispatched through the API.
+# Use: download the artifact, copy `test/golden/goldens/` over the repository's, review the images, commit.
+name: regenerate-goldens
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/phase-5-ui-ux]
+    paths: ['.github/workflows/regenerate-goldens.yml']
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.47.9"
+
+jobs:
+  goldens:
+    name: Regenerate goldens (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Flutter (pinned)
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Resolve dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Regenerate goldens
+        run: flutter test --update-goldens test/golden
+
+      - name: Upload regenerated goldens
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: regenerated-goldens
+          path: test/golden/goldens/
+          if-no-files-found: error
+          retention-days: 7
