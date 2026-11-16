@@ -2,6 +2,8 @@
 
 **Status of the project, slices, migrations, owner decisions, gates and blockers: `docs/coordination/status-register.md` (single source of truth).** Everything else is design, evidence or history and links there. Rule: a document may describe its own subject in detail, but must not restate current phase or deployment status except by linking the register. `tools/check_docs.py` (CI: `docs-check.yml`) checks links, referenced paths and banned stale phrases.
 
+**Permanent rule for all phases and agents: [`development-environment-policy.md`](development-environment-policy.md) (DEV/TEST only, no production, hosted writes need separate owner authorization).**
+
 ## Authority order for the synchronization protocol
 1. Owner decisions: `architecture/decisions/0002-sync-protocol.md` and the decision register in the status register.
 2. S0 data contract: `architecture/data-contract.md`.
@@ -12,6 +14,7 @@
 ## Inventory
 | Path | Kind | Current / historical | Notes |
 |---|---|---|---|
+| `development-environment-policy.md` | policy | **current, permanent** | DEV/TEST only, no production, no unjustified production-grade requirements, tests/RLS/auth/integrity mandatory, hosted writes need separate authorization |
 | `coordination/status-register.md` | register | **current, authoritative** | status, migrations, decisions, gates, blockers, evidence index |
 | `coordination/phase-3-s5-outbox-v2.md` | spec (reconstructed, corrected for OD-7 to OD-9) | current planning baseline | S5 implemented and in use; design baseline |
 | `coordination/phase-2a-sync-requirements.md` | change request CR-2A-001 | current (requirements REQ-1..8); answered in part | proposal SQL corrected 2026-11-12 (rowid order, no auto replay); see S5 doc 3a |

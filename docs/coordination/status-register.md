@@ -2,6 +2,8 @@
 
 Last updated: 2026-11-16 (Phase 5 implementation and follow-up fixes on `feature/phase-5-ui-ux`; Phase 4 merged as PR #18). **This file is the only place that states current phase and slice status, migration history, owner decisions with their approval status, gates and blockers.** Other documents describe design or evidence and link here; where another document disagrees with this register, this register is correct unless it cites that document as the exception. The documentation map is `docs/README.md`.
 
+**Permanent environment rule: `docs/development-environment-policy.md`.** Nexora is DEVELOPMENT/TEST only; no production environment exists; the Supabase project `uicccaawtjvqggeufbez` is DEV/TEST and all its data is mock or test data. Statements below about production, hardening, release candidates, rollback or legacy compatibility are deferred background or optional guidance, not current requirements; hosted writes and destructive actions still need the owner's separate authorization of the exact operation.
+
 Rules: (1) a recommendation is not an approval; only entries marked **approved** are decisions; (2) "implemented" requires an evidence path (section 7); (3) hosted changes happen only with explicit owner authorization.
 
 ## 1. Phase and slice status
@@ -135,8 +137,8 @@ Recommendations stay here until the owner approves them; only the decision table
 | Further hosted migration of any kind | **HOLD** | no authorization |
 | Hosted permission changes | **HOLD** | no authorization; none made |
 | Auth activation on the TEST project | **DONE** (owner acceptance 2026-11-14) | public sign-up enabled for development (D-U); production Auth review remains a separate step |
-| Synchronization activation for real users / production project | **NO-GO** | the TEST build is for the owner with the existing test account; no production users and no production hardening initiative |
-| Full SQLite schema v2 and v3 | **GO, done** | local file only; shipped in the DEVELOPMENT TEST build; the user's real database is migrated only with a verified backup |
+| Synchronization activation for real users / production project | **Not applicable now** (was NO-GO) | no production environment, no real users (policy); the TEST build is for the owner with the existing test account |
+| Full SQLite schema v2 and v3 | **GO, done** | local file only; shipped in the DEVELOPMENT TEST build; the migration made a verified backup at the time (not a standing requirement for test data) |
 | Merge of the development branch into `main` (Phase 4) | **HOLD** | consolidated Phase 4 PR prepared for owner review; no merge without explicit owner approval (Phase 3 was merged as `9499da6`) |
 
 ## 5. Blocker register
@@ -211,7 +213,7 @@ S2/S5 wire contract: `docs/architecture/s2-wire-contract.md` (authoritative for 
 |---|---|
 | Phase 5: UI/UX modernization | implemented on `feature/phase-5-ui-ux`; waiting for the owner's Windows acceptance (`docs/operations/phase-5-acceptance.md`) and the merge decision |
 | Installer, signing, release packaging decision | not started; scope to be set by the owner |
-| Production hardening (Auth review, JWT expiry, log retention/purge, sign-up policy) | explicitly out of scope for now |
+| Production hardening (Auth review, JWT expiry, log retention/purge, sign-up policy) | out of scope: no production exists (`development-environment-policy.md`); revisit only if the owner starts a production phase |
 | Synchronized reminders | not planned for V1 (D-RM); would need a hosted schema change, prepared locally and deployed only with separate authorization |
 | Test environment data (test@test.com, nx-accept-a/b@example.test, about 1,022 test tasks) | kept; must not be deleted without owner instruction |
 | Merge of Phase 4 into `main` | done (PR #18) |

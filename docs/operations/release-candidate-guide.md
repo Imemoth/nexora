@@ -1,5 +1,7 @@
 # Nexora V1 release candidate: install, first run, sign-in, backup and recovery
 
+> **Policy:** Nexora is DEVELOPMENT/TEST only; no production exists; the Supabase project is DEV/TEST with mock data. Production-style rollback, release and compatibility parts below are optional guidance, not requirements; hosted writes still need the owner's separate authorization. See [`docs/development-environment-policy.md`](../development-environment-policy.md).
+
 Audience: the owner installing the Windows release candidate (RC). Synchronization is **off by default**; the default build never contacts a server.
 
 ## 1. The RC package

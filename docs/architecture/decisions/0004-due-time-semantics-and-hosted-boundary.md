@@ -1,5 +1,7 @@
 # ADR 0004: Optional time of day on a due date, and where it stops
 
+> **Policy:** Nexora is DEVELOPMENT/TEST only; no production exists; the Supabase project is DEV/TEST with mock data. Production-style rollback, release and compatibility parts below are optional guidance, not requirements; hosted writes still need the owner's separate authorization. See [`docs/development-environment-policy.md`](../../development-environment-policy.md).
+
 Status: **implemented** in the client and in a hosted migration that is **prepared and tested locally but NOT applied** (`supabase/migrations/20261116100000_nexora_due_time.sql`; request, sequence, verification and rollback: `docs/operations/due-time-hosted-migration.md`). The first version of this record (local-only time, signed-in time disabled) is superseded where stated below. Register: `docs/coordination/status-register.md`.
 
 ## 1. Requirement

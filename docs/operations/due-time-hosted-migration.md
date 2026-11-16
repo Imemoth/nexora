@@ -1,5 +1,7 @@
 # Due time: hosted migration request (prepared, NOT applied)
 
+> **Policy:** Nexora is DEVELOPMENT/TEST only; no production exists; the Supabase project is DEV/TEST with mock data. Production-style rollback, release and compatibility parts below are optional guidance, not requirements; hosted writes still need the owner's separate authorization. See [`docs/development-environment-policy.md`](../development-environment-policy.md).
+
 Status: **prepared only. Nothing in this document has been run against the hosted project.** The hosted project is `uicccaawtjvqggeufbez` (the TEST project). Applying the migration, or any other hosted write, needs the owner's explicit authorization of **this exact operation**. Read-only steps are marked **[read-only]**. Decision record: `docs/architecture/decisions/0004-due-time-semantics-and-hosted-boundary.md`. Pattern and stop rules follow `combined-hosted-acceptance-operation.md` (sections 1 to 6).
 
 ## 1. What is requested

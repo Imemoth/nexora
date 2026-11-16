@@ -1,5 +1,7 @@
 # Combined hosted acceptance operation (prepared, NOT executed)
 
+> **Policy:** Nexora is DEVELOPMENT/TEST only; no production exists; the Supabase project is DEV/TEST with mock data. Production-style rollback, release and compatibility parts below are optional guidance, not requirements; hosted writes still need the owner's separate authorization. See [`docs/development-environment-policy.md`](../development-environment-policy.md).
+
 **Status update (2026-11-14): this operation was executed on the hosted TEST project on 2026-11-13; the result is in `docs/operations/hosted-acceptance-record-2026-11-13.md`. The text below is the original runbook and is kept for history and for any rollback.**
 
 Status: **prepared only.** Nothing in this document has been run against the hosted project. Every hosted write needs the owner's explicit authorization of this operation; until then only the read-only steps marked **[read-only]** may be performed. Related documents: `docs/operations/hosted-deployment-checklist-s2-s4.md` (detailed procedure and verification queries for S2 to S4), `docs/operations/s9-direct-grants-removal-plan.md`, `docs/operations/hardening-implementation-record.md`, `docs/operations/hosted-readonly-preflight-2026-11-12.md`, `docs/operations/auth-dashboard-audit.md`.

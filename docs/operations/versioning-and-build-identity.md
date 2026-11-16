@@ -1,5 +1,7 @@
 # Application version and build identity
 
+> **Policy:** Nexora is DEVELOPMENT/TEST only; no production exists; the Supabase project is DEV/TEST with mock data. Production-style rollback, release and compatibility parts below are optional guidance, not requirements; hosted writes still need the owner's separate authorization. See [`docs/development-environment-policy.md`](../development-environment-policy.md).
+
 How to tell exactly which build is running, how to raise the version, and how to trace a released artifact back to its source.
 
 ## 0. Which Windows build is which
