@@ -32,11 +32,11 @@ void main() {
   setUp(() => _dir = Directory.systemTemp.createTempSync('nexora-rem-'));
   tearDown(() => _dir.deleteSync(recursive: true));
 
-  group('schema version 4', () {
+  group('schema version 6 (reminder table since 4)', () {
     test('a new file has the reminder table', () {
       final db = LocalDatabase.open(_path());
       addTearDown(db.close);
-      expect(LocalDatabase.currentVersion, 4);
+      expect(LocalDatabase.currentVersion, 6);
       final tables = db.raw
           .select("SELECT name FROM sqlite_master WHERE type = 'table'")
           .map((r) => r['name'])
@@ -51,12 +51,13 @@ void main() {
       // Step the file back to version 3: no reminder table, nothing else.
       final raw = sqlite3.open(path);
       raw.execute('DROP TABLE task_reminders');
+      raw.execute('ALTER TABLE tasks DROP COLUMN due_time');
       raw.userVersion = 3;
       raw.close();
 
       final migrated = LocalDatabase.open(path);
       addTearDown(migrated.close);
-      expect(migrated.schemaVersion, 4);
+      expect(migrated.schemaVersion, 6);
       expect(
         migrated.raw.select('SELECT title FROM tasks').single['title'],
         'Pay rent',
@@ -64,12 +65,12 @@ void main() {
       expect(ReminderStore(migrated).all(), isEmpty);
     });
 
-    test('a version 1 file is migrated through every version to 4', () {
+    test('a version 1 file is migrated through every version to 6', () {
       final path = _path();
       createV1File(path);
       final db = LocalDatabase.open(path);
       addTearDown(db.close);
-      expect(db.schemaVersion, 4);
+      expect(db.schemaVersion, 6);
       expect(ReminderStore(db).all(), isEmpty);
     });
 
@@ -77,7 +78,7 @@ void main() {
       final path = _path();
       LocalDatabase.open(path).close();
       final raw = sqlite3.open(path);
-      raw.userVersion = 5;
+      raw.userVersion = 7;
       raw.close();
       expect(() => LocalDatabase.open(path), throwsA(anything));
     });

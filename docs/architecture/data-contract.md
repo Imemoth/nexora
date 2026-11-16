@@ -30,6 +30,7 @@ Legend: **Applied** = on the hosted project. **Implemented** = in code that exis
 | `title` (≤200 UTF-16 units, trimmed, non-empty) | text | `length(btrim(title)) between 1 and 200` | was 500 |
 | `notes` | text not null default '' | text not null default '' | was nullable |
 | `dueDate` (CalendarDate) | text `YYYY-MM-DD` | `date` | date-only, no time zone |
+| `dueTime` (optional `HH:MM`, 24 hour) | text `HH:MM` in `tasks.due_time` (local schema 6) | `time without time zone` (**proposed migration `20261116100000`, not applied**) | floating wall-clock time, no zone, never converted; null = date-only; needs a date; ADR 0004 |
 | `position` (int) | integer | `sort_order numeric` | numeric superset; client may send integers. Ties broken by `id` (client rule unchanged) |
 | `parentId` | text null | `parent_id` | same project; no self-parent, no cycles (DB-enforced) |
 | — | `version` integer | `version bigint` | see below |

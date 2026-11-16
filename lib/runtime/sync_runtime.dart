@@ -237,6 +237,7 @@ final class SyncRuntime {
       target: current.db,
       repository: current.repository,
       ids: ids,
+      dueTimeSupported: () => SyncStateStore(current.db).serverSupportsDueTime,
     );
     return ImportPanel(
       preview: () async {
@@ -248,6 +249,7 @@ final class SyncRuntime {
                 id: c.project.id,
                 name: c.project.name,
                 taskCount: c.tasks.length,
+                dueTimeCount: c.dueTimeCount,
                 sameNameProjectId: c.sameNameProjectId,
                 warnings: {
                   if (c.warnings.contains(ImportWarning.alreadyImported))
@@ -260,6 +262,7 @@ final class SyncRuntime {
           skippedLocalOnly: p.skipped.localOnly,
           skippedUnclassified: p.skipped.unclassified,
           skippedDeleted: p.skipped.deleted,
+          dueTimesTransferable: p.dueTimesTransferable,
         );
       },
       destinations: () async {
@@ -424,15 +427,22 @@ final class SyncRuntime {
     ensureParentFolder(path);
     final db = LocalDatabase.open(path);
     OutboxStore(db, ids: ids).recoverInFlight();
+    // A due time synchronizes only when the account's server said it stores one
+    // (`features` of device registration, remembered in the file). The local-only
+    // workspace never synchronizes, so it always can.
+    bool dueTimeOk() =>
+        userId == null || SyncStateStore(db).serverSupportsDueTime;
     final repository = SqliteTaskRepository(
       db,
       ownerId: ownerIdOf(db, ids),
       ids: ids,
+      dueTimeSyncs: dueTimeOk,
     );
     final workspace = TaskWorkspace(
       repository: repository,
       clock: clock,
       ids: ids,
+      dueTimeSupportOf: dueTimeOk,
     );
     final active = ActiveWorkspace._(
       userId: userId,
@@ -452,10 +462,19 @@ final class SyncRuntime {
       );
       unawaited(active.reminders!.start().catchError((Object _) {}));
     }
+    // A refresh that could not read storage is retried on the next change. A
+    // selected task, a draft or a running save no longer block it: the
+    // workspace applies incoming data itself and protects unsaved edits.
     active._watch = workspace.states.listen((state) {
-      if (active.refreshPending && state.draft == null) {
+      if (active.refreshPending) {
         active.refreshPending = false;
-        unawaited(workspace.refresh());
+        unawaited(
+          workspace.refresh().then((applied) {
+            if (!applied) {
+              active.refreshPending = true;
+            }
+          }),
+        );
       }
     });
     return active;
@@ -535,7 +554,9 @@ final class SyncRuntime {
     if (!identical(current, _active)) {
       return;
     }
-    if (result.phase == SyncPhase.idle) {
+    // Pulled pages are applied as they arrive, so a cycle that ends in an error
+    // or a retry may still have changed storage. Re-reading is cheap.
+    if (result.phase != SyncPhase.disabled) {
       await _afterCycle(current, engine);
     }
   }

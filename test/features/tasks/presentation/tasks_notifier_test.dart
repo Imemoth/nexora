@@ -31,8 +31,10 @@ void main() {
       notifier.sort(TaskSort.title);
       expect(notifier.state.sort, TaskSort.title);
 
-      notifier.toggleExpanded('parent');
+      // `parent` is expanded by default, so toggling collapses it.
       expect(notifier.state.expandedTaskIds, contains('parent'));
+      notifier.toggleExpanded('parent');
+      expect(notifier.state.expandedTaskIds, isNot(contains('parent')));
 
       notifier.dispose();
     });

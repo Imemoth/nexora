@@ -92,7 +92,12 @@ void main() {
     await signIn(tester);
     expect(find.byKey(const ValueKey('sign-in-dialog')), findsNothing);
     expect(runtime.active.userId, userA);
+    // Sign out lives in the account menu (Phase 5).
+    await tester.tap(find.byKey(const ValueKey('account-row')));
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('sign-out')), findsOneWidget);
+    await tester.tapAt(const Offset(700, 20));
+    await tester.pumpAndSettle();
     // a new account is empty: nothing is created or imported automatically
     expect(find.byKey(const ValueKey('empty-account')), findsOneWidget);
     await shutDown(tester);
@@ -116,6 +121,8 @@ void main() {
   testWidgets('sign out and sign in again through the UI', (tester) async {
     await pumpHost(tester);
     await signIn(tester);
+    await tester.tap(find.byKey(const ValueKey('account-row')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('sign-out')));
     await tester.pumpAndSettle();
     expect(runtime.active.userId, isNull);

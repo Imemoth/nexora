@@ -1,5 +1,7 @@
 # Hosted deployment checklist for S2, S3 and S4 (prepared, NOT executed)
 
+> **Policy:** Nexora is DEVELOPMENT/TEST only; no production exists; the Supabase project is DEV/TEST with mock data. Production-style rollback, release and compatibility parts below are optional guidance, not requirements; hosted writes still need the owner's separate authorization. See [`docs/development-environment-policy.md`](../development-environment-policy.md).
+
 **Status update (2026-11-14): this procedure was executed as part of the combined operation on 2026-11-13; the record is `docs/operations/hosted-acceptance-record-2026-11-13.md`. The text below is the original preparation and is kept for history.**
 
 Status of the slices and gates: `docs/coordination/status-register.md`. This document is a procedure to be performed later. **Nothing in it has been run against the hosted project.** Every step that writes hosted state is marked **[owner approval required]**; read-only steps are marked **[read-only]**. Contract: `docs/architecture/s2-wire-contract.md` and `docs/architecture/s3-s4-wire-contract.md`. Related records: `docs/operations/s1-hosted-deployment-record.md` (the pattern used for S1), `docs/operations/security-hardening-decision-record.md`, `docs/operations/s2-implementation-record.md`, `docs/operations/s3-s4-implementation-record.md`.
@@ -88,7 +90,7 @@ Method, free of `EXPLAIN` (the measurement is wall time, not a plan):
 4. Pass criteria (recommendation, to be confirmed by the owner): (a), (b), (d), (e) finish in under 4 seconds at the maximum of five runs (a 2x margin); (c) is informational. A statement timeout (SQLSTATE 57014) is a failure.
 5. On failure: record the shape that failed; propose lowering the batch limit (a contract change affecting S2 and S5, NX003 threshold), splitting the tree delete bound, or lowering the pull byte bound; do not change the platform timeout without a separate decision. Update `docs/architecture/s3-s4-wire-contract.md` and the register only after approval.
 
-## 9. Production activation and rollback checklist **[owner approval required]** (none of it is authorized today)
+## 9. Production activation and rollback checklist **[deferred: no production exists; owner approval required if ever started]** (none of it is authorized today)
 Activation prerequisites (all must be true and recorded):
 - Hosted S2, S3 and S4 applied and verified (sections 3 to 6); hosted HTTP/JWT acceptance passed (section 7); statement-timeout measurement within criteria (section 8).
 - Authentication audit recorded and accepted (anonymous sign-ins, email confirmation, JWT expiry, refresh-token rotation; `docs/operations/auth-dashboard-audit.md`).

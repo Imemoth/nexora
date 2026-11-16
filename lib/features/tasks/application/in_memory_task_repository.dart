@@ -5,7 +5,8 @@ import 'repository_exception.dart';
 import 'task_repository.dart';
 
 /// Phase 1 storage. Data lives only as long as the process.
-final class InMemoryTaskRepository implements TaskRepository, ProjectStore {
+final class InMemoryTaskRepository
+    implements TaskRepository, ProjectStore, TreeDeleter {
   InMemoryTaskRepository({
     required List<Project> projects,
     required List<Task> tasks,
@@ -64,6 +65,46 @@ final class InMemoryTaskRepository implements TaskRepository, ProjectStore {
     } else {
       _projects[index] = project;
     }
+  }
+
+  /// When true, the next delete throws once and changes nothing.
+  bool failNextDelete = false;
+
+  @override
+  Future<void> softDeleteTaskTree(String id) async {
+    if (failNextDelete) {
+      failNextDelete = false;
+      throw const RepositoryException('simulated delete failure');
+    }
+    if (!_tasks.containsKey(id)) {
+      throw const RepositoryException('no live task to delete');
+    }
+    final doomed = <String>{id};
+    var grew = true;
+    while (grew) {
+      grew = false;
+      for (final task in _tasks.values) {
+        if (task.parentId != null &&
+            doomed.contains(task.parentId) &&
+            doomed.add(task.id)) {
+          grew = true;
+        }
+      }
+    }
+    doomed.forEach(_tasks.remove);
+  }
+
+  @override
+  Future<void> softDeleteProjectTree(String id) async {
+    if (failNextDelete) {
+      failNextDelete = false;
+      throw const RepositoryException('simulated delete failure');
+    }
+    if (!_projects.any((p) => p.id == id)) {
+      throw const RepositoryException('no live project to delete');
+    }
+    _tasks.removeWhere((_, task) => task.projectId == id);
+    _projects.removeWhere((p) => p.id == id);
   }
 
   void _consumeLoadFailure() {

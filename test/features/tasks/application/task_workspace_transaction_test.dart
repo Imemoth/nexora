@@ -102,6 +102,9 @@ void main() {
       () async {
         final h = await loadedHarness(tasks: sampleTasks());
         final ws = h.workspace;
+        ws.toggleExpanded(
+          'parent',
+        ); // the user collapsed it (default is expanded)
         ws.requestSelectTask('a');
         ws.editDraft(title: 'Alpha 2');
         await ws.requestCreateSubtask(title: 'Sub', parentId: 'parent');

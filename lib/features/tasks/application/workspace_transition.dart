@@ -12,6 +12,11 @@ final class TransitionSelectView extends WorkspaceTransition {
   final SmartView view;
 }
 
+/// Leaves the task list for the dashboard.
+final class TransitionSelectDashboard extends WorkspaceTransition {
+  const TransitionSelectDashboard();
+}
+
 final class TransitionSelectProject extends WorkspaceTransition {
   const TransitionSelectProject(this.projectId);
 
@@ -42,6 +47,11 @@ final class TransitionCreate extends WorkspaceTransition {
 
 final class TransitionExit extends WorkspaceTransition {
   const TransitionExit();
+}
+
+/// Signing out replaces the workspace, so an unsaved draft would be lost.
+final class TransitionSignOut extends WorkspaceTransition {
+  const TransitionSignOut();
 }
 
 final class PendingTransition {

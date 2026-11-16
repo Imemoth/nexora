@@ -163,5 +163,8 @@ class _UnsavedChangesDialog extends StatelessWidget {
     if (notifier.state.exitReady) {
       onExitApp();
     }
+    if (notifier.state.signOutReady) {
+      await notifier.completeSignOut();
+    }
   }
 }

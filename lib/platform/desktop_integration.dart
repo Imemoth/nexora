@@ -5,6 +5,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:nexora/features/tasks/application/reminder_service.dart';
 
+import 'window_placement.dart';
+import 'window_state.dart';
+
 /// Something the Windows shell asked the app to do.
 sealed class DesktopEvent {
   const DesktopEvent();
@@ -81,7 +84,8 @@ final class NoDesktopIntegration implements DesktopIntegration {
 }
 
 /// The real implementation over the `nexora/desktop` method channel.
-final class WindowsDesktopIntegration implements DesktopIntegration {
+final class WindowsDesktopIntegration
+    implements DesktopIntegration, WindowBridge {
   WindowsDesktopIntegration({MethodChannel? channel})
     : _channel = channel ?? const MethodChannel(channelName) {
     // `main()` builds this before `runApp`, when the services binding does not
@@ -101,6 +105,8 @@ final class WindowsDesktopIntegration implements DesktopIntegration {
   final MethodChannel _channel;
   final StreamController<DesktopEvent> _events =
       StreamController<DesktopEvent>.broadcast();
+  final StreamController<WindowPlacement> _placements =
+      StreamController<WindowPlacement>.broadcast();
   bool _available = true;
 
   @override
@@ -121,6 +127,11 @@ final class WindowsDesktopIntegration implements DesktopIntegration {
         _events.add(const ExitRequested());
       case 'windowActivated':
         _events.add(const WindowActivated());
+      case 'windowPlacementChanged':
+        final placement = WindowPlacement.tryFromJson(call.arguments);
+        if (placement != null) {
+          _placements.add(placement);
+        }
     }
     return null;
   }
@@ -169,8 +180,51 @@ final class WindowsDesktopIntegration implements DesktopIntegration {
   }
 
   @override
+  Stream<WindowPlacement> get placementChanges => _placements.stream;
+
+  @override
+  Future<List<DisplayArea>> displays() async {
+    try {
+      final list = await _channel.invokeMethod<List<Object?>>('getDisplays');
+      return [
+        for (final item in list ?? const <Object?>[])
+          if (item is Map &&
+              item['left'] is int &&
+              item['top'] is int &&
+              item['right'] is int &&
+              item['bottom'] is int)
+            DisplayArea(
+              item['left'] as int,
+              item['top'] as int,
+              item['right'] as int,
+              item['bottom'] as int,
+            ),
+      ];
+    } on MissingPluginException {
+      return const [];
+    } on PlatformException {
+      return const [];
+    }
+  }
+
+  @override
+  Future<void> applyPlacement(WindowPlacement placement) async {
+    try {
+      await _channel.invokeMethod<void>(
+        'setWindowPlacement',
+        placement.toJson(),
+      );
+    } on MissingPluginException {
+      // An older runner without window placement: the default stays.
+    } on PlatformException {
+      // Same.
+    }
+  }
+
+  @override
   Future<void> dispose() async {
     _channel.setMethodCallHandler(null);
     await _events.close();
+    await _placements.close();
   }
 }

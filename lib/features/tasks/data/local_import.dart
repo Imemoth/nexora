@@ -49,6 +49,9 @@ final class ImportCandidate {
     this.sameNameProjectId,
   });
 
+  /// Tasks of this project that have a due time (a date plus an hour and minute).
+  int get dueTimeCount => tasks.where((t) => t.dueTime != null).length;
+
   final Project project;
 
   /// The live synchronized tasks of the project, parents before children.
@@ -63,7 +66,13 @@ final class ImportPreview {
     required this.sourceOwnerId,
     required this.candidates,
     required this.skipped,
+    this.dueTimesTransferable = false,
   });
+
+  /// Whether the destination account's server stores due times. When it does not,
+  /// the import keeps every date and **drops the times**, and says so before the
+  /// user confirms (never implied to be preserved).
+  final bool dueTimesTransferable;
 
   final String sourceOwnerId;
   final List<ImportCandidate> candidates;
@@ -145,7 +154,12 @@ final class LocalImportService {
     DateTime Function()? now,
     this.backupDirectory,
     this.beforeCommit,
-  }) : _now = now ?? (() => DateTime.now().toUtc());
+    bool Function()? dueTimeSupported,
+  }) : _dueTimeSupported = dueTimeSupported ?? (() => false),
+       _now = now ?? (() => DateTime.now().toUtc());
+
+  /// Asked at preview and at run time: the server's answer can change between.
+  final bool Function() _dueTimeSupported;
 
   final String sourcePath;
   final LocalDatabase target;
@@ -270,6 +284,7 @@ final class LocalImportService {
     }
     return ImportPreview(
       sourceOwnerId: sourceOwner,
+      dueTimesTransferable: _dueTimeSupported(),
       candidates: candidates,
       skipped: ImportSkipped(
         localOnly: localOnly,
@@ -285,6 +300,8 @@ final class LocalImportService {
     if (choices.isEmpty) {
       throw const ImportException('nothing_selected');
     }
+    // Decided once for the whole import, so one run is consistent.
+    final dueTimes = _dueTimeSupported();
     final source = _openSource();
     final ImportPreview preview;
     try {
@@ -387,6 +404,7 @@ final class LocalImportService {
             status: t.status,
             priority: t.priority,
             dueDate: t.dueDate,
+            dueTime: dueTimes ? t.dueTime : null,
             position: t.parentId == null && destination != null
                 ? t.position + offset
                 : t.position,

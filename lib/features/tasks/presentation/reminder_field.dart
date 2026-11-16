@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:nexora/app/theme.dart';
 import 'package:nexora/features/tasks/domain/reminder.dart';
 
+import 'dashed_border.dart';
+import 'reminder_dialog.dart';
+import 'reminder_strip.dart';
 import 'reminders_notifier.dart';
 import 'strings/reminder_strings.dart';
+import 'theme/nexora_colors.dart';
 
-/// The reminder editor inside the task details panel. Changes apply at once and
-/// are not part of the task's Save/Revert draft: a reminder is device-local, so
-/// it is never part of a task edit and never synchronized.
+/// The reminder block in the details pane, outside the task group. Changes
+/// apply at once and are never part of the task's Save/Revert draft: a reminder
+/// is device-local, so it is never part of a task edit and never synchronized.
 class ReminderField extends StatefulWidget {
   const ReminderField({super.key, required this.taskId});
 
@@ -19,51 +24,22 @@ class ReminderField extends StatefulWidget {
 class _ReminderFieldState extends State<ReminderField> {
   String? _error;
 
-  Future<void> _pick(RemindersNotifier notifier, Reminder? current) async {
-    final service = notifier.service;
-    final now = service.clock.toLocal(service.clock.nowUtc());
-    final initial = current?.remindAt ?? now;
-    final date = await showDatePicker(
-      context: context,
-      helpText: ReminderStrings.pickDate,
-      initialDate: DateTime(initial.year, initial.month, initial.day),
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: DateTime(2100),
-    );
-    if (date == null || !mounted) {
-      return;
-    }
-    final time = await showTimePicker(
-      context: context,
-      helpText: ReminderStrings.pickTime,
-      initialTime: TimeOfDay(
-        hour: current?.remindAt.hour ?? 9,
-        minute: current?.remindAt.minute ?? 0,
-      ),
-    );
-    if (time == null || !mounted) {
-      return;
-    }
-    final error = service.setReminder(
-      widget.taskId,
-      LocalWallTime(date.year, date.month, date.day, time.hour, time.minute),
-    );
-    setState(() {
-      _error = error == null ? null : ReminderStrings.errorMessage(error);
-    });
+  void _toast(String text) {
+    ScaffoldMessenger.maybeOf(context)
+        ?.showSnackBar(SnackBar(content: Text(text)));
   }
 
-  void _snoozeTomorrow(RemindersNotifier notifier) {
-    final service = notifier.service;
-    final now = service.clock.toLocal(service.clock.nowUtc());
-    final tomorrow = DateTime(now.year, now.month, now.day + 1, 9);
-    final error = service.snoozeUntil(
-      widget.taskId,
-      LocalWallTime.fromDateTime(tomorrow),
+  Future<void> _open(RemindersNotifier notifier, Reminder? current) async {
+    setState(() => _error = null);
+    final saved = await showReminderDialog(
+      context,
+      notifier: notifier,
+      taskId: widget.taskId,
+      current: current,
     );
-    setState(() {
-      _error = error == null ? null : ReminderStrings.errorMessage(error);
-    });
+    if (saved == true && mounted) {
+      _toast(ReminderStrings.saved);
+    }
   }
 
   @override
@@ -72,105 +48,130 @@ class _ReminderFieldState extends State<ReminderField> {
     if (notifier == null) {
       return const SizedBox.shrink();
     }
-    final textTheme = Theme.of(context).textTheme;
+    final c = NexoraColors.of(context);
     final service = notifier.service;
     final reminder = service.reminderFor(widget.taskId);
-    final active =
-        reminder != null && reminder.state != ReminderState.acknowledged;
     final label = reminder == null
         ? ReminderStrings.noReminder
-        : '${ReminderStrings.when(reminder.snoozeUntilUtc == null ? reminder.remindAt : service.clock.toLocal(reminder.snoozeUntilUtc!))}'
-              ' - ${ReminderStrings.state(reminder)}';
-    return Padding(
-      padding: const EdgeInsets.only(top: 16),
+        : '${ReminderStrings.friendlyWhen(reminder.snoozeUntilUtc == null ? reminder.remindAt : service.clock.toLocal(reminder.snoozeUntilUtc!))}'
+              ' · ${ReminderStrings.state(reminder)}';
+    return DashedBorder(
+      key: const ValueKey('reminder-field'),
+      color: c.accentCyan,
+      fill: c.surface,
+      radius: 12,
+      padding: const EdgeInsets.all(12),
       child: Column(
-        key: const ValueKey('reminder-field'),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(ReminderStrings.fieldReminder, style: textTheme.labelMedium),
-          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.notifications_none, size: 16, color: c.accentCyan),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  ReminderStrings.caption.toUpperCase(),
+                  style: NexoraText.overline.copyWith(color: c.accentCyan),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: c.surface2,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  ReminderStrings.deviceTag,
+                  key: const ValueKey('reminder-device-tag'),
+                  style: NexoraText.label.copyWith(color: c.text2),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  key: const ValueKey('reminder-button'),
-                  onPressed: () => _pick(notifier, reminder),
-                  icon: const Icon(Icons.alarm),
-                  label: Text(label, overflow: TextOverflow.ellipsis),
+                child: Text(
+                  label,
+                  key: const ValueKey('reminder-state'),
+                  style: NexoraText.bodyStrong.copyWith(color: c.text1),
+                ),
+              ),
+              OutlinedButton(
+                key: const ValueKey('reminder-button'),
+                onPressed: () => _open(notifier, reminder),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 34),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                child: Text(
+                  reminder == null
+                      ? ReminderStrings.setReminder
+                      : ReminderStrings.changeReminder,
                 ),
               ),
               if (reminder != null)
                 IconButton(
                   key: const ValueKey('reminder-clear'),
                   tooltip: ReminderStrings.clearReminder,
-                  icon: const Icon(Icons.clear),
+                  icon: const Icon(Icons.close, size: 18),
                   onPressed: () {
                     service.cancel(widget.taskId);
                     setState(() => _error = null);
+                    _toast(ReminderStrings.removed);
                   },
                 ),
             ],
           ),
           if (reminder?.state == ReminderState.notified)
-            Wrap(
-              spacing: 8,
-              children: [
-                TextButton(
-                  key: const ValueKey('reminder-ack'),
-                  onPressed: () => service.acknowledge(widget.taskId),
-                  child: const Text(ReminderStrings.acknowledge),
-                ),
-                PopupMenuButton<String>(
-                  key: const ValueKey('reminder-snooze'),
-                  tooltip: ReminderStrings.snooze,
-                  onSelected: (value) {
-                    switch (value) {
-                      case '10':
-                        service.snooze(
-                          widget.taskId,
-                          const Duration(minutes: 10),
-                        );
-                      case '60':
-                        service.snooze(widget.taskId, const Duration(hours: 1));
-                      default:
-                        _snoozeTomorrow(notifier);
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: '10',
-                      child: Text(ReminderStrings.snooze10),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  FilledButton(
+                    key: const ValueKey('reminder-ack'),
+                    onPressed: () {
+                      service.acknowledge(widget.taskId);
+                    },
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 34),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
                     ),
-                    PopupMenuItem(
-                      value: '60',
-                      child: Text(ReminderStrings.snooze1h),
-                    ),
-                    PopupMenuItem(
-                      value: 'tomorrow',
-                      child: Text(ReminderStrings.snoozeTomorrow),
-                    ),
-                  ],
-                  child: const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: Text(ReminderStrings.snooze),
+                    child: const Text(ReminderStrings.acknowledge),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  SnoozeMenuButton(
+                    buttonKey: const ValueKey('reminder-snooze'),
+                    taskId: widget.taskId,
+                    service: service,
+                    onSnoozed: (error) {
+                      setState(() => _error = error);
+                      if (error == null) {
+                        _toast(ReminderStrings.snoozed);
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
           if (_error != null)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(_error!, key: const ValueKey('reminder-error')),
-            ),
-          if (active || reminder == null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.only(top: 6),
               child: Text(
-                ReminderStrings.deviceOnly,
-                key: const ValueKey('reminder-device-only'),
-                style: textTheme.bodySmall,
+                _error!,
+                key: const ValueKey('reminder-error'),
+                style: NexoraText.caption.copyWith(color: c.statusOverdue),
               ),
             ),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              '${ReminderStrings.notInSave} ${ReminderStrings.notSynchronized}',
+              key: const ValueKey('reminder-device-only'),
+              style: NexoraText.caption.copyWith(color: c.textMuted),
+            ),
+          ),
         ],
       ),
     );

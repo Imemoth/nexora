@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/features/tasks/application/reminder_service.dart';
@@ -18,14 +19,22 @@ final class _Memory implements ReminderPersistence {
 
   final Map<String, ReminderTaskInfo> tasks;
   final Map<String, Reminder> rows = {};
+  int scheduleCalls = 0;
 
   @override
   Reminder? get(String id) => rows[id];
   @override
   List<Reminder> all() => rows.values.toList();
   @override
-  void schedule(String id, LocalWallTime wall, DateTime now) => rows[id] =
-      Reminder(taskId: id, remindAt: wall, state: ReminderState.scheduled);
+  void schedule(String id, LocalWallTime wall, DateTime now) {
+    scheduleCalls++;
+    rows[id] = Reminder(
+      taskId: id,
+      remindAt: wall,
+      state: ReminderState.scheduled,
+    );
+  }
+
   @override
   bool cancel(String id) => rows.remove(id) != null;
   @override
@@ -107,10 +116,14 @@ final class _FakeDesktop implements DesktopIntegration {
 
 final _noon = DateTime.utc(2026, 11, 14, 17);
 
-Future<
-  ({TasksNotifier notifier, ReminderService service, _FakeDesktop desktop})
->
-_pump(
+typedef _Pumped = ({
+  TasksNotifier notifier,
+  ReminderService service,
+  _FakeDesktop desktop,
+  _Memory memory,
+});
+
+Future<_Pumped> _pump(
   WidgetTester tester, {
   Future<void> Function()? beforeExit,
   Duration exitGrace = const Duration(seconds: 3),
@@ -129,7 +142,7 @@ _pump(
   );
   final notifier = TasksNotifier(harness.workspace);
   addTearDown(service.dispose);
-  tester.view.physicalSize = const Size(1400, 900);
+  tester.view.physicalSize = const Size(1400, 1300);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
@@ -141,7 +154,23 @@ _pump(
     ),
   );
   await tester.pumpAndSettle();
-  return (notifier: notifier, service: service, desktop: desktop);
+  return (
+    notifier: notifier,
+    service: service,
+    desktop: desktop,
+    memory: memory,
+  );
+}
+
+/// Opens the reminder dialog; [custom] also switches to the custom date and
+/// hour fields (the presets are the default).
+Future<void> _openReminder(WidgetTester tester, {bool custom = false}) async {
+  await tester.tap(find.byKey(const ValueKey('reminder-button')));
+  await tester.pumpAndSettle();
+  if (custom) {
+    await tester.tap(find.byKey(const ValueKey('reminder-choice-custom')));
+    await tester.pumpAndSettle();
+  }
 }
 
 void main() {
@@ -162,13 +191,17 @@ void main() {
     expect(find.text(ReminderStrings.noReminder), findsOneWidget);
     // The UI states the behaviour explicitly: this device only.
     expect(find.byKey(const ValueKey('reminder-device-only')), findsOneWidget);
-    expect(find.textContaining('this device only'), findsOneWidget);
+    expect(find.text(ReminderStrings.deviceTag), findsOneWidget);
+    expect(
+      find.textContaining(ReminderStrings.notSynchronized),
+      findsOneWidget,
+    );
   });
 
   testWidgets('without reminders wired the editor is absent', (tester) async {
     final harness = await loadedHarness(tasks: sampleTasks());
     final notifier = TasksNotifier(harness.workspace);
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1400, 1300);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(NexoraApp(notifier: notifier));
@@ -208,6 +241,9 @@ void main() {
     await tester.runAsync(h.service.tick);
     await tester.pumpAndSettle();
 
+    // Snooze is a menu on the strip (Phase 5).
+    await tester.tap(find.byKey(const ValueKey('reminder-snooze-a')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('reminder-snooze10-a')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('reminder-banner')), findsNothing);
@@ -290,13 +326,21 @@ void main() {
     final h = await _pump(tester);
     h.notifier.selectTask('a');
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('reminder-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK')); // date: today
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK')); // time: 09:00, before the fake noon
+    await _openReminder(tester, custom: true);
+    // The inline editor: today at 09:00 is before the fake noon.
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-date')),
+      '2026-11-14',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-time')),
+      '09:00',
+    );
+    await tester.tap(find.byKey(const ValueKey('reminder-submit')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('reminder-error')), findsOneWidget);
+    // The editor stays open after the error.
+    expect(find.byKey(const ValueKey('reminder-date')), findsOneWidget);
     expect(h.service.reminderFor('a'), isNull);
   });
 
@@ -307,7 +351,12 @@ void main() {
     h.service.setReminder('a', const LocalWallTime(2026, 11, 20, 8, 30));
     h.notifier.selectTask('a');
     await tester.pumpAndSettle();
-    expect(find.textContaining('2026-11-20 08:30'), findsOneWidget);
+    expect(
+      find.textContaining(
+        ReminderStrings.friendlyWhen(const LocalWallTime(2026, 11, 20, 8, 30)),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const ValueKey('reminder-clear')));
     await tester.pumpAndSettle();
     expect(h.service.reminderFor('a'), isNull);
@@ -330,5 +379,408 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('reminder-ack')));
     await tester.pumpAndSettle();
     expect(h.service.due, isEmpty);
+  });
+
+  testWidgets(
+    'reminder actions never touch the draft; Revert leaves the reminder',
+    (tester) async {
+      final h = await _pump(tester);
+      h.notifier.selectTask('a');
+      h.notifier.editDraft(title: 'Alpha edited');
+      await tester.pumpAndSettle();
+      expect(h.notifier.state.draft!.isDirty, isTrue);
+
+      // set
+      await _openReminder(tester, custom: true);
+      await tester.enterText(
+        find.byKey(const ValueKey('reminder-date')),
+        '2026-11-20',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('reminder-time')),
+        '08:30',
+      );
+      await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+      await tester.pumpAndSettle();
+      expect(h.service.reminderFor('a'), isNotNull);
+      expect(h.notifier.state.draft!.title, 'Alpha edited');
+      expect(h.notifier.state.draft!.isDirty, isTrue);
+
+      // change
+      h.service.setReminder('a', const LocalWallTime(2026, 11, 21, 9, 0));
+      await tester.pumpAndSettle();
+      expect(h.notifier.state.draft!.isDirty, isTrue);
+
+      // snooze
+      h.service.snooze('a', const Duration(minutes: 10));
+      await tester.pumpAndSettle();
+      expect(h.notifier.state.draft!.isDirty, isTrue);
+
+      // Revert undoes the title, not the reminder.
+      h.notifier.revertDraft();
+      await tester.pumpAndSettle();
+      expect(h.notifier.state.draft!.isDirty, isFalse);
+      expect(h.service.reminderFor('a'), isNotNull);
+
+      // remove: still no effect on a (new) dirty draft
+      h.notifier.editDraft(title: 'again');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reminder-clear')));
+      await tester.pumpAndSettle();
+      expect(h.service.reminderFor('a'), isNull);
+      expect(h.notifier.state.draft!.isDirty, isTrue);
+    },
+  );
+
+  testWidgets('the dialog makes one setReminder call with both custom values', (
+    tester,
+  ) async {
+    final h = await _pump(tester);
+    h.notifier.selectTask('a');
+    await tester.pumpAndSettle();
+    await _openReminder(tester, custom: true);
+    // Defaults: tomorrow at 09:00 (the fake clock is 2026-11-14 12:00 local).
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('reminder-date')))
+          .controller!
+          .text,
+      '2026-11-15',
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('reminder-time')))
+          .controller!
+          .text,
+      '09:00',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-date')),
+      '2026-11-18',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-time')),
+      '07:45',
+    );
+    await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+    await tester.pumpAndSettle();
+    expect(h.memory.scheduleCalls, 1);
+    expect(
+      h.service.reminderFor('a')!.remindAt,
+      const LocalWallTime(2026, 11, 18, 7, 45),
+    );
+    // The dialog closed and a snackbar confirmed.
+    expect(find.byKey(const ValueKey('reminder-dialog')), findsNothing);
+    expect(find.byKey(const ValueKey('reminder-date')), findsNothing);
+    expect(find.text(ReminderStrings.saved), findsOneWidget);
+  });
+
+  testWidgets('a past time shows the error, keeps the dialog open, no call', (
+    tester,
+  ) async {
+    final h = await _pump(tester);
+    h.notifier.selectTask('a');
+    await tester.pumpAndSettle();
+    await _openReminder(tester, custom: true);
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-date')),
+      '2026-11-14',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-time')),
+      '09:00',
+    );
+    await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+    await tester.pumpAndSettle();
+    expect(find.text(ReminderStrings.errorInPast), findsOneWidget);
+    expect(find.byKey(const ValueKey('reminder-date')), findsOneWidget);
+    expect(h.memory.scheduleCalls, 0);
+  });
+
+  testWidgets('Cancel closes the dialog without a call', (tester) async {
+    final h = await _pump(tester);
+    h.notifier.selectTask('a');
+    await tester.pumpAndSettle();
+    await _openReminder(tester, custom: true);
+    await tester.tap(find.byKey(const ValueKey('reminder-cancel')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('reminder-dialog')), findsNothing);
+    expect(h.memory.scheduleCalls, 0);
+  });
+
+  testWidgets('deleting a task cancels its reminder, subtasks included', (
+    tester,
+  ) async {
+    final h = await _pump(tester);
+    h.service.setReminder('a', const LocalWallTime(2026, 11, 20, 8, 30));
+    h.notifier.selectTask('a');
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('delete-task')),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('details-pane')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(find.byKey(const ValueKey('delete-task')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('delete-confirm')));
+    await tester.pumpAndSettle();
+    expect(h.service.reminderFor('a'), isNull);
+  });
+
+  group('the reminder dialog', () {
+    // The fake clock is 2026-11-14 12:00 local (Saturday).
+    Future<_Pumped> open(WidgetTester tester, {bool custom = false}) async {
+      final h = await _pump(tester);
+      h.notifier.selectTask('a');
+      await tester.pumpAndSettle();
+      await _openReminder(tester, custom: custom);
+      return h;
+    }
+
+    String resolvedText(WidgetTester tester) => tester
+        .widget<Text>(find.byKey(const ValueKey('reminder-resolved')))
+        .data!;
+
+    testWidgets('offers the four presets and a custom choice', (tester) async {
+      await open(tester);
+      expect(find.byKey(const ValueKey('reminder-dialog')), findsOneWidget);
+      for (final label in [
+        ReminderStrings.presetInOneHour,
+        ReminderStrings.presetInTwoHours,
+        ReminderStrings.presetInFiveHours,
+        ReminderStrings.presetIn24Hours,
+        ReminderStrings.presetCustom,
+      ]) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      // No inline editor any more.
+      expect(find.byKey(const ValueKey('reminder-date')), findsNothing);
+    });
+
+    testWidgets(
+      'each preset shows its concrete date and time before confirming',
+      (tester) async {
+        await open(tester);
+        // Default: In 1 hour.
+        expect(resolvedText(tester), contains('Sat 14 Nov, 13:00'));
+        expect(find.text('Sat 14 Nov, 14:00'), findsOneWidget); // 2 hours
+        expect(find.text('Sat 14 Nov, 17:00'), findsOneWidget); // 5 hours
+        expect(find.text('Sun 15 Nov, 12:00'), findsOneWidget); // 24 hours
+
+        await tester.tap(
+          find.byKey(const ValueKey('reminder-choice-fiveHours')),
+        );
+        await tester.pumpAndSettle();
+        expect(resolvedText(tester), contains('Sat 14 Nov, 17:00'));
+        // Nothing is saved by looking.
+        expect(find.byKey(const ValueKey('reminder-dialog')), findsOneWidget);
+      },
+    );
+
+    testWidgets('confirming a preset makes one call with the shown time', (
+      tester,
+    ) async {
+      final h = await open(tester);
+      await tester.tap(find.byKey(const ValueKey('reminder-choice-twoHours')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+      await tester.pumpAndSettle();
+
+      expect(h.memory.scheduleCalls, 1);
+      expect(
+        h.service.reminderFor('a')!.remindAt,
+        const LocalWallTime(2026, 11, 14, 14, 0),
+      );
+      expect(find.byKey(const ValueKey('reminder-dialog')), findsNothing);
+      expect(find.text(ReminderStrings.saved), findsOneWidget);
+    });
+
+    testWidgets('a preset that crosses midnight shows the next day', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      (h.service.clock as FakeZoneClock).now = DateTime.utc(
+        2026,
+        11,
+        15,
+        4,
+        30,
+      );
+      h.notifier.selectTask('a');
+      await tester.pumpAndSettle();
+      await _openReminder(tester);
+      expect(resolvedText(tester), contains('Sun 15 Nov, 00:30'));
+      await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+      await tester.pumpAndSettle();
+      expect(
+        h.service.reminderFor('a')!.remindAt,
+        const LocalWallTime(2026, 11, 15, 0, 30),
+      );
+    });
+
+    testWidgets('custom date and hour: valid input saves exactly that', (
+      tester,
+    ) async {
+      final h = await open(tester, custom: true);
+      await tester.enterText(
+        find.byKey(const ValueKey('reminder-date')),
+        '2026-11-20',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('reminder-time')),
+        '7:45',
+      );
+      await tester.pumpAndSettle();
+      expect(resolvedText(tester), contains('Fri 20 Nov, 07:45'));
+      await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+      await tester.pumpAndSettle();
+      expect(
+        h.service.reminderFor('a')!.remindAt,
+        const LocalWallTime(2026, 11, 20, 7, 45),
+      );
+    });
+
+    testWidgets('malformed custom input is a clear error, nothing saved', (
+      tester,
+    ) async {
+      final h = await open(tester, custom: true);
+      await tester.enterText(
+        find.byKey(const ValueKey('reminder-date')),
+        '2026-02-30',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('reminder-time')),
+        '09:00',
+      );
+      await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+      await tester.pumpAndSettle();
+      expect(find.text(ReminderStrings.errorFormat), findsOneWidget);
+      expect(find.byKey(const ValueKey('reminder-dialog')), findsOneWidget);
+      expect(h.memory.scheduleCalls, 0);
+    });
+
+    testWidgets('an empty custom field says what is missing', (tester) async {
+      await open(tester, custom: true);
+      await tester.enterText(find.byKey(const ValueKey('reminder-time')), '');
+      await tester.pumpAndSettle();
+      expect(resolvedText(tester), ReminderStrings.errorCustomIncomplete);
+    });
+
+    testWidgets('a custom time in the past is refused with a clear error', (
+      tester,
+    ) async {
+      final h = await open(tester, custom: true);
+      await tester.enterText(
+        find.byKey(const ValueKey('reminder-date')),
+        '2026-11-14',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('reminder-time')),
+        '11:59',
+      );
+      await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+      await tester.pumpAndSettle();
+      expect(find.text(ReminderStrings.errorInPast), findsOneWidget);
+      expect(find.byKey(const ValueKey('reminder-dialog')), findsOneWidget);
+      expect(h.memory.scheduleCalls, 0);
+      expect(h.service.reminderFor('a'), isNull);
+    });
+
+    testWidgets('Cancel saves nothing and keeps an existing reminder', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      h.service.setReminder('a', const LocalWallTime(2026, 11, 20, 8, 30));
+      final callsBefore = h.memory.scheduleCalls;
+      h.notifier.selectTask('a');
+      await tester.pumpAndSettle();
+      await _openReminder(tester);
+      await tester.tap(find.byKey(const ValueKey('reminder-choice-fiveHours')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reminder-cancel')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('reminder-dialog')), findsNothing);
+      expect(h.memory.scheduleCalls, callsBefore);
+      expect(
+        h.service.reminderFor('a')!.remindAt,
+        const LocalWallTime(2026, 11, 20, 8, 30),
+      );
+    });
+
+    testWidgets('Escape closes the dialog without a call', (tester) async {
+      final h = await open(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('reminder-dialog')), findsNothing);
+      expect(h.memory.scheduleCalls, 0);
+    });
+
+    testWidgets('an existing reminder opens as Change, prefilled as custom', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      h.service.setReminder('a', const LocalWallTime(2026, 11, 20, 8, 30));
+      h.notifier.selectTask('a');
+      await tester.pumpAndSettle();
+      await _openReminder(tester);
+      expect(find.text(ReminderStrings.dialogTitleChange), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('reminder-date')))
+            .controller!
+            .text,
+        '2026-11-20',
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('reminder-time')))
+            .controller!
+            .text,
+        '08:30',
+      );
+      // Choose a preset instead: it replaces the old reminder.
+      await tester.tap(find.byKey(const ValueKey('reminder-choice-day')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+      await tester.pumpAndSettle();
+      expect(
+        h.service.reminderFor('a')!.remindAt,
+        const LocalWallTime(2026, 11, 15, 12, 0),
+      );
+    });
+
+    testWidgets('the dialog says it is device-local and independent of Save', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('reminder-dialog')),
+          matching: find.text(ReminderStrings.dialogDeviceNote),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('setting a reminder from the dialog leaves the draft alone', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      h.notifier.selectTask('a');
+      h.notifier.editDraft(title: 'Edited');
+      await tester.pumpAndSettle();
+      await _openReminder(tester);
+      await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+      await tester.pumpAndSettle();
+      expect(h.service.reminderFor('a'), isNotNull);
+      expect(h.notifier.state.draft!.title, 'Edited');
+      expect(h.notifier.state.draft!.isDirty, isTrue);
+    });
   });
 }

@@ -60,6 +60,10 @@ final class FakeSyncServer implements SyncTransport {
 
   void activeDevice(String id) => devices[id] = false;
 
+  /// The `features` answer of device registration; null means the key is absent
+  /// (a server older than the due-time migration).
+  List<String>? features;
+
   // -------------------------------------------------------------- transport
 
   void _device(String deviceId) {
@@ -86,6 +90,9 @@ final class FakeSyncServer implements SyncTransport {
       'device_id': deviceId,
       'created': created,
       'active_devices': devices.values.where((r) => !r).length,
+      // What this server understands beyond the base contract (the real one lists
+      // `due_time` after the due-time migration; an older one lists nothing).
+      if (features != null) 'features': features,
     };
   }
 

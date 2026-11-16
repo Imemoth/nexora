@@ -130,4 +130,124 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('import-empty')), findsOneWidget);
   });
+
+  group('due times in the import preview', () {
+    testWidgets(
+      'without server support the preview warns that times are NOT kept',
+      (tester) async {
+        await pumpEmpty(
+          tester,
+          preview: const ImportPreviewView(
+            dueTimesTransferable: false,
+            candidates: [
+              ImportCandidateView(
+                id: 'lp1',
+                name: 'Work',
+                taskCount: 3,
+                dueTimeCount: 2,
+                warnings: {},
+              ),
+            ],
+          ),
+        );
+        await tester.tap(find.byKey(const ValueKey('empty-import')));
+        await tester.pumpAndSettle();
+        final warning = find.byKey(const ValueKey('import-due-time-warning'));
+        expect(warning, findsOneWidget);
+        expect(
+          tester.widget<Text>(warning).data,
+          AppStrings.importDueTimesLost(2),
+        );
+        expect(tester.widget<Text>(warning).data, contains('date only'));
+        expect(tester.widget<Text>(warning).data, contains('not kept'));
+        // never implies the times are preserved
+        expect(
+          find.byKey(const ValueKey('import-due-time-kept')),
+          findsNothing,
+        );
+        // the project row says how many lose their time
+        expect(
+          find.textContaining(AppStrings.importCandidateDueTimesDropped(2)),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'with server support the preview says times are kept and shows no warning',
+      (tester) async {
+        await pumpEmpty(
+          tester,
+          preview: const ImportPreviewView(
+            dueTimesTransferable: true,
+            candidates: [
+              ImportCandidateView(
+                id: 'lp1',
+                name: 'Work',
+                taskCount: 3,
+                dueTimeCount: 2,
+                warnings: {},
+              ),
+            ],
+          ),
+        );
+        await tester.tap(find.byKey(const ValueKey('empty-import')));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('import-due-time-kept')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('import-due-time-warning')),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets('projects without due times show neither note', (tester) async {
+      await pumpEmpty(
+        tester,
+        preview: const ImportPreviewView(
+          candidates: [
+            ImportCandidateView(
+              id: 'lp1',
+              name: 'Work',
+              taskCount: 3,
+              warnings: {},
+            ),
+          ],
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('empty-import')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('import-due-time-warning')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('import-due-time-kept')), findsNothing);
+    });
+
+    testWidgets(
+      'the import is still explicit: nothing runs until the user confirms',
+      (tester) async {
+        final runs = await pumpEmpty(
+          tester,
+          preview: const ImportPreviewView(
+            candidates: [
+              ImportCandidateView(
+                id: 'lp1',
+                name: 'Work',
+                taskCount: 1,
+                dueTimeCount: 1,
+                warnings: {},
+              ),
+            ],
+          ),
+        );
+        await tester.tap(find.byKey(const ValueKey('empty-import')));
+        await tester.pumpAndSettle();
+        expect(runs, isEmpty);
+      },
+    );
+  });
 }

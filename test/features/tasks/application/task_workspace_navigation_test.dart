@@ -190,7 +190,7 @@ void main() {
       () async {
         final h = await loadedHarness(tasks: sampleTasks());
         final ws = h.workspace;
-        ws.toggleExpanded('parent');
+        // `parent` is expanded by default, so its child is selectable at once.
         ws.requestSelectTask('child');
         ws.editDraft(title: 'Child 2');
 

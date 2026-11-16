@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'package:nexora/app/theme.dart';
+
+import 'keycap.dart';
 import 'strings/app_strings.dart';
+import 'theme/nexora_colors.dart';
 
 /// Search input. The workspace holds the query; this widget only mirrors it.
 class TaskSearchField extends StatefulWidget {
@@ -49,11 +53,17 @@ class _TaskSearchFieldState extends State<TaskSearchField> {
       controller: _controller,
       focusNode: widget.focusNode,
       onChanged: widget.onChanged,
+      style: NexoraText.body.copyWith(color: NexoraColors.of(context).text1),
       decoration: InputDecoration(
         hintText: AppStrings.searchHint,
-        prefixIcon: const Icon(Icons.search),
-        isDense: true,
-        border: const OutlineInputBorder(),
+        prefixIcon: const Icon(Icons.search, size: 18),
+        prefixIconConstraints: const BoxConstraints(minWidth: 38),
+        suffixIcon: const Padding(
+          padding: EdgeInsets.only(right: 10),
+          child: Keycap('Ctrl F'),
+        ),
+        suffixIconConstraints: const BoxConstraints(minHeight: 0),
+        contentPadding: const EdgeInsets.symmetric(vertical: 9),
       ),
     );
   }

@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:nexora/features/sync/sync_engine.dart';
 import 'package:nexora/features/sync/sync_transport.dart';
 import 'package:nexora/features/tasks/application/repository_exception.dart';
+import 'package:nexora/features/tasks/data/entity_patch.dart'
+    show normalizeDueTime;
 import 'package:nexora/features/tasks/data/local_database.dart';
 import 'package:nexora/features/tasks/data/outbox_store.dart';
 
@@ -306,7 +308,10 @@ final class ConflictService {
       if (!source.containsKey(field.field)) {
         return null;
       }
-      values[field.field] = source[field.field];
+      // A time from the server row is `17:30:00`; the wire form is `17:30`.
+      values[field.field] = field.field == 'due_time'
+          ? normalizeDueTime(source[field.field])
+          : source[field.field];
     }
     return values.isEmpty ? null : values;
   }
@@ -420,7 +425,14 @@ final class ConflictService {
         );
         if (kind == 'delete_edited' && local != null && snapshot != null) {
           final names = type == 'task'
-              ? const ['title', 'notes', 'status', 'priority', 'due_date']
+              ? const [
+                  'title',
+                  'notes',
+                  'status',
+                  'priority',
+                  'due_date',
+                  'due_time',
+                ]
               : const ['name'];
           for (final f in names) {
             if (!local.containsKey(f) || !snapshot.containsKey(f)) {
@@ -537,6 +549,8 @@ final class ConflictService {
         return 'Priority';
       case 'due_date':
         return 'Due date';
+      case 'due_time':
+        return 'Due time';
       case 'completed_at':
         return 'Completed';
       case 'parent_id':
@@ -562,6 +576,7 @@ final class ConflictService {
     if (value == null) {
       return switch (field) {
         'due_date' => 'No due date',
+        'due_time' => 'No time (date only)',
         'parent_id' => 'No parent (top level)',
         'completed_at' => 'Not completed',
         'notes' || 'description' => '(empty)',
@@ -586,6 +601,9 @@ final class ConflictService {
           'high' => 'High',
           _ => '$value',
         };
+      case 'due_time':
+        // The server answers 17:30:00; people read 17:30.
+        return normalizeDueTime(value) ?? '$value';
       case 'parent_id':
         if (value is String) {
           final rows = db.raw.select('SELECT title FROM tasks WHERE id = ?', [
