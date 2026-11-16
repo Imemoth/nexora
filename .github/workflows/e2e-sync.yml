@@ -49,4 +49,6 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
       - run: flutter pub get --enforce-lockfile
       - name: Two-device end-to-end tests
-        run: flutter test test/e2e --reporter expanded
+        # One file at a time: both files create the shared PostgreSQL roles (anon, authenticated), and two
+        # parallel creations collide on pg_authid_rolname_index.
+        run: flutter test test/e2e --concurrency=1 --reporter expanded
