@@ -39,21 +39,25 @@ class TaskListPane extends StatelessWidget {
         children: [
           _Header(state: state, notifier: notifier),
           const SizedBox(height: 14),
+          // Search has a row of its own. Filters and sort sit below it and wrap
+          // cleanly: the sort control drops to its own line before anything
+          // overlaps or leaves the pane.
+          SizedBox(
+            height: 38,
+            child: TaskSearchField(
+              query: state.searchQuery,
+              onChanged: notifier.search,
+              focusNode: keyboard.search,
+            ),
+          ),
+          const SizedBox(height: 10),
           Wrap(
+            key: const ValueKey('list-tools'),
             spacing: 12,
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const StatusFilterBar(),
-              SizedBox(
-                width: 260,
-                height: 38,
-                child: TaskSearchField(
-                  query: state.searchQuery,
-                  onChanged: notifier.search,
-                  focusNode: keyboard.search,
-                ),
-              ),
               SortMenu(sort: state.sort, onSelected: notifier.sort),
             ],
           ),

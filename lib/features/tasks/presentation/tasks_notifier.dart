@@ -7,6 +7,7 @@ import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/application/workspace_state.dart';
 import 'package:nexora/features/tasks/application/workspace_transition.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
+import 'package:nexora/features/tasks/domain/due_time.dart';
 import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
@@ -27,6 +28,9 @@ final class TasksNotifier extends ChangeNotifier {
   late final StreamSubscription<WorkspaceState> _subscription;
 
   WorkspaceState get state => _workspace.state;
+
+  /// Whether a due date may carry a time in this workspace (ADR 0004).
+  bool get dueTimeSupported => _workspace.dueTimeSupported;
 
   void selectView(SmartView view) => _workspace.requestSelectView(view);
 
@@ -80,6 +84,8 @@ final class TasksNotifier extends ChangeNotifier {
     TaskPriority? priority,
     CalendarDate? dueDate,
     bool clearDueDate = false,
+    DueTime? dueTime,
+    bool clearDueTime = false,
     String? notes,
   }) {
     _workspace.editDraft(
@@ -88,6 +94,8 @@ final class TasksNotifier extends ChangeNotifier {
       priority: priority,
       dueDate: dueDate,
       clearDueDate: clearDueDate,
+      dueTime: dueTime,
+      clearDueTime: clearDueTime,
       notes: notes,
     );
   }

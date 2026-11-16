@@ -57,6 +57,20 @@ abstract final class ReminderStrings {
       'Enter the date as YYYY-MM-DD and the time as HH:MM.';
   static const dateHint = 'YYYY-MM-DD';
   static const timeHint = 'HH:MM';
+  static const dialogTitle = 'Set a reminder';
+  static const dialogTitleChange = 'Change the reminder';
+  static const presetInOneHour = 'In 1 hour';
+  static const presetInTwoHours = 'In 2 hours';
+  static const presetInFiveHours = 'In 5 hours';
+  static const presetIn24Hours = 'In 24 hours';
+  static const presetCustom = 'Custom date and hour';
+  static const customDateLabel = 'Date';
+  static const customTimeLabel = 'Hour (24-hour)';
+  static const willRemindAt = 'You will be reminded';
+  static const dialogDeviceNote =
+      'This reminder is saved on this device only, immediately, and '
+      'independently of the task\'s Save and Revert.';
+  static const errorCustomIncomplete = 'Enter a date and an hour.';
   static const pickDateTooltip = 'Choose date';
   static const pickTimeTooltip = 'Choose time';
   static String summary(int due, int scheduled) =>

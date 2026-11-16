@@ -12,6 +12,20 @@ import 'visible_task_row.dart';
 import 'workspace_error.dart';
 import 'workspace_transition.dart';
 
+/// What an incoming change did to the task whose edits are still unsaved.
+enum IncomingKind { updated, deleted }
+
+/// Raised when synchronization changed or deleted the task the user is editing
+/// while the draft holds unsaved edits. Nothing in the draft is lost.
+final class IncomingNotice {
+  const IncomingNotice(this.kind, [this.overlap = const {}]);
+
+  final IncomingKind kind;
+
+  /// Fields edited locally that also changed incoming (empty for a deletion).
+  final Set<String> overlap;
+}
+
 /// Immutable snapshot of everything the presentation shows.
 final class WorkspaceState {
   const WorkspaceState({
@@ -25,6 +39,7 @@ final class WorkspaceState {
     this.selectedTaskId,
     this.expandedTaskIds = const {},
     this.draft,
+    this.incoming,
     this.pending,
     this.error,
     this.loading = false,
@@ -56,6 +71,9 @@ final class WorkspaceState {
 
   /// Editable copy of the selected task. Null when nothing is selected.
   final EditDraft? draft;
+
+  /// Set when an incoming change touched the task behind a dirty [draft].
+  final IncomingNotice? incoming;
 
   /// Non-null while the unsaved-change gate is open.
   final PendingTransition? pending;
@@ -143,6 +161,8 @@ final class WorkspaceState {
     Set<String>? expandedTaskIds,
     EditDraft? draft,
     bool clearDraft = false,
+    IncomingNotice? incoming,
+    bool clearIncoming = false,
     PendingTransition? pending,
     bool clearPending = false,
     WorkspaceError? error,
@@ -166,6 +186,9 @@ final class WorkspaceState {
           : (selectedTaskId ?? this.selectedTaskId),
       expandedTaskIds: expandedTaskIds ?? this.expandedTaskIds,
       draft: clearDraft ? null : (draft ?? this.draft),
+      incoming: clearIncoming || clearDraft
+          ? null
+          : (incoming ?? this.incoming),
       pending: clearPending ? null : (pending ?? this.pending),
       error: clearError ? null : (error ?? this.error),
       loading: loading ?? this.loading,

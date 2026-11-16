@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:nexora/core/result.dart';
 import 'package:nexora/features/tasks/application/nav_selection.dart';
 import 'package:nexora/features/tasks/application/workspace_error.dart';
+import 'package:nexora/app/theme.dart';
+import 'package:nexora/features/tasks/domain/parent_choices.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 
 import 'strings/app_strings.dart';
 import 'tasks_notifier.dart';
+import 'theme/nexora_colors.dart';
 
 /// Opens the create dialog. With [parentId] it creates a subtask under that
 /// task. Without it, it creates a root task in a project.
@@ -47,6 +50,7 @@ class CreateTaskDialog extends StatefulWidget {
 class _CreateTaskDialogState extends State<CreateTaskDialog> {
   final TextEditingController _title = TextEditingController();
   late String _projectId = _initialProjectId();
+  late String? _parentId = widget.parentId;
   String? _error;
   bool _busy = false;
 
@@ -76,7 +80,7 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
       _error = null;
     });
     final Result<Task, WorkspaceError> result;
-    final parentId = widget.parentId;
+    final parentId = _parentId;
     if (parentId != null) {
       result = await widget.notifier.createSubtask(
         title: _title.text,
@@ -125,11 +129,12 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (_isSubtask) ...[
-              Text(
-                AppStrings.fieldParent,
-                style: Theme.of(context).textTheme.labelMedium,
+              _ParentPicker(
+                notifier: widget.notifier,
+                initialParentId: widget.parentId!,
+                value: _parentId!,
+                onChanged: (id) => setState(() => _parentId = id),
               ),
-              Text(widget.parentTitle ?? ''),
               const SizedBox(height: 12),
             ],
             TextField(
@@ -180,6 +185,123 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
           key: const ValueKey('create-submit'),
           onPressed: canCreate && !_busy ? _submit : null,
           child: const Text(AppStrings.createAction),
+        ),
+      ],
+    );
+  }
+}
+
+/// Parent of a new subtask: preselected to the task it was opened from, and
+/// changeable to any other valid parent of the same project. Each choice shows
+/// its ancestry so same-named tasks can be told apart; the project is shown as
+/// fixed context.
+class _ParentPicker extends StatelessWidget {
+  const _ParentPicker({
+    required this.notifier,
+    required this.initialParentId,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final TasksNotifier notifier;
+  final String initialParentId;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = NexoraColors.of(context);
+    final state = notifier.state;
+    final origin = state.tasks[initialParentId];
+    if (origin == null) {
+      return const SizedBox.shrink();
+    }
+    final project = state.projects
+        .where((p) => p.id == origin.projectId)
+        .map((p) => p.name)
+        .firstOrNull;
+    final choices = subtaskParentChoices(
+      tasks: state.tasks.values,
+      projectId: origin.projectId,
+    );
+    // Keep the dropdown valid even if the origin is no longer a valid parent.
+    final selected = choices.any((ch) => ch.task.id == value) ? value : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (project != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              '${AppStrings.fieldProject}: $project',
+              key: const ValueKey('create-parent-project'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: NexoraText.caption.copyWith(color: c.textMuted),
+            ),
+          ),
+        Text(
+          AppStrings.fieldParentTask,
+          style: Theme.of(context).textTheme.labelMedium,
+        ),
+        DropdownButton<String>(
+          key: const ValueKey('create-parent'),
+          isExpanded: true,
+          value: selected,
+          itemHeight: null,
+          selectedItemBuilder: (_) => [
+            for (final choice in choices)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  AppStrings.parentChoiceSummary([
+                    ...choice.ancestors,
+                    choice.task.title,
+                  ]),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          items: [
+            for (final choice in choices)
+              DropdownMenuItem<String>(
+                key: ValueKey('create-parent-${choice.task.id}'),
+                value: choice.task.id,
+                child: Padding(
+                  padding: EdgeInsets.only(left: choice.depth * 14.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        choice.task.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (choice.ancestors.isNotEmpty)
+                        Text(
+                          AppStrings.parentChoiceSummary(choice.ancestors),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: NexoraText.caption.copyWith(
+                            color: c.textMuted,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+          onChanged: (id) {
+            if (id != null) {
+              onChanged(id);
+            }
+          },
+        ),
+        Text(
+          AppStrings.parentHelp,
+          style: NexoraText.caption.copyWith(color: c.textMuted),
         ),
       ],
     );

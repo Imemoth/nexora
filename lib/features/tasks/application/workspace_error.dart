@@ -19,4 +19,9 @@ enum WorkspaceError {
 
   /// Another save, creation or gate decision is already running.
   operationInProgress,
+
+  /// The task being edited was deleted by an incoming change. Save is refused
+  /// (it would resurrect a deleted record); the edits stay until the user
+  /// discards them.
+  taskDeletedElsewhere,
 }

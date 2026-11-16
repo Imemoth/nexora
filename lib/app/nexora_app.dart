@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexora/core/build_info.dart';
 import 'package:nexora/features/tasks/application/reminder_service.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/platform/desktop_integration.dart';
@@ -8,6 +9,7 @@ import 'package:nexora/features/tasks/presentation/theme/theme_controller.dart';
 import 'package:nexora/features/tasks/presentation/theme/theme_scope.dart';
 
 import 'app_shell.dart';
+import 'build_info_loader.dart';
 import 'account_actions.dart';
 import 'account_panel.dart';
 import 'conflict_panel.dart';
@@ -31,6 +33,7 @@ class NexoraApp extends StatelessWidget {
     this.reminders,
     this.beforeExit,
     this.themeController,
+    this.buildInfo,
   });
 
   final TasksNotifier notifier;
@@ -66,6 +69,9 @@ class NexoraApp extends StatelessWidget {
   /// hides the theme selector (a widget test that pumps the app alone).
   final ThemeController? themeController;
 
+  /// Which build is running (About). Null shows an unknown build.
+  final BuildInfo? buildInfo;
+
   @override
   Widget build(BuildContext context) {
     final controller = themeController;
@@ -78,13 +84,16 @@ class NexoraApp extends StatelessWidget {
               builder: (context, _) => _buildApp(controller.mode),
             ),
           );
-    return TasksScope(
-      notifier: notifier,
-      child: DesktopBridge(
-        desktop: desktop,
-        reminders: reminders,
-        beforeExit: beforeExit,
-        child: app,
+    return BuildInfoScope(
+      info: buildInfo ?? BuildInfo.unknown,
+      child: TasksScope(
+        notifier: notifier,
+        child: DesktopBridge(
+          desktop: desktop,
+          reminders: reminders,
+          beforeExit: beforeExit,
+          child: app,
+        ),
       ),
     );
   }

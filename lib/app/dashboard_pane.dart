@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexora/features/tasks/presentation/focus_ring.dart';
 import 'package:nexora/app/theme.dart';
 import 'package:nexora/features/tasks/application/nav_selection.dart';
 import 'package:nexora/features/tasks/application/reminder_service.dart';
@@ -190,26 +191,32 @@ class _StatTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           side: BorderSide(color: c.border),
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          hoverColor: c.surface2,
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: NexoraText.caption.copyWith(color: c.text2)),
-                Text(
-                  count.toString(),
-                  key: ValueKey('dash-count-$label'),
-                  style: NexoraText.displayStat.copyWith(color: color),
-                ),
-                Text(
-                  note,
-                  style: NexoraText.caption.copyWith(color: c.textMuted),
-                ),
-              ],
+        child: FocusRing(
+          radius: 10,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            hoverColor: c.surface2,
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: NexoraText.caption.copyWith(color: c.text2),
+                  ),
+                  Text(
+                    count.toString(),
+                    key: ValueKey('dash-count-$label'),
+                    style: NexoraText.displayStat.copyWith(color: color),
+                  ),
+                  Text(
+                    note,
+                    style: NexoraText.caption.copyWith(color: c.textMuted),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -380,29 +387,32 @@ class _ScheduledRow extends StatelessWidget {
     final when = reminder.snoozeUntilUtc == null
         ? reminder.remindAt
         : service.clock.toLocal(reminder.snoozeUntilUtc!);
-    return InkWell(
-      key: ValueKey('dash-scheduled-${item.taskId}'),
-      borderRadius: BorderRadius.circular(8),
-      hoverColor: c.surface2,
-      onTap: () => notifier.revealTask(item.taskId),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                item.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: NexoraText.body.copyWith(color: c.text1),
+    return FocusRing(
+      radius: 10,
+      child: InkWell(
+        key: ValueKey('dash-scheduled-${item.taskId}'),
+        borderRadius: BorderRadius.circular(8),
+        hoverColor: c.surface2,
+        onTap: () => notifier.revealTask(item.taskId),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: NexoraText.body.copyWith(color: c.text1),
+                ),
               ),
-            ),
-            Text(
-              '${ReminderStrings.friendlyWhen(when)} · '
-              '${ReminderStrings.state(reminder)}',
-              style: NexoraText.label.copyWith(color: c.text2),
-            ),
-          ],
+              Text(
+                '${ReminderStrings.friendlyWhen(when)} · '
+                '${ReminderStrings.state(reminder)}',
+                style: NexoraText.label.copyWith(color: c.text2),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -443,38 +453,44 @@ class _NeedsAttention extends StatelessWidget {
               style: NexoraText.body.copyWith(color: c.text2),
             ),
           for (final task in tasks)
-            InkWell(
-              key: ValueKey('attention-${task.id}'),
-              borderRadius: BorderRadius.circular(8),
-              hoverColor: c.surface2,
-              onTap: () => notifier.revealTask(task.id),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                child: Row(
-                  children: [
-                    StatusRing(status: task.status),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        task.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: NexoraText.bodyStrong.copyWith(color: c.text1),
+            FocusRing(
+              radius: 10,
+              child: InkWell(
+                key: ValueKey('attention-${task.id}'),
+                borderRadius: BorderRadius.circular(8),
+                hoverColor: c.surface2,
+                onTap: () => notifier.revealTask(task.id),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 4,
+                  ),
+                  child: Row(
+                    children: [
+                      StatusRing(status: task.status),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          task.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: NexoraText.bodyStrong.copyWith(color: c.text1),
+                        ),
                       ),
-                    ),
-                    Text(
-                      AppStrings.friendlyDue(
-                        task.dueDate!,
-                        today,
-                        closed: false,
+                      Text(
+                        AppStrings.friendlyDue(
+                          task.dueDate!,
+                          today,
+                          closed: false,
+                        ),
+                        style: NexoraText.label.copyWith(
+                          color: task.dueDate!.compareTo(today) < 0
+                              ? c.statusOverdue
+                              : c.accentCyan,
+                        ),
                       ),
-                      style: NexoraText.label.copyWith(
-                        color: task.dueDate!.compareTo(today) < 0
-                            ? c.statusOverdue
-                            : c.accentCyan,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -615,57 +631,62 @@ class _ProjectRow extends StatelessWidget {
     final total = tasks.length;
     final done = tasks.where((t) => t.status == TaskStatus.done).length;
     final fraction = total == 0 ? 0.0 : done / total;
-    return InkWell(
-      key: ValueKey('dash-project-${project.id}'),
-      borderRadius: BorderRadius.circular(8),
-      hoverColor: colors.surface2,
-      onTap: () => notifier.selectProject(project.id),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: projectDotColor(colors, index),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    project.name,
-                    overflow: TextOverflow.ellipsis,
-                    style: NexoraText.bodyStrong.copyWith(color: colors.text1),
-                  ),
-                ),
-                Text(
-                  AppStrings.projectProgress(done, total),
-                  style: NexoraText.label.copyWith(color: colors.text2),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: SizedBox(
-                height: 4,
-                child: Stack(
-                  children: [
-                    Container(color: colors.border),
-                    FractionallySizedBox(
-                      widthFactor: fraction,
-                      child: Container(color: colors.statusDone),
+    return FocusRing(
+      radius: 10,
+      child: InkWell(
+        key: ValueKey('dash-project-${project.id}'),
+        borderRadius: BorderRadius.circular(8),
+        hoverColor: colors.surface2,
+        onTap: () => notifier.selectProject(project.id),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: projectDotColor(colors, index),
+                      borderRadius: BorderRadius.circular(3),
                     ),
-                  ],
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      project.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: NexoraText.bodyStrong.copyWith(
+                        color: colors.text1,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    AppStrings.projectProgress(done, total),
+                    style: NexoraText.label.copyWith(color: colors.text2),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: SizedBox(
+                  height: 4,
+                  child: Stack(
+                    children: [
+                      Container(color: colors.border),
+                      FractionallySizedBox(
+                        widthFactor: fraction,
+                        child: Container(color: colors.statusDone),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

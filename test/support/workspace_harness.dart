@@ -32,6 +32,7 @@ Future<Harness> loadedHarness({
   CalendarDate today = testToday,
   List<Project> projects = testProjects,
   bool failLoad = false,
+  bool dueTimeSupported = true,
 }) async {
   final repository = InMemoryTaskRepository(projects: projects, tasks: tasks);
   repository.failNextLoad = failLoad;
@@ -39,6 +40,7 @@ Future<Harness> loadedHarness({
     repository: repository,
     clock: FixedClock(today),
     ids: SequentialIdGenerator([for (var i = 1; i <= 20; i++) 'new-$i']),
+    dueTimeSupported: dueTimeSupported,
   );
   await workspace.load();
   return Harness(workspace, repository);

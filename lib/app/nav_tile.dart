@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexora/app/theme.dart';
+import 'package:nexora/features/tasks/presentation/focus_ring.dart';
 import 'package:nexora/features/tasks/presentation/theme/nexora_colors.dart';
 
 /// One selectable row in the sidebar: an icon (views) or a colour dot
@@ -38,57 +39,60 @@ class NavTile extends StatelessWidget {
     final labelColor = selected ? c.text1 : c.text2;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          hoverColor: c.surface,
-          focusColor: Colors.transparent,
-          child: Ink(
-            height: 38,
-            decoration: BoxDecoration(
-              color: selected ? c.surface2 : null,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: selected ? c.borderStrong : Colors.transparent,
+      child: FocusRing(
+        radius: 8,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(8),
+            hoverColor: c.surface,
+            focusColor: Colors.transparent,
+            child: Ink(
+              height: 38,
+              decoration: BoxDecoration(
+                color: selected ? c.surface2 : null,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: selected ? c.borderStrong : Colors.transparent,
+                ),
               ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Row(
-                children: [
-                  if (icon != null)
-                    Icon(icon, size: 18, color: labelColor)
-                  else
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: dotColor,
-                        borderRadius: BorderRadius.circular(3),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(
+                  children: [
+                    if (icon != null)
+                      Icon(icon, size: 18, color: labelColor)
+                    else
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: dotColor,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        label,
+                        overflow: TextOverflow.ellipsis,
+                        style: NexoraText.bodyStrong.copyWith(
+                          color: labelColor,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      label,
-                      overflow: TextOverflow.ellipsis,
-                      style: NexoraText.bodyStrong.copyWith(
-                        color: labelColor,
-                        fontWeight: FontWeight.w600,
+                    if (count >= 0)
+                      Text(
+                        count.toString(),
+                        style: NexoraText.label.copyWith(
+                          color: countColor ?? c.textMuted,
+                        ),
                       ),
-                    ),
-                  ),
-                  if (count >= 0)
-                    Text(
-                      count.toString(),
-                      style: NexoraText.label.copyWith(
-                        color: countColor ?? c.textMuted,
-                      ),
-                    ),
-                  ?trailing,
-                ],
+                    ?trailing,
+                  ],
+                ),
               ),
             ),
           ),

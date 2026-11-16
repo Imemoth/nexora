@@ -10,6 +10,7 @@ import 'package:nexora/features/tasks/domain/task_priority.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
 
 import 'dashed_border.dart';
+import 'focus_ring.dart';
 import 'delete_flow.dart';
 import 'due_date_field.dart';
 import 'keyboard_actions.dart';
@@ -153,6 +154,8 @@ class _TaskEditor extends StatelessWidget {
                     style: NexoraText.body.copyWith(color: c.statusOverdue),
                   ),
                 ),
+              if (state.incoming != null)
+                _IncomingBanner(notice: state.incoming!),
               _TaskGroup(
                 notifier: notifier,
                 state: state,
@@ -318,6 +321,8 @@ class _TaskGroup extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          _ProjectContext(name: projectName),
+          const SizedBox(height: 10),
           SyncedTextField(
             key: ValueKey('title-${draft.taskId}'),
             value: draft.title,
@@ -355,50 +360,16 @@ class _TaskGroup extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: DueDateField(
-                  key: const ValueKey('due-date-field'),
-                  dueDate: draft.dueDate,
-                  today: state.today,
-                  onChanged: (date) => notifier.editDraft(
-                    dueDate: date,
-                    clearDueDate: date == null,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      AppStrings.fieldProject,
-                      style: NexoraText.label.copyWith(color: c.textMuted),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      key: const ValueKey('project-readonly'),
-                      height: 40,
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: c.panel,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: c.border),
-                      ),
-                      child: Text(
-                        projectName,
-                        overflow: TextOverflow.ellipsis,
-                        style: NexoraText.body.copyWith(color: c.text2),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          DueDateField(
+            key: const ValueKey('due-date-field'),
+            dueDate: draft.dueDate,
+            dueTime: draft.dueTime,
+            today: state.today,
+            timeSupported: notifier.dueTimeSupported,
+            onDateChanged: (date) =>
+                notifier.editDraft(dueDate: date, clearDueDate: date == null),
+            onTimeChanged: (time) =>
+                notifier.editDraft(dueTime: time, clearDueTime: time == null),
           ),
           const SizedBox(height: 12),
           SyncedTextField(
@@ -410,6 +381,101 @@ class _TaskGroup extends StatelessWidget {
             onChanged: (value) => notifier.editDraft(notes: value),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The project of the task, above its title, as context. One line; the full
+/// name is in the tooltip and the semantics label, so a long name is never
+/// lost.
+class _ProjectContext extends StatelessWidget {
+  const _ProjectContext({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = NexoraColors.of(context);
+    return Semantics(
+      container: true,
+      label: '${AppStrings.fieldProject}: $name',
+      excludeSemantics: true,
+      child: Tooltip(
+        message: name,
+        child: Row(
+          key: const ValueKey('project-readonly'),
+          children: [
+            Icon(Icons.folder_outlined, size: 16, color: c.textMuted),
+            const SizedBox(width: 6),
+            Text(
+              AppStrings.fieldProject.toUpperCase(),
+              style: NexoraText.overline.copyWith(color: c.textMuted),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: NexoraText.bodyStrong.copyWith(color: c.text2),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tells the user that synchronization changed or deleted the task they are
+/// editing. It never replaces their edits.
+class _IncomingBanner extends StatelessWidget {
+  const _IncomingBanner({required this.notice});
+
+  final IncomingNotice notice;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = NexoraColors.of(context);
+    final deleted = notice.kind == IncomingKind.deleted;
+    final body = deleted
+        ? AppStrings.incomingDeletedBody
+        : [
+            AppStrings.incomingUpdatedBody,
+            if (notice.overlap.isNotEmpty)
+              AppStrings.incomingOverlapBody(
+                notice.overlap.map(AppStrings.incomingFieldName).join(', '),
+              ),
+          ].join(' ');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Semantics(
+        liveRegion: true,
+        child: Container(
+          key: const ValueKey('incoming-banner'),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: c.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: deleted ? c.statusOverdue : c.statusReview,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                deleted
+                    ? AppStrings.incomingDeletedTitle
+                    : AppStrings.incomingUpdatedTitle,
+                style: NexoraText.bodyStrong.copyWith(color: c.text1),
+              ),
+              const SizedBox(height: 4),
+              Text(body, style: NexoraText.caption.copyWith(color: c.text2)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -562,38 +628,41 @@ class _SubtaskRow extends StatelessWidget {
       button: true,
       label: '${task.title}, ${AppStrings.statusLabel(task.status)}',
       excludeSemantics: true,
-      child: InkWell(
-        key: ValueKey('subtask-${task.id}'),
-        borderRadius: BorderRadius.circular(8),
-        hoverColor: c.surface,
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 36),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: Row(
-            children: [
-              StatusRing(status: task.status),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  task.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: NexoraText.bodyStrong.copyWith(
-                    color: task.status == TaskStatus.done
-                        ? c.textMuted
-                        : c.text1,
+      child: FocusRing(
+        radius: 8,
+        child: InkWell(
+          key: ValueKey('subtask-${task.id}'),
+          borderRadius: BorderRadius.circular(8),
+          hoverColor: c.surface,
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 36),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              children: [
+                StatusRing(status: task.status),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    task.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: NexoraText.bodyStrong.copyWith(
+                      color: task.status == TaskStatus.done
+                          ? c.textMuted
+                          : c.text1,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                AppStrings.statusLabel(task.status),
-                style: NexoraText.label.copyWith(
-                  color: statusColor(c, task.status),
+                const SizedBox(width: 8),
+                Text(
+                  AppStrings.statusLabel(task.status),
+                  style: NexoraText.label.copyWith(
+                    color: statusColor(c, task.status),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

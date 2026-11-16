@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:nexora/features/tasks/application/nav_selection.dart';
 import 'package:nexora/features/tasks/application/visible_task_row.dart';
+import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
 
 import 'create_task_dialog.dart';
@@ -124,7 +126,7 @@ final class TaskCommands {
       case TaskCommand.escape:
         _escape();
       case TaskCommand.focusSearch:
-        focus.search.requestFocus();
+        _focusSearch();
       case TaskCommand.newTask:
         unawaited(_openCreate(context));
       case TaskCommand.newSubtask:
@@ -143,6 +145,24 @@ final class TaskCommands {
           unawaited(notifier.saveDraft());
         }
     }
+  }
+
+  /// Focuses the search field. The Dashboard has none, so Ctrl+F leaves it for
+  /// the All view (through the unsaved-change gate like any navigation) and
+  /// focuses search once that list is built. If the gate opens instead, focus
+  /// stays with the decision.
+  void _focusSearch() {
+    if (notifier.state.selection is! DashboardSelection) {
+      focus.search.requestFocus();
+      return;
+    }
+    notifier.selectView(SmartView.all);
+    if (notifier.state.selection is DashboardSelection) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => TaskKeyboardFocus.restore(focus.search),
+    );
   }
 
   VisibleTaskRow? _selectedRow() {

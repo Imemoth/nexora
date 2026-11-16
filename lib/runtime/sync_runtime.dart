@@ -433,6 +433,9 @@ final class SyncRuntime {
       repository: repository,
       clock: clock,
       ids: ids,
+      // A synchronized workspace cannot store a time of day until the hosted
+      // schema can (ADR 0004); the local-only workspace can.
+      dueTimeSupported: userId == null,
     );
     final active = ActiveWorkspace._(
       userId: userId,
@@ -452,10 +455,19 @@ final class SyncRuntime {
       );
       unawaited(active.reminders!.start().catchError((Object _) {}));
     }
+    // A refresh that could not read storage is retried on the next change. A
+    // selected task, a draft or a running save no longer block it: the
+    // workspace applies incoming data itself and protects unsaved edits.
     active._watch = workspace.states.listen((state) {
-      if (active.refreshPending && state.draft == null) {
+      if (active.refreshPending) {
         active.refreshPending = false;
-        unawaited(workspace.refresh());
+        unawaited(
+          workspace.refresh().then((applied) {
+            if (!applied) {
+              active.refreshPending = true;
+            }
+          }),
+        );
       }
     });
     return active;
@@ -535,7 +547,9 @@ final class SyncRuntime {
     if (!identical(current, _active)) {
       return;
     }
-    if (result.phase == SyncPhase.idle) {
+    // Pulled pages are applied as they arrive, so a cycle that ends in an error
+    // or a retry may still have changed storage. Re-reading is cheap.
+    if (result.phase != SyncPhase.disabled) {
       await _afterCycle(current, engine);
     }
   }

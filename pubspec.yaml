@@ -82,6 +82,11 @@ flutter:
         - asset: assets/fonts/SpaceGrotesk-Variable.ttf
           weight: 700
 
+  # pubspec.yaml itself is bundled so the running app can read its own version:
+  # the version has one source (the `version:` line above) and no copy in Dart.
+  assets:
+    - pubspec.yaml
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

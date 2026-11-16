@@ -3,6 +3,7 @@ import 'package:nexora/core/ids/random_id_generator.dart';
 import 'package:nexora/features/tasks/application/repository_exception.dart';
 import 'package:nexora/features/tasks/application/task_repository.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
+import 'package:nexora/features/tasks/domain/due_time.dart';
 import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
@@ -71,7 +72,9 @@ final class SqliteTaskRepository
     return _run(() {
       final rows = _db.raw.select(
         'SELECT id, project_id, parent_id, title, notes, status, priority, '
-        'due_date, sort_order FROM tasks WHERE deleted_at IS NULL '
+        'due_date, sort_order, '
+        '(SELECT due_time FROM task_due_times d WHERE d.task_id = tasks.id) '
+        'AS due_time FROM tasks WHERE deleted_at IS NULL '
         'ORDER BY project_id, parent_id, sort_order, id',
       );
       return [
@@ -85,6 +88,10 @@ final class SqliteTaskRepository
             status: _statusFromColumn(row['status'] as String),
             priority: _priorityFromColumn(row['priority'] as String),
             dueDate: _dateFromColumn(row['due_date'] as String?),
+            // A time without a date cannot exist; ignore a stray row.
+            dueTime: row['due_date'] == null
+                ? null
+                : DueTime.tryParse(row['due_time'] as String?),
             position: row['sort_order'] as int,
           ),
       ];
@@ -304,6 +311,7 @@ final class SqliteTaskRepository
     if (row == null) {
       final scope = _scopeForNewTask(task);
       _insertTaskRow(task, now, scope);
+      _writeDueTime(task);
       if (scope == 'synced') {
         _outbox.recordCreate(
           entityType: 'task',
@@ -319,7 +327,10 @@ final class SqliteTaskRepository
       throw RepositoryException('task ${task.id} was deleted');
     }
     if (_sameTask(row, task)) {
-      return; // Repeated save of identical content writes nothing.
+      // Repeated save of identical content writes nothing. A time-only change
+      // is device-local: it never touches `tasks`, the version or the outbox.
+      _writeDueTime(task);
+      return;
     }
     if (row['project_id'] != task.projectId) {
       throw RepositoryException(
@@ -372,6 +383,7 @@ final class SqliteTaskRepository
         task.id,
       ],
     );
+    _writeDueTime(task);
     if (row['sync_scope'] == 'synced') {
       _outbox.recordEdit(
         entityType: 'task',
@@ -380,6 +392,23 @@ final class SqliteTaskRepository
         storedVersion: row['version'] as int,
       );
     }
+  }
+
+  /// Stores the optional time of [task]'s due date, or removes it. The time
+  /// never travels: it is not part of any outbox patch (ADR 0004).
+  void _writeDueTime(Task task) {
+    final time = task.dueDate == null ? null : task.dueTime;
+    if (time == null) {
+      _db.raw.execute('DELETE FROM task_due_times WHERE task_id = ?', [
+        task.id,
+      ]);
+      return;
+    }
+    _db.raw.execute(
+      'INSERT INTO task_due_times (task_id, due_time) VALUES (?, ?) '
+      'ON CONFLICT (task_id) DO UPDATE SET due_time = excluded.due_time',
+      [task.id, time.toHm()],
+    );
   }
 
   /// A new task is synchronized unless its project or parent is `local_only` or

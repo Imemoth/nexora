@@ -23,3 +23,19 @@ Environment: Windows 10 and Windows 11, display scaling 100 % and 150 %, window 
 | 15 | Delete | Delete task and Delete project ask first, count what goes too, cancel by default; the last project cannot be deleted; a synchronized delete reaches the other device completely | | |
 
 The owner signs off the checklist. Any failed row is fixed on the branch and re-checked in both themes before the pull request is merged.
+
+## Follow-up checks (not part of the 15 rows above; all **not run**)
+The 15-row acceptance above is **not** complete and is not marked so. These checks cover the follow-up work (`docs/operations/phase-5-implementation-record-2026-11-16.md`, section 8) and need the CI-built portable ZIP on Windows 10 and 11. Linux widget renders exist as supporting evidence only (`docs/operations/evidence/phase-5-followup/`).
+
+| # | Check (Dark and Light; 100 % and 150 %; 1920x1080, 1366x768, 1024x768, one width below 900) | Status |
+|---|---|---|
+| F1 | Incoming change: edit on device B; the open project on device A updates its list, counts, Dashboard and the selected task without switching project. With unsaved edits on A, the edit stays and the banner shows | not run |
+| F2 | Due date shows the full day at every size; time can be added, changed and removed; clearing the date clears the time; the time row is disabled with the reason when signed in | not run |
+| F3 | Details: project above the title; long names ellipsize; save bar pinned | not run |
+| F4 | Reminder dialog: presets show the right date and time; custom; past error; Cancel; a real Windows notification fires | not run |
+| F5 | Add subtask: current task preselected; another parent of the same project can be chosen | not run |
+| F6 | Search on its own row; wrap at narrow widths; **Ctrl+F with the real keyboard** from the list, sidebar, a filter chip and the Dashboard; focus ring visible on every control in both themes; panels resize by mouse and keyboard; overlay at 1024 unchanged | not run |
+| F7 | First launch opens maximized with the normal title bar; resize, close, reopen restores; unplug a monitor or change resolution: the window opens reachable (this is the first check of the native code, which CI only compiles) | not run |
+| F8 | About shows the version, short commit and build type, and they equal `BUILD-INFO.json` in the ZIP; the DEVELOPMENT TEST build is marked | not run |
+| F9 | The 18 regenerated goldens look right | not run (goldens not yet regenerated) |
+

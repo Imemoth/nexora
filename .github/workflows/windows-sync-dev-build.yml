@@ -61,10 +61,21 @@ jobs:
           if ($claims.role -ne 'anon') { throw "refusing to embed a key with role '$($claims.role)'" }
           Write-Host "key role: $($claims.role) (ok)"
 
+      - name: Resolve the build identity
+        shell: pwsh
+        run: |
+          $source = '${{ github.sha }}'
+          if ($source -notmatch '^[0-9a-f]{40}$') { throw 'unexpected commit id' }
+          "NEXORA_SOURCE_COMMIT=$source" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+          "NEXORA_BUILD_RUN=${{ github.run_id }}-${{ github.run_attempt }}" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+
       - name: Build Windows release with synchronization enabled
         shell: pwsh
         run: >
           flutter build windows --release
+          --dart-define=NEXORA_BUILD_TYPE=development-test
+          --dart-define=NEXORA_COMMIT=$env:NEXORA_SOURCE_COMMIT
+          --dart-define=NEXORA_BUILD_RUN=$env:NEXORA_BUILD_RUN
           --dart-define=NEXORA_SYNC=true
           --dart-define=NEXORA_SUPABASE_URL=$env:NEXORA_SUPABASE_URL
           --dart-define=NEXORA_SUPABASE_ANON_KEY=$env:NEXORA_SUPABASE_ANON_KEY
@@ -98,6 +109,10 @@ jobs:
           ./tool/windows_shell_smoke.ps1 -Log ./dist/shell-smoke.log
           exit $LASTEXITCODE
 
+      - name: Write BUILD-INFO.json next to nexora.exe
+        shell: pwsh
+        run: ./tool/write_build_info.ps1 -BuildType development-test -OutputPath build/windows/x64/runner/Release/BUILD-INFO.json
+
       - name: Package and smoke-test portable ZIP
         shell: pwsh
         run: ./tool/package_windows.ps1 -OutputDir ./dist
@@ -107,7 +122,9 @@ jobs:
         run: |
           Rename-Item ./dist/nexora-windows-portable.zip nexora-windows-sync-DEVELOPMENT-TEST.zip
           $zip = './dist/nexora-windows-sync-DEVELOPMENT-TEST.zip'
-          $lines = @("$((Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower())  nexora-windows-sync-DEVELOPMENT-TEST.zip", "commit  $env:GITHUB_SHA", "build  DEVELOPMENT TEST, NEXORA_SYNC=true, project $env:NEXORA_SUPABASE_URL (anon key only)")
+          $info = Get-Content -Raw build/windows/x64/runner/Release/BUILD-INFO.json | ConvertFrom-Json
+          Copy-Item build/windows/x64/runner/Release/BUILD-INFO.json ./dist/BUILD-INFO.json
+          $lines = @("$((Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower())  nexora-windows-sync-DEVELOPMENT-TEST.zip", "commit  $($info.sourceCommit)", "version  $($info.version)+$($info.buildNumber)", "run  $($info.ciRun)", "build  DEVELOPMENT TEST, NEXORA_SYNC=true, project $env:NEXORA_SUPABASE_URL (anon key only)")
           $tmp = Join-Path $env:RUNNER_TEMP 'dev-contents'
           Expand-Archive -Path $zip -DestinationPath $tmp -Force
           Get-ChildItem -Path $tmp -Recurse -File | Sort-Object FullName | ForEach-Object {
@@ -117,7 +134,7 @@ jobs:
           $lines | Set-Content -Path ./dist/SHA256SUMS.txt -Encoding ascii
           @(
             'NEXORA DEVELOPMENT TEST BUILD - synchronization is ENABLED. Not a production release.',
-            "Commit: $env:GITHUB_SHA",
+            "Version: $($info.version)+$($info.buildNumber)  Commit: $($info.sourceShort) ($($info.sourceCommit))  CI run: $($info.ciRun)",
             'Server: the Nexora hosted TEST project (public URL and anon key only).',
             'Use: extract, run nexora.exe, choose Sign in, use the existing test account.',
             'The app never syncs until you sign in. Your local workspace is never uploaded automatically;',
@@ -132,6 +149,7 @@ jobs:
           path: |
             dist/nexora-windows-sync-DEVELOPMENT-TEST.zip
             dist/SHA256SUMS.txt
+            dist/BUILD-INFO.json
             dist/README-DEVELOPMENT-TEST.txt
             dist/auth-selftest.log
             dist/shell-smoke.log

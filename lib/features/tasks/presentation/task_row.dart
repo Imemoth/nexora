@@ -62,7 +62,12 @@ class TaskRow extends StatelessWidget {
     final dueToday = due != null && due == today;
     final dueText = due == null
         ? null
-        : AppStrings.friendlyDue(due, today, closed: closed);
+        : AppStrings.friendlyDue(
+            due,
+            today,
+            closed: closed,
+            time: task.dueTime,
+          );
     final hasPriority = task.priority != TaskPriority.none;
     final ready = completion?.eligibleForReview ?? false;
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:nexora/app/theme.dart';
 import 'package:nexora/features/tasks/domain/reminder.dart';
 
 import 'dashed_border.dart';
+import 'reminder_dialog.dart';
 import 'reminder_strip.dart';
 import 'reminders_notifier.dart';
 import 'strings/reminder_strings.dart';
@@ -23,117 +23,23 @@ class ReminderField extends StatefulWidget {
 
 class _ReminderFieldState extends State<ReminderField> {
   String? _error;
-  bool _editing = false;
-  final TextEditingController _date = TextEditingController();
-  final TextEditingController _time = TextEditingController();
-
-  @override
-  void dispose() {
-    _date.dispose();
-    _time.dispose();
-    super.dispose();
-  }
 
   void _toast(String text) {
     ScaffoldMessenger.maybeOf(context)
         ?.showSnackBar(SnackBar(content: Text(text)));
   }
 
-  String _two(int v) => v.toString().padLeft(2, '0');
-
-  /// Opens the inline editor with the existing reminder's date and time,
-  /// otherwise tomorrow at 09:00.
-  void _open(RemindersNotifier notifier, Reminder? current) {
-    final service = notifier.service;
-    final now = service.clock.toLocal(service.clock.nowUtc());
-    final initial =
-        current?.remindAt ??
-        LocalWallTime.fromDateTime(
-          DateTime(now.year, now.month, now.day + 1, 9),
-        );
-    _date.text =
-        '${initial.year.toString().padLeft(4, '0')}-'
-        '${_two(initial.month)}-${_two(initial.day)}';
-    _time.text = '${_two(initial.hour)}:${_two(initial.minute)}';
-    setState(() {
-      _editing = true;
-      _error = null;
-    });
-  }
-
-  void _close() => setState(() {
-    _editing = false;
-    _error = null;
-  });
-
-  /// One `setReminder` call with the combined wall time, exactly as the two
-  /// pickers did before. An error keeps the editor open.
-  void _submit(RemindersNotifier notifier) {
-    final date = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$')
-        .firstMatch(_date.text.trim());
-    final time = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(_time.text.trim());
-    final wall = date == null || time == null
-        ? null
-        : LocalWallTime.tryParse(
-            '${date.group(1)}-${date.group(2)}-${date.group(3)}'
-            'T${_two(int.parse(time.group(1)!))}:${time.group(2)}',
-          );
-    if (wall == null) {
-      setState(() => _error = ReminderStrings.errorFormat);
-      return;
-    }
-    final error = notifier.service.setReminder(widget.taskId, wall);
-    if (error != null) {
-      setState(() => _error = ReminderStrings.errorMessage(error));
-      return;
-    }
-    setState(() {
-      _editing = false;
-      _error = null;
-    });
-    _toast(ReminderStrings.saved);
-  }
-
-  Future<void> _pickDate(RemindersNotifier notifier) async {
-    final service = notifier.service;
-    final now = service.clock.toLocal(service.clock.nowUtc());
-    final parsed = DateTime.tryParse(_date.text.trim());
-    final picked = await showDatePicker(
-      context: context,
-      helpText: ReminderStrings.pickDate,
-      initialDate:
-          parsed == null ||
-              parsed.isBefore(DateTime(now.year, now.month, now.day))
-          ? DateTime(now.year, now.month, now.day)
-          : parsed,
-      // Dates before today cannot be picked.
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: DateTime(2100),
+  Future<void> _open(RemindersNotifier notifier, Reminder? current) async {
+    setState(() => _error = null);
+    final saved = await showReminderDialog(
+      context,
+      notifier: notifier,
+      taskId: widget.taskId,
+      current: current,
     );
-    if (picked == null || !mounted) {
-      return;
+    if (saved == true && mounted) {
+      _toast(ReminderStrings.saved);
     }
-    _date.text =
-        '${picked.year.toString().padLeft(4, '0')}-'
-        '${_two(picked.month)}-${_two(picked.day)}';
-    setState(() {});
-  }
-
-  Future<void> _pickTime() async {
-    final match = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(_time.text.trim());
-    final picked = await showTimePicker(
-      context: context,
-      helpText: ReminderStrings.pickTime,
-      initialTime: TimeOfDay(
-        hour: match == null ? 9 : int.parse(match.group(1)!) % 24,
-        minute: match == null ? 0 : int.parse(match.group(2)!) % 60,
-      ),
-    );
-    if (picked == null || !mounted) {
-      return;
-    }
-    _time.text = '${_two(picked.hour)}:${_two(picked.minute)}';
-    setState(() {});
   }
 
   @override
@@ -194,8 +100,7 @@ class _ReminderFieldState extends State<ReminderField> {
               ),
               OutlinedButton(
                 key: const ValueKey('reminder-button'),
-                onPressed: () =>
-                    _editing ? _close() : _open(notifier, reminder),
+                onPressed: () => _open(notifier, reminder),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(0, 34),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -213,81 +118,12 @@ class _ReminderFieldState extends State<ReminderField> {
                   icon: const Icon(Icons.close, size: 18),
                   onPressed: () {
                     service.cancel(widget.taskId);
-                    setState(() {
-                      _error = null;
-                      _editing = false;
-                    });
+                    setState(() => _error = null);
                     _toast(ReminderStrings.removed);
                   },
                 ),
             ],
           ),
-          if (_editing) ...[
-            const SizedBox(height: 10),
-            CallbackShortcuts(
-              bindings: {
-                const SingleActivator(LogicalKeyboardKey.escape): _close,
-              },
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      key: const ValueKey('reminder-date'),
-                      controller: _date,
-                      decoration: InputDecoration(
-                        labelText: ReminderStrings.pickDate,
-                        hintText: ReminderStrings.dateHint,
-                        suffixIcon: IconButton(
-                          tooltip: ReminderStrings.pickDateTooltip,
-                          icon: const Icon(Icons.event, size: 18),
-                          onPressed: () => _pickDate(notifier),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      key: const ValueKey('reminder-time'),
-                      controller: _time,
-                      onSubmitted: (_) => _submit(notifier),
-                      decoration: InputDecoration(
-                        labelText: ReminderStrings.pickTime,
-                        hintText: ReminderStrings.timeHint,
-                        suffixIcon: IconButton(
-                          tooltip: ReminderStrings.pickTimeTooltip,
-                          icon: const Icon(Icons.schedule, size: 18),
-                          onPressed: _pickTime,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  key: const ValueKey('reminder-cancel'),
-                  onPressed: _close,
-                  child: const Text(ReminderStrings.cancel),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  key: const ValueKey('reminder-submit'),
-                  onPressed: () => _submit(notifier),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 34),
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                  ),
-                  child: const Text(ReminderStrings.setReminder),
-                ),
-              ],
-            ),
-          ],
           if (reminder?.state == ReminderState.notified)
             Padding(
               padding: const EdgeInsets.only(top: 8),

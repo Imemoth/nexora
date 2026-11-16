@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexora/app/theme.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
 
+import 'focus_ring.dart';
 import 'strings/app_strings.dart';
 import 'tasks_scope.dart';
 import 'theme/nexora_colors.dart';
@@ -71,35 +72,38 @@ class _Chip extends StatelessWidget {
       selected: selected,
       label: AppStrings.statusFilterChip(label, count),
       excludeSemantics: true,
-      child: Material(
-        color: selected ? c.accentBlue : Colors.transparent,
-        shape: StadiumBorder(
-          side: BorderSide(color: selected ? c.accentBlue : c.borderStrong),
-        ),
-        child: InkWell(
-          customBorder: const StadiumBorder(),
-          onTap: onTap,
-          hoverColor: selected ? null : c.surface,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 32),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  label,
-                  style: NexoraText.label.copyWith(fontSize: 13, color: text),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  count.toString(),
-                  style: NexoraText.label.copyWith(
-                    fontSize: 13,
-                    color: selected ? c.onAccent : c.textMuted,
+      child: FocusRing(
+        radius: 16,
+        child: Material(
+          color: selected ? c.accentBlue : Colors.transparent,
+          shape: StadiumBorder(
+            side: BorderSide(color: selected ? c.accentBlue : c.borderStrong),
+          ),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: onTap,
+            hoverColor: selected ? null : c.surface,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    style: NexoraText.label.copyWith(fontSize: 13, color: text),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Text(
+                    count.toString(),
+                    style: NexoraText.label.copyWith(
+                      fontSize: 13,
+                      color: selected ? c.onAccent : c.textMuted,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -29,8 +29,12 @@ bool FlutterWindow::OnCreate() {
       GetHandle(), flutter_controller_->engine()->messenger());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  // The window opens maximized with the normal title bar, unless Dart restored
+  // a saved non-maximized placement before this first frame (see
+  // DesktopIntegration::ShowMaximizedOnStart).
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+    const bool maximized = desktop_ == nullptr || desktop_->ShowMaximizedOnStart();
+    ::ShowWindow(GetHandle(), maximized ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL);
   });
 
   // Flutter can complete the first frame before the "show window" callback is

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:nexora/app/build_info_loader.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/app/startup_error_app.dart';
 import 'package:nexora/app/system_clock.dart';
@@ -32,6 +33,7 @@ import 'package:nexora/features/tasks/data/reminder_store.dart';
 import 'package:nexora/features/tasks/domain/reminder.dart';
 import 'package:nexora/features/tasks/presentation/strings/reminder_strings.dart';
 import 'package:nexora/platform/desktop_integration.dart';
+import 'package:nexora/platform/window_state.dart';
 
 /// Phase 2A wiring: a durable local SQLite workspace.
 ///
@@ -44,6 +46,9 @@ Future<void> main(List<String> args) async {
   const clock = SystemClock();
   final ids = RandomIdGenerator();
   final desktop = WindowsDesktopIntegration.forPlatform();
+  // Before any window is shown: open where the user left the window, or
+  // maximized on the first launch.
+  await _restoreWindow(desktop);
   if (syncFeatureEnabled) {
     // Development self-test of the sign-in lifecycle inside the real executable
     // (no UI, no network); see lib/runtime/auth_selftest.dart.
@@ -97,6 +102,7 @@ Future<void> main(List<String> args) async {
         desktop: desktop,
         reminders: reminders,
         themeController: await _loadTheme(path),
+        buildInfo: await loadBuildInfo(),
       ),
     );
   } on RepositoryException {
@@ -158,6 +164,7 @@ Future<bool> _startWithSync(
         runtime: runtime,
         desktop: desktop,
         themeController: await _loadTheme(path),
+        buildInfo: await loadBuildInfo(),
       ),
     );
     return true;
@@ -180,4 +187,33 @@ Future<ThemeController> _loadTheme(String databasePath) async {
   );
   await controller.load();
   return controller;
+}
+
+/// Restores the window placement saved in the per-device `settings.json` (the
+/// same file as the theme) and keeps it up to date. The native window is still
+/// hidden here, so there is no flash. Any failure leaves the default: maximized.
+Future<void> _restoreWindow(DesktopIntegration desktop) async {
+  if (desktop is! WindowBridge) {
+    return;
+  }
+  try {
+    final settings = File(
+      '${File(localDatabasePath(Platform.environment)).parent.path}'
+      '${Platform.pathSeparator}settings.json',
+    );
+    final controller = WindowStateController(
+      bridge: desktop as WindowBridge,
+      store: FileWindowPlacementStore(settings),
+    );
+    await controller.restore();
+    controller.start();
+    // An explicit Exit saves the latest placement before the process ends.
+    desktop.events.listen((event) {
+      if (event is ExitRequested) {
+        controller.flush();
+      }
+    });
+  } on Object {
+    // The window opens at its default.
+  }
 }

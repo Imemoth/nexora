@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nexora/app/theme.dart';
 import 'package:nexora/features/tasks/application/nav_selection.dart';
 import 'package:nexora/features/tasks/presentation/details_pane.dart';
@@ -17,6 +18,7 @@ import 'account_panel.dart';
 import 'conflict_panel.dart';
 import 'dashboard_pane.dart';
 import 'details_overlay.dart';
+import 'panel_resize.dart';
 import 'sidebar_nav.dart';
 import 'sync_alert_bar.dart';
 import 'sync_panel.dart';
@@ -67,6 +69,11 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  // Panel widths the user chose (three-pane layout only). They are clamped to
+  // the window each build, so a smaller window never leaves a panel too wide.
+  double _sidebarWidth = PanelLayout.sidebarDefault;
+  double _detailsWidth = PanelLayout.detailsDefault;
+
   void _closeOverlay(TasksNotifier notifier) {
     notifier.selectTask(null);
     // Return focus to the list's own keyboard node. The list keymap sits below
@@ -111,10 +118,26 @@ class _AppShellState extends State<AppShell> {
             if (emptyAccount) {
               centreBody = EmptyAccountNotice(importPanel: widget.importPanel);
             } else if (dashboard) {
-              centreBody = DashboardPane(
-                syncPanel: widget.syncPanel,
-                accountPanel: widget.accountPanel,
-                conflictPanel: widget.conflictPanel,
+              // Ctrl+F works here too: it opens the All view and focuses search.
+              centreBody = CallbackShortcuts(
+                bindings: {
+                  const SingleActivator(
+                    LogicalKeyboardKey.keyF,
+                    control: true,
+                  ): () => TaskCommands(
+                    notifier: notifier,
+                    focus: TaskKeyboardFocus.of(notifier),
+                    inEditor: false,
+                  ).run(TaskCommand.focusSearch, context),
+                },
+                child: Focus(
+                  autofocus: true,
+                  child: DashboardPane(
+                    syncPanel: widget.syncPanel,
+                    accountPanel: widget.accountPanel,
+                    conflictPanel: widget.conflictPanel,
+                  ),
+                ),
               );
             } else {
               centreBody = const TaskListPane(key: ValueKey('task-list-pane'));
@@ -143,11 +166,17 @@ class _AppShellState extends State<AppShell> {
               ),
             );
 
-            final panes = Row(
+            final widths = threePane
+                ? PanelLayout.fit(_sidebarWidth, _detailsWidth, total: width)
+                : (
+                    sidebar: AppShell.sidebarWidth,
+                    details: AppShell.detailsWidth,
+                  );
+            final rowOfPanes = Row(
               children: [
                 SizedBox(
                   key: const ValueKey('sidebar'),
-                  width: AppShell.sidebarWidth,
+                  width: widths.sidebar,
                   child: SidebarNav(
                     syncPanel: widget.syncPanel,
                     accountPanel: widget.accountPanel,
@@ -161,10 +190,62 @@ class _AppShellState extends State<AppShell> {
                     decoration: BoxDecoration(
                       border: Border(left: BorderSide(color: c.border)),
                     ),
-                    child: const SizedBox(
-                      key: ValueKey('details-pane'),
-                      width: AppShell.detailsWidth,
-                      child: DetailsPane(),
+                    child: SizedBox(
+                      key: const ValueKey('details-pane'),
+                      width: widths.details,
+                      child: const DetailsPane(),
+                    ),
+                  ),
+              ],
+            );
+            // The handles sit on the pane borders and take no layout space, so
+            // widths, breakpoints and the overlay are exactly as before.
+            final panes = Stack(
+              children: [
+                rowOfPanes,
+                if (threePane)
+                  Positioned(
+                    left: widths.sidebar - 5,
+                    top: 0,
+                    bottom: 0,
+                    width: 10,
+                    child: PanelResizeHandle(
+                      key: const ValueKey('resize-sidebar'),
+                      label: AppStrings.resizeSidebar,
+                      value: widths.sidebar,
+                      onChanged: (v) => setState(
+                        () => _sidebarWidth = PanelLayout.sidebar(
+                          v,
+                          total: width,
+                          details: widths.details,
+                        ),
+                      ),
+                      onReset: () => setState(
+                        () => _sidebarWidth = PanelLayout.sidebarDefault,
+                      ),
+                    ),
+                  ),
+                if (showDetails)
+                  Positioned(
+                    right: widths.details - 5,
+                    top: 0,
+                    bottom: 0,
+                    width: 10,
+                    child: PanelResizeHandle(
+                      key: const ValueKey('resize-details'),
+                      label: AppStrings.resizeDetails,
+                      value: widths.details,
+                      growsLeft: true,
+                      onChanged: (v) => setState(
+                        () => _detailsWidth = PanelLayout.details(
+                          v,
+                          total: width,
+                          sidebar: widths.sidebar,
+                        ),
+                      ),
+                      onReset: () => setState(
+                        () => _detailsWidth = PanelLayout.detailsDefault,
+                      ),
                     ),
                   ),
               ],

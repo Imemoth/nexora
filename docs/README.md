@@ -49,7 +49,9 @@
 | `operations/release-acceptance-checklist.md` | checklist | current | V1 release acceptance with evidence lines |
 | `operations/conflict-resolution-ui-record-2026-11-13.md` | feature record | current | the V1 conflict resolution screens: indicator, list, comparison, decisions, failure handling, tests |
 | `operations/windows-signin-hang-fix-record-2026-11-13.md` | fix record | current | first sign-in hang: evidence, defects, native DPAPI, diagnostics, regression tests |
-| `operations/phase-5-implementation-record-2026-11-16.md` | implementation record | current evidence for Phase 5 | packages, presentation versus functional changes, changed tests, new tests, review points |
+| `architecture/decisions/0004-due-time-semantics-and-hosted-boundary.md` | ADR | current | optional time of day on a due date: semantics, local storage, the hosted change that is NOT applied and what it blocks |
+| `operations/versioning-and-build-identity.md` | operations | current | one version source, About screen, CI build identity, tracing an artifact to its source |
+| `operations/phase-5-implementation-record-2026-11-16.md` | implementation record | current evidence for Phase 5 | packages, presentation versus functional changes, changed tests, new tests, review points, follow-up fixes (section 8) |
 | `operations/phase-5-acceptance.md` | checklist | current | Windows visual acceptance checklist for the owner (open) |
 | `operations/phase-4-implementation-record-2026-11-14.md` | implementation record | current evidence for Phase 4 | device-local reminders, tray, notifications, decisions, tests, limitations |
 | `operations/phase-3-integration-review-2026-11-14.md` | review | current | diff review against `main`, hosted/repository consistency, integration risks |

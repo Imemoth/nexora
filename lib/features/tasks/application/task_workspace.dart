@@ -4,6 +4,7 @@ import 'package:nexora/core/ids/id_generator.dart';
 import 'package:nexora/core/result.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
 import 'package:nexora/features/tasks/domain/clock.dart';
+import 'package:nexora/features/tasks/domain/due_time.dart';
 import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
@@ -35,11 +36,17 @@ final class TaskWorkspace {
     required this.repository,
     required this.clock,
     required this.ids,
+    this.dueTimeSupported = true,
   }) : _state = WorkspaceState.initial(clock.today());
 
   final TaskRepository repository;
   final Clock clock;
   final IdGenerator ids;
+
+  /// Whether a due date may carry a time of day. False for a synchronized
+  /// workspace until the hosted schema can store it (see ADR 0004): the
+  /// presentation then shows the time controls disabled with the reason.
+  final bool dueTimeSupported;
   final StreamController<WorkspaceState> _controller =
       StreamController<WorkspaceState>.broadcast();
   WorkspaceState _state;
@@ -51,6 +58,10 @@ final class TaskWorkspace {
   /// saves, creates and a second resolution are refused meanwhile, so a
   /// transition is never executed twice or interleaved.
   bool _transitioning = false;
+
+  /// An incoming refresh arrived while a save or transition ran. It runs when
+  /// that operation ends, so incoming data is never dropped or applied midway.
+  bool _refreshQueued = false;
 
   /// Emits the new state after every change.
   Stream<WorkspaceState> get states => _controller.stream;
@@ -123,40 +134,111 @@ final class TaskWorkspace {
     return Ok(project);
   }
 
-  /// Re-reads projects and tasks after a synchronization changed storage.
-  /// While a draft or a pending decision exists nothing is replaced and false is
-  /// returned: a stale draft must never overwrite what was pulled. The selection
-  /// stays unless the selected task no longer exists.
+  /// Re-reads projects and tasks after a synchronization changed storage and
+  /// publishes them, so lists, counts, the Dashboard and the selected task
+  /// follow without any navigation.
+  ///
+  /// Returns true when the incoming data was applied now. It returns false when
+  /// a save or decision is running (the refresh is queued and runs afterwards)
+  /// or when storage could not be read (nothing changes).
+  ///
+  /// The selection is kept unless its task no longer exists. The draft is
+  /// never replaced by incoming data while it holds unsaved edits:
+  /// * a clean draft simply follows the stored task;
+  /// * a dirty draft keeps every edited field and takes incoming values only
+  ///   for fields the user did not touch; [WorkspaceState.incoming] tells the
+  ///   user, and Revert loads the incoming version;
+  /// * if the task was deleted incoming, a clean draft is closed, and a dirty
+  ///   one is kept (Save refused) until the user discards it.
   Future<bool> refresh() async {
-    if (_busyForRefresh) {
+    if (_saving || _transitioning) {
+      _refreshQueued = true;
       return false;
     }
+    final List<Project> projects;
+    final List<Task> tasks;
     try {
-      final projects = await repository.loadProjects();
-      final tasks = await repository.loadTasks();
-      if (_busyForRefresh) {
-        return false;
-      }
-      final map = {for (final task in tasks) task.id: task};
-      final selected = _state.selectedTaskId;
-      _publish(
-        _state.copyWith(
-          projects: projects,
-          tasks: map,
-          clearSelectedTask: selected != null && !map.containsKey(selected),
-        ),
-      );
-      return true;
+      projects = await repository.loadProjects();
+      tasks = await repository.loadTasks();
     } on RepositoryException {
       return false;
     }
+    if (_saving || _transitioning) {
+      _refreshQueued = true;
+      return false;
+    }
+    _publish(_applyIncoming(projects, {for (final t in tasks) t.id: t}));
+    return true;
   }
 
-  bool get _busyForRefresh =>
-      _state.draft != null ||
-      _state.pending != null ||
-      _saving ||
-      _transitioning;
+  WorkspaceState _applyIncoming(
+    List<Project> projects,
+    Map<String, Task> tasks,
+  ) {
+    final selectedId = _state.selectedTaskId;
+    final draft = _state.draft;
+    final selection = _state.selection;
+    final next = _state.copyWith(
+      projects: projects,
+      tasks: tasks,
+      expandedTaskIds: {
+        for (final id in _state.expandedTaskIds)
+          if (tasks.containsKey(id)) id,
+      },
+      selection:
+          selection is ProjectSelection &&
+              !projects.any((p) => p.id == selection.projectId)
+          ? const SmartViewSelection(SmartView.all)
+          : selection,
+    );
+    if (selectedId == null || draft == null) {
+      return next;
+    }
+    final stored = tasks[selectedId];
+    if (stored == null) {
+      return draft.isDirty
+          ? next.copyWith(incoming: const IncomingNotice(IncomingKind.deleted))
+          : next.copyWith(
+              clearSelectedTask: true,
+              clearDraft: true,
+              clearIncoming: true,
+            );
+    }
+    if (_sameContent(draft.base, stored)) {
+      return next;
+    }
+    if (!draft.isDirty) {
+      return next.copyWith(
+        draft: EditDraft.fromTask(stored),
+        clearIncoming: true,
+      );
+    }
+    final merge = draft.mergeIncoming(stored);
+    return next.copyWith(
+      draft: merge.draft,
+      incoming: IncomingNotice(IncomingKind.updated, merge.overlap),
+    );
+  }
+
+  bool _sameContent(Task a, Task b) {
+    return a.projectId == b.projectId &&
+        a.parentId == b.parentId &&
+        a.title == b.title &&
+        a.status == b.status &&
+        a.priority == b.priority &&
+        a.dueDate == b.dueDate &&
+        a.dueTime == b.dueTime &&
+        a.notes == b.notes &&
+        a.position == b.position;
+  }
+
+  /// Runs a refresh that arrived while a save or transition was running.
+  void _drainQueuedRefresh() {
+    if (_refreshQueued && !_saving && !_transitioning) {
+      _refreshQueued = false;
+      unawaited(refresh());
+    }
+  }
 
   // ------------------------------------------------- navigation and visibility
 
@@ -284,6 +366,8 @@ final class TaskWorkspace {
     TaskPriority? priority,
     CalendarDate? dueDate,
     bool clearDueDate = false,
+    DueTime? dueTime,
+    bool clearDueTime = false,
     String? notes,
   }) {
     if (_transitioning) {
@@ -293,6 +377,8 @@ final class TaskWorkspace {
     if (draft == null) {
       return;
     }
+    // A synchronized workspace cannot store a time yet: never accept one.
+    final acceptedTime = dueTimeSupported ? dueTime : null;
     _publish(
       _state.copyWith(
         draft: draft.copyWith(
@@ -301,6 +387,8 @@ final class TaskWorkspace {
           priority: priority,
           dueDate: dueDate,
           clearDueDate: clearDueDate,
+          dueTime: acceptedTime,
+          clearDueTime: clearDueTime,
           notes: notes,
         ),
         clearError: true,
@@ -320,8 +408,23 @@ final class TaskWorkspace {
     if (draft == null) {
       return;
     }
+    if (_state.incoming?.kind == IncomingKind.deleted) {
+      // The saved version no longer exists: reverting means leaving the task.
+      _publish(
+        _state.copyWith(
+          clearSelectedTask: true,
+          clearDraft: true,
+          clearError: true,
+        ),
+      );
+      return;
+    }
     _publish(
-      _state.copyWith(draft: EditDraft.fromTask(draft.base), clearError: true),
+      _state.copyWith(
+        draft: EditDraft.fromTask(draft.base),
+        clearIncoming: true,
+        clearError: true,
+      ),
     );
   }
 
@@ -337,6 +440,7 @@ final class TaskWorkspace {
       return await _saveDraftUnsafe();
     } finally {
       _saving = false;
+      _drainQueuedRefresh();
     }
   }
 
@@ -346,6 +450,13 @@ final class TaskWorkspace {
     final draft = _state.draft;
     if (draft == null || !draft.isDirty) {
       return const Ok<void, WorkspaceError>(null);
+    }
+    if (_state.incoming?.kind == IncomingKind.deleted) {
+      // Saving would resurrect a record another device deleted.
+      _publish(_state.copyWith(error: WorkspaceError.taskDeletedElsewhere));
+      return const Err<void, WorkspaceError>(
+        WorkspaceError.taskDeletedElsewhere,
+      );
     }
     switch (validateTitle(draft.title)) {
       case Err(:final error):
@@ -391,6 +502,7 @@ final class TaskWorkspace {
       await _completeTransition(pending.transition);
     } finally {
       _transitioning = false;
+      _drainQueuedRefresh();
     }
   }
 
@@ -441,6 +553,7 @@ final class TaskWorkspace {
       return const Err(WorkspaceError.deleteFailed);
     } finally {
       _transitioning = false;
+      _drainQueuedRefresh();
     }
     final gone = doomed.toSet();
     final tasks = {..._state.tasks}..removeWhere((id, _) => gone.contains(id));
@@ -488,6 +601,7 @@ final class TaskWorkspace {
       return const Err(WorkspaceError.deleteFailed);
     } finally {
       _transitioning = false;
+      _drainQueuedRefresh();
     }
     final gone = doomed.toSet();
     final tasks = {..._state.tasks}..removeWhere((id, _) => gone.contains(id));
@@ -719,6 +833,7 @@ final class TaskWorkspace {
       return await _commitCreate(candidate, expandParentId: expandParentId);
     } finally {
       _transitioning = false;
+      _drainQueuedRefresh();
     }
   }
 
@@ -803,13 +918,24 @@ final class TaskWorkspace {
         ? current.rebaseAfterSave(snapshot: snapshot, savedTask: task)
         : current;
     _publish(
-      _state.copyWith(tasks: tasks, draft: draftAfter, clearError: true),
+      _state.copyWith(
+        tasks: tasks,
+        draft: draftAfter,
+        clearIncoming: true,
+        clearError: true,
+      ),
     );
     return const Ok<void, WorkspaceError>(null);
   }
 
   void _publish(WorkspaceState next) {
-    _state = next.copyWith(today: clock.today());
+    // The incoming notice belongs to one task's draft: it ends with it.
+    final stale =
+        next.incoming != null &&
+        (next.draft == null || next.selectedTaskId != _state.selectedTaskId);
+    _state = (stale ? next.copyWith(clearIncoming: true) : next).copyWith(
+      today: clock.today(),
+    );
     _controller.add(_state);
   }
 

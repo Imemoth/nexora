@@ -1,5 +1,6 @@
 import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
+import 'package:nexora/features/tasks/domain/due_time.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task_ordering.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
@@ -30,6 +31,32 @@ abstract final class AppStrings {
   static const fieldTitle = 'Title';
   static const fieldProject = 'Project';
   static const fieldParent = 'Parent';
+  // About.
+  static const aboutAction = 'About Nexora';
+  static const aboutTitle = 'About Nexora';
+  static const aboutVersion = 'Version';
+  static const aboutCommit = 'Source commit';
+  static const aboutBuild = 'Build';
+  static const aboutRun = 'CI run';
+  static const buildTypeRelease = 'Release build';
+  static const buildTypeDevelopmentTest = 'DEVELOPMENT TEST';
+  static const buildTypeLocal = 'Local build (not made by CI)';
+  static const commitUnknown = 'unknown';
+  static const aboutCopy = 'Copy details';
+  static const aboutCopied = 'Copied to the clipboard';
+  static const aboutClose = 'Close';
+  static const aboutDevelopmentNote =
+      'This is a development build against the TEST project. It is not a release.';
+  static const aboutLocalNote =
+      'Built outside CI, so the commit cannot be confirmed.';
+  static const resizeSidebar = 'Resize sidebar';
+  static const resizeDetails = 'Resize details panel';
+  static const resizeHint =
+      'Drag, or use the left and right arrow keys. Home restores the default.';
+  static const fieldParentTask = 'Parent task';
+  static const parentHelp =
+      'The subtask stays in the same project as its parent.';
+  static String parentChoiceSummary(List<String> path) => path.join(' › ');
   static const unsavedIndicator = 'Edited, not saved';
   static const saveAction = 'Save';
   static const revertAction = 'Revert';
@@ -61,7 +88,46 @@ abstract final class AppStrings {
       'Nexora could not open its local database. Close any other copy of Nexora and start it again. Your data has not been changed.';
   static const errorDeleteFailed = 'Could not delete. Nothing was changed.';
   static const errorLastProject = 'The last project cannot be deleted.';
+  static const errorTaskDeletedElsewhere =
+      'This task was deleted on another device, so it cannot be saved. Revert to leave it.';
   static const defaultProjectName = 'Inbox';
+
+  // Incoming changes while editing.
+  static const incomingUpdatedTitle = 'Changed on another device';
+  static const incomingUpdatedBody =
+      'Fields you did not edit were updated. Your edits are kept.';
+  static String incomingOverlapBody(String fields) =>
+      'You also edited $fields, which changed elsewhere. Saving keeps your '
+      'version; Revert loads the incoming one.';
+  static const incomingDeletedTitle = 'Deleted on another device';
+  static const incomingDeletedBody =
+      'Your unsaved edits are kept here but cannot be saved. Revert to leave '
+      'the task.';
+  static String incomingFieldName(String field) => switch (field) {
+    'title' => 'Title',
+    'status' => 'Status',
+    'priority' => 'Priority',
+    'dueDate' => 'Due date',
+    'dueTime' => 'Due time',
+    'notes' => 'Notes',
+    _ => field,
+  };
+
+  // Due date and optional time.
+  static const fieldDueDate = 'Due date';
+  static const fieldDueTime = 'Time (optional)';
+  static const noDueTime = 'No time';
+  static const addDueTime = 'Add time';
+  static const pickDueTime = 'Pick time';
+  static const clearDueTime = 'Remove time';
+  static const dueTimeNeedsDate = 'Choose a date first.';
+  static const dueTimeLocalOnly =
+      'Time of day is not synchronized yet, so it is off while signed in.';
+  static const dueTimeHelp =
+      'The date alone means the whole day. A time is a wall-clock time and '
+      'never shifts with time zones.';
+  static const clearDueDateHelp = 'Clearing the date also removes the time.';
+  static String dueTimeLabel(DueTime time) => time.toHm();
   static const signInAction = 'Sign in';
   static const signOutAction = 'Sign out';
   static const signInTitle = 'Sign in to synchronize';
@@ -401,6 +467,16 @@ abstract final class AppStrings {
     CalendarDate due,
     CalendarDate today, {
     required bool closed,
+    DueTime? time,
+  }) {
+    final base = _friendlyDueDate(due, today, closed: closed);
+    return time == null ? base : '$base · ${time.toHm()}';
+  }
+
+  static String _friendlyDueDate(
+    CalendarDate due,
+    CalendarDate today, {
+    required bool closed,
   }) {
     if (due == today) {
       return dueToday;
@@ -427,6 +503,7 @@ abstract final class AppStrings {
       WorkspaceError.operationInProgress => errorOperationInProgress,
       WorkspaceError.deleteFailed => errorDeleteFailed,
       WorkspaceError.lastProject => errorLastProject,
+      WorkspaceError.taskDeletedElsewhere => errorTaskDeletedElsewhere,
     };
   }
 

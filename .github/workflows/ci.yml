@@ -75,8 +75,28 @@ jobs:
         shell: pwsh
         run: ./tool/persistence/restart_check.ps1
 
+      - name: Resolve the build identity
+        # The commit that was built. A pull request is built from GitHub's test merge checkout, so its identity is the
+        # pull request's head commit (the one pushed to the branch); any other run builds the commit itself.
+        shell: pwsh
+        run: |
+          $source = '${{ github.event.pull_request.head.sha || github.sha }}'
+          if ($source -notmatch '^[0-9a-f]{40}$') { throw 'unexpected commit id' }
+          "NEXORA_SOURCE_COMMIT=$source" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+          "NEXORA_BUILD_RUN=${{ github.run_id }}-${{ github.run_attempt }}" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+
       - name: Build Windows release
-        run: flutter build windows --release
+        # The About screen shows these values; a build without them is a local build and says so.
+        shell: pwsh
+        run: >
+          flutter build windows --release
+          --dart-define=NEXORA_BUILD_TYPE=release
+          --dart-define=NEXORA_COMMIT=$env:NEXORA_SOURCE_COMMIT
+          --dart-define=NEXORA_BUILD_RUN=$env:NEXORA_BUILD_RUN
+
+      - name: Write BUILD-INFO.json next to nexora.exe
+        shell: pwsh
+        run: ./tool/write_build_info.ps1 -BuildType release -OutputPath build/windows/x64/runner/Release/BUILD-INFO.json
 
       - name: Shell integration smoke (single instance, minimize to tray, restore, tray Exit)
         # Drives the real nexora.exe with the window messages the Windows shell sends. Exit code 2 means the runner has no
@@ -96,7 +116,9 @@ jobs:
         shell: pwsh
         run: |
           $zip = './dist/nexora-windows-portable.zip'
-          $lines = @("$((Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower())  nexora-windows-portable.zip", "commit  $env:GITHUB_SHA")
+          $info = Get-Content -Raw build/windows/x64/runner/Release/BUILD-INFO.json | ConvertFrom-Json
+          Copy-Item build/windows/x64/runner/Release/BUILD-INFO.json ./dist/BUILD-INFO.json
+          $lines = @("$((Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower())  nexora-windows-portable.zip", "commit  $($info.sourceCommit)", "version  $($info.version)+$($info.buildNumber)", "run  $($info.ciRun)")
           $tmp = Join-Path $env:RUNNER_TEMP 'rc-contents'
           Expand-Archive -Path $zip -DestinationPath $tmp -Force
           Get-ChildItem -Path $tmp -Recurse -File | Sort-Object FullName | ForEach-Object {
@@ -114,6 +136,7 @@ jobs:
           path: |
             dist/nexora-windows-portable.zip
             dist/SHA256SUMS.txt
+            dist/BUILD-INFO.json
             dist/shell-smoke.log
           if-no-files-found: error
           retention-days: 14

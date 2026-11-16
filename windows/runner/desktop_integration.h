@@ -10,6 +10,7 @@
 #include <deque>
 #include <memory>
 #include <string>
+#include <vector>
 
 // Windows shell integration for Nexora: one tray icon, native notifications
 // (shell balloons, shown as toasts on Windows 10/11), minimize-to-tray and a
@@ -19,10 +20,21 @@
 //   ready()                                   Dart can now receive events.
 //   showNotification({taskId,title,body})     -> bool (false: not shown).
 //   quit()                                    Destroy the window and end.
+//   getDisplays()                             -> [{left,top,right,bottom}] work
+//                                              areas in screen pixels, the
+//                                              primary display first.
+//   setWindowPlacement({left,top,width,height,maximized})
+//                                             Restored bounds (screen pixels)
+//                                             and the maximized flag. Before
+//                                             the window is first shown it only
+//                                             prepares it; afterwards it moves it.
 // Native -> Dart:
 //   notificationClicked({taskId})   a Nexora notification was clicked.
 //   exitRequested()                 tray menu Exit; Dart saves, then calls quit().
 //   windowActivated()               the window was restored from the tray.
+//   windowPlacementChanged({left,top,width,height,maximized})
+//                                   the user moved, resized, maximized or
+//                                   restored the window (never while minimized).
 class DesktopIntegration {
  public:
   DesktopIntegration(HWND window, flutter::BinaryMessenger* messenger);
@@ -42,6 +54,10 @@ class DesktopIntegration {
 
   void ShowMainWindow();
 
+  // How the window is first shown: maximized unless Dart restored a saved,
+  // non-maximized placement (a first launch has none, so it opens maximized).
+  bool ShowMaximizedOnStart() const { return show_maximized_; }
+
  private:
   struct Notification {
     std::string task_id;
@@ -60,6 +76,10 @@ class DesktopIntegration {
   void Quit();
   void NotifyDart(const char* method, const std::string& task_id,
                   bool with_task);
+  flutter::EncodableValue DisplaysValue() const;
+  bool ApplyPlacement(const flutter::EncodableMap& args);
+  bool CurrentPlacement(flutter::EncodableMap* out) const;
+  void NotifyPlacement();
 
   static std::wstring Widen(const std::string& utf8, size_t max_chars);
 
@@ -74,6 +94,8 @@ class DesktopIntegration {
   std::string active_task_;
   std::string last_task_;
   UINT taskbar_created_message_;
+  bool show_maximized_ = true;
+  bool in_size_move_ = false;
 };
 
 #endif  // RUNNER_DESKTOP_INTEGRATION_H_
