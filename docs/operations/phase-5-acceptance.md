@@ -56,3 +56,21 @@ Run on the CI-built portable ZIPs: the local-only release build and the sign-in 
 | F19 | Real-keyboard **Ctrl+F** from the list, a sidebar item and the Dashboard | not run |
 | F20 | Goldens regenerated on Windows for this layout (default expansion changes the demo-data screens) | not run |
 
+
+## Hosted due-time migration and hosted checks (2026-11-16, DEV/TEST project `uicccaawtjvqggeufbez`)
+Owner-authorized: the exact migration file below, and the hosted HTTP/JWT and two-device checks with the test account the owner supplied (no service-role key; test data only).
+
+| Check | Source | Command / run | Result | Evidence |
+|---|---|---|---|---|
+| Migration applied | `supabase/migrations/20261116100000_nexora_due_time.sql`, SHA-256 `71ebd1de87cb5d95bca0fddf99b2a8401b26d6946f8ca913a4e8d9570c59263e`, content applied unchanged | Supabase `apply_migration` (recorded in the hosted history as `20261116143627 nexora_due_time`) | PASS | read-only follow-up below |
+| Schema, RLS, grants | head `8fe2d59` | select-only queries | PASS | `tasks.due_time time NULL`; check `tasks_due_time_needs_date`; RLS on; `authenticated` still has SELECT only on `tasks`; internal functions have no `authenticated` execute (only `register_device`, as before); existing 1,041 tasks have no time |
+| Register answers `features: ["due_time"]` | hosted | HTTP/JWT (GoTrue sign-in, PostgREST RPC) | PASS | |
+| Two-device push/pull, `field_versions.due_time`, conflict on `due_time`, `resolved_merged`, `blocked_by_conflict` | hosted | HTTP/JWT, two registered devices | PASS | 24 of 24 assertions |
+| Date+time together; older-client date change clears the time; clearing the time keeps the date; date-only stays date-only | hosted | same | PASS | |
+| Invalid times (`17:30:15`, `24:00`, `7pm`, `25:00`), time without a date | hosted | same | PASS (rejected) | |
+| Direct PATCH/INSERT on `tasks` refused; anon key and no-JWT RPC refused; private function not exposed | hosted | same | PASS | |
+| Signed-in app turns synchronized due time on after the register answer; local-to-account import of times | client code | covered by the 17 local two-device e2e tests and runtime tests only | NOT TESTED against hosted with the real app | needs the Windows GUI |
+
+Hosted test data written (all under the test account): one project `phase5-duetime-check` with 3 tasks, and 4 devices labelled `phase5-duetime-check` (two came from a script slip). Nothing existing was changed or deleted; one pre-existing open conflict is untouched.
+
+Windows DEVELOPMENT TEST build: workflow run `43884009708` (manual dispatch on the branch head, no merge commit), source `8fe2d592ed76d97d505ec0140870f21b87d0c53e`, artifact `nexora-windows-sync-DEVELOPMENT-TEST` (id 14232624117, 13,928,779 bytes, SHA-256 `f6a2cd7738f3e457c5ff29041028c7328e0c0f0dc5f6df6264e96cbd3849a03f`). CI: build, sign-in self-test, shell smoke (single instance, tray), ZIP smoke launch PASS. About screen on a real Windows machine vs `BUILD-INFO.json`: NOT TESTED. F1 to F20 remain NOT TESTED.
