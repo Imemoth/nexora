@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:nexora/features/tasks/domain/task_ordering.dart';
 
+import 'package:nexora/app/theme.dart';
+
 import 'strings/app_strings.dart';
+import 'theme/nexora_colors.dart';
 
 /// Chooses the display order of the task list. Sorting never changes stored
 /// positions.
@@ -13,6 +16,7 @@ class SortMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = NexoraColors.of(context);
     return PopupMenuButton<TaskSort>(
       key: const ValueKey('sort-menu'),
       tooltip: AppStrings.sortTooltip,
@@ -25,13 +29,21 @@ class SortMenu extends StatelessWidget {
             child: Text(AppStrings.sortLabel(option)),
           ),
       ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: c.borderStrong),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(AppStrings.sortLabel(sort)),
-            const Icon(Icons.arrow_drop_down),
+            Text(
+              AppStrings.sortButton(sort),
+              style: NexoraText.bodyStrong.copyWith(color: c.text1),
+            ),
+            Icon(Icons.expand_more, size: 18, color: c.text2),
           ],
         ),
       ),

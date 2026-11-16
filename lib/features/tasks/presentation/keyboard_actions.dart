@@ -51,6 +51,9 @@ final class TaskKeyboardFocus {
   /// The search field.
   final FocusNode search = FocusNode(debugLabel: 'task-search');
 
+  /// The quick-add field above the list.
+  final FocusNode quickAdd = FocusNode(debugLabel: 'quick-add');
+
   /// The details title field.
   final FocusNode title = FocusNode(debugLabel: 'details-title');
 
@@ -81,6 +84,17 @@ final class TaskCommands {
   /// consumed, so the key reaches the focused text field or widget.
   bool isEnabled(TaskCommand command) {
     final typingInSearch = focus.search.hasPrimaryFocus;
+    // Typing a new title: Enter and the arrows belong to the text field.
+    if (focus.quickAdd.hasPrimaryFocus) {
+      return switch (command) {
+        TaskCommand.moveUp ||
+        TaskCommand.moveDown ||
+        TaskCommand.expand ||
+        TaskCommand.collapse ||
+        TaskCommand.focusTitle => false,
+        _ => true,
+      };
+    }
     return switch (command) {
       TaskCommand.moveUp ||
       TaskCommand.moveDown ||
@@ -221,6 +235,10 @@ final class TaskCommands {
   /// the list keymap does not receive keys, and the dialog cannot be dismissed
   /// with Esc.
   void _escape() {
+    if (focus.quickAdd.hasPrimaryFocus) {
+      focus.list.requestFocus();
+      return;
+    }
     if (focus.search.hasPrimaryFocus) {
       if (notifier.state.searchQuery.isNotEmpty) {
         notifier.search('');

@@ -11,6 +11,12 @@ enum WorkspaceError {
   /// A creation was requested while an unsaved-change decision is open.
   unsavedChangesPending,
 
+  /// A delete could not complete; nothing was changed.
+  deleteFailed,
+
+  /// The last project cannot be deleted.
+  lastProject,
+
   /// Another save, creation or gate decision is already running.
   operationInProgress,
 }

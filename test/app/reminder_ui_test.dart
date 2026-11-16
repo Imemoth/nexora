@@ -162,7 +162,11 @@ void main() {
     expect(find.text(ReminderStrings.noReminder), findsOneWidget);
     // The UI states the behaviour explicitly: this device only.
     expect(find.byKey(const ValueKey('reminder-device-only')), findsOneWidget);
-    expect(find.textContaining('this device only'), findsOneWidget);
+    expect(find.text(ReminderStrings.deviceTag), findsOneWidget);
+    expect(
+      find.textContaining(ReminderStrings.notSynchronized),
+      findsOneWidget,
+    );
   });
 
   testWidgets('without reminders wired the editor is absent', (tester) async {
@@ -208,6 +212,9 @@ void main() {
     await tester.runAsync(h.service.tick);
     await tester.pumpAndSettle();
 
+    // Snooze is a menu on the strip (Phase 5).
+    await tester.tap(find.byKey(const ValueKey('reminder-snooze-a')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('reminder-snooze10-a')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('reminder-banner')), findsNothing);
@@ -292,11 +299,20 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('reminder-button')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('OK')); // date: today
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK')); // time: 09:00, before the fake noon
+    // The inline editor: today at 09:00 is before the fake noon.
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-date')),
+      '2026-11-14',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-time')),
+      '09:00',
+    );
+    await tester.tap(find.byKey(const ValueKey('reminder-submit')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('reminder-error')), findsOneWidget);
+    // The editor stays open after the error.
+    expect(find.byKey(const ValueKey('reminder-date')), findsOneWidget);
     expect(h.service.reminderFor('a'), isNull);
   });
 
@@ -307,7 +323,12 @@ void main() {
     h.service.setReminder('a', const LocalWallTime(2026, 11, 20, 8, 30));
     h.notifier.selectTask('a');
     await tester.pumpAndSettle();
-    expect(find.textContaining('2026-11-20 08:30'), findsOneWidget);
+    expect(
+      find.textContaining(
+        ReminderStrings.friendlyWhen(const LocalWallTime(2026, 11, 20, 8, 30)),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const ValueKey('reminder-clear')));
     await tester.pumpAndSettle();
     expect(h.service.reminderFor('a'), isNull);

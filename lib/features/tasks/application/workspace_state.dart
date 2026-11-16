@@ -3,6 +3,7 @@ import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_ordering.dart';
+import 'package:nexora/features/tasks/domain/task_status.dart';
 
 import 'edit_draft.dart';
 import 'nav_selection.dart';
@@ -20,6 +21,7 @@ final class WorkspaceState {
     this.selection = const SmartViewSelection(SmartView.all),
     this.searchQuery = '',
     this.sort = TaskSort.position,
+    this.statusFilter,
     this.selectedTaskId,
     this.expandedTaskIds = const {},
     this.draft,
@@ -27,6 +29,7 @@ final class WorkspaceState {
     this.error,
     this.loading = false,
     this.exitReady = false,
+    this.signOutReady = false,
   });
 
   factory WorkspaceState.initial(CalendarDate today) {
@@ -43,6 +46,10 @@ final class WorkspaceState {
   final String searchQuery;
   final TaskSort sort;
 
+  /// Shows only tasks with this status. Null shows every status. Like sort, it
+  /// never touches the draft and is never gated.
+  final TaskStatus? statusFilter;
+
   /// The selected task. Always equal to [draft]'s task id when both are set.
   final String? selectedTaskId;
   final Set<String> expandedTaskIds;
@@ -58,6 +65,9 @@ final class WorkspaceState {
   /// Set once the gate resolves to exit. The presentation then closes the app.
   final bool exitReady;
 
+  /// Set once the gate resolves to sign out. The presentation then signs out.
+  final bool signOutReady;
+
   /// Flattened rows for the current selection, search, sort and expansion.
   List<VisibleTaskRow> get visibleRows {
     return buildVisibleRows(
@@ -67,6 +77,7 @@ final class WorkspaceState {
       sort: sort,
       expandedIds: expandedTaskIds,
       today: today,
+      statusFilter: statusFilter,
     );
   }
 
@@ -94,6 +105,30 @@ final class WorkspaceState {
         .length;
   }
 
+  /// The tasks of the current selection and search, before the status filter.
+  List<Task> get scopedTasks => [
+    for (final task in tasks.values)
+      if (matchesFilter(task, selection, searchQuery, today)) task,
+  ];
+
+  /// Number of scoped tasks with [status] (null: every status), for the filter
+  /// chips.
+  int statusCount(TaskStatus? status) {
+    final scoped = scopedTasks;
+    return status == null
+        ? scoped.length
+        : scoped.where((task) => task.status == status).length;
+  }
+
+  /// Scoped tasks that are done.
+  int get doneCount =>
+      scopedTasks.where((task) => task.status == TaskStatus.done).length;
+
+  /// Scoped tasks that are overdue (open and due before today).
+  int get overdueCount => scopedTasks
+      .where((task) => matchesSmartView(task, SmartView.overdue, today))
+      .length;
+
   WorkspaceState copyWith({
     CalendarDate? today,
     List<Project>? projects,
@@ -101,6 +136,8 @@ final class WorkspaceState {
     NavSelection? selection,
     String? searchQuery,
     TaskSort? sort,
+    TaskStatus? statusFilter,
+    bool clearStatusFilter = false,
     String? selectedTaskId,
     bool clearSelectedTask = false,
     Set<String>? expandedTaskIds,
@@ -112,6 +149,7 @@ final class WorkspaceState {
     bool clearError = false,
     bool? loading,
     bool? exitReady,
+    bool? signOutReady,
   }) {
     return WorkspaceState(
       today: today ?? this.today,
@@ -120,6 +158,9 @@ final class WorkspaceState {
       selection: selection ?? this.selection,
       searchQuery: searchQuery ?? this.searchQuery,
       sort: sort ?? this.sort,
+      statusFilter: clearStatusFilter
+          ? null
+          : (statusFilter ?? this.statusFilter),
       selectedTaskId: clearSelectedTask
           ? null
           : (selectedTaskId ?? this.selectedTaskId),
@@ -129,6 +170,7 @@ final class WorkspaceState {
       error: clearError ? null : (error ?? this.error),
       loading: loading ?? this.loading,
       exitReady: exitReady ?? this.exitReady,
+      signOutReady: signOutReady ?? this.signOutReady,
     );
   }
 }

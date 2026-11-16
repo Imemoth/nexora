@@ -109,7 +109,13 @@ void main() {
       expect(
         _inRow(
           'home-utility',
-          find.text(AppStrings.dueLabel(const CalendarDate(2026, 11, 10))),
+          find.text(
+            AppStrings.friendlyDue(
+              const CalendarDate(2026, 11, 10),
+              testToday,
+              closed: false,
+            ),
+          ),
         ),
         findsOneWidget,
       );

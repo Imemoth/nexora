@@ -26,7 +26,8 @@ import 'outbox_store.dart';
 /// operation; demo data and everything created under it is `local_only`;
 /// unclassified entities (migrated legacy rows) never produce operations; a
 /// task with live children cannot be deleted until the S3 atomicity protocol.
-final class SqliteTaskRepository implements TaskRepository, ProjectStore {
+final class SqliteTaskRepository
+    implements TaskRepository, ProjectStore, TreeDeleter {
   SqliteTaskRepository(
     this._db, {
     required this.ownerId,
@@ -179,11 +180,13 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
   /// (S3 atomic tree delete). Each entity is tombstoned locally; for a
   /// synchronized task one delete operation lists the whole subtree, which the
   /// server applies completely or not at all. At most 1,000 descendants.
+  @override
   Future<void> softDeleteTaskTree(String id) async {
     _run(() => _transaction(() => _deleteTree('task', id)));
   }
 
   /// Deletes a project together with all its live tasks, like [softDeleteTaskTree].
+  @override
   Future<void> softDeleteProjectTree(String id) async {
     _run(() => _transaction(() => _deleteTree('project', id)));
   }

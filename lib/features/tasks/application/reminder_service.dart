@@ -106,6 +106,25 @@ final class ReminderService {
 
   Reminder? reminderFor(String taskId) => _store.get(taskId);
 
+  /// Reminders still waiting for their time (including snoozed ones), earliest
+  /// first, for the dashboard's reminder panel.
+  List<DueReminder> get scheduled {
+    final result = <DueReminder>[];
+    for (final reminder in _store.all()) {
+      if (reminder.state != ReminderState.scheduled) {
+        continue;
+      }
+      final info = _store.taskInfo(reminder.taskId);
+      if (info == null) {
+        continue;
+      }
+      result.add(
+        DueReminder(reminder: reminder, title: info.title, missed: false),
+      );
+    }
+    return result;
+  }
+
   /// Evaluates once now (this is what handles reminders missed while the app was
   /// closed) and then keeps evaluating every [tickInterval].
   Future<void> start() async {

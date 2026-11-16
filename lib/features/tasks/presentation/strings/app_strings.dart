@@ -59,6 +59,8 @@ abstract final class AppStrings {
   static const errorGatePending = 'Save, discard or cancel your changes first.';
   static const errorDatabaseOpen =
       'Nexora could not open its local database. Close any other copy of Nexora and start it again. Your data has not been changed.';
+  static const errorDeleteFailed = 'Could not delete. Nothing was changed.';
+  static const errorLastProject = 'The last project cannot be deleted.';
   static const defaultProjectName = 'Inbox';
   static const signInAction = 'Sign in';
   static const signOutAction = 'Sign out';
@@ -268,6 +270,150 @@ abstract final class AppStrings {
   static const desktopOnlyNotice =
       'Nexora needs a window at least 900 px wide.';
 
+  // Phase 5 (Midnight) strings.
+  static const brandMark = 'N';
+  static const deleteAction = 'Delete';
+  static const deleteTaskAction = 'Delete task';
+  static const deleteProjectAction = 'Delete project';
+  static const deleteTaskTitle = 'Delete task';
+  static const deleteProjectTitle = 'Delete project';
+  static const taskDeleted = 'Task deleted';
+  static const projectDeleted = 'Project deleted';
+  static const deleteUndone = 'This cannot be undone.';
+  static String deleteTaskBody(int subtasks) => subtasks == 0
+      ? 'This task will be deleted. $deleteUndone'
+      : subtasks == 1
+      ? 'This task and its 1 subtask will be deleted. $deleteUndone'
+      : 'This task and its $subtasks subtasks will be deleted. $deleteUndone';
+  static String deleteProjectBody(int tasks) => tasks == 0
+      ? 'This project will be deleted. $deleteUndone'
+      : tasks == 1
+      ? 'This project and its 1 task will be deleted. $deleteUndone'
+      : 'This project and its $tasks tasks will be deleted. $deleteUndone';
+  static const dashNoteToday = 'due today';
+  static const dashNoteOverdue = 'need attention';
+  static const dashNoteNext7 = 'coming up';
+  static const dashNoteAll = 'in every project';
+  static const dashboardTitle = 'Dashboard';
+  static const viewsHeader = 'Views';
+  static const syncTitleUpToDate = 'Up to date';
+  static const syncTitleSyncing = 'Synchronizing…';
+  static String syncTitlePending(int n) =>
+      n == 1 ? '1 change waiting' : '$n changes waiting';
+  static const syncTitleOffline = 'Offline';
+  static String syncTitleRejected(int n) =>
+      n == 1 ? '1 change refused' : '$n changes refused';
+  static String syncTitleConflicts(int n) =>
+      n == 1 ? '1 conflict' : '$n conflicts';
+  static const syncTitleSignIn = 'Sign in needed';
+  static const syncTitleRevoked = 'Device removed';
+  static const syncTitleError = 'Sync stopped';
+  static const syncTitleLocal = 'Local only';
+  static const resolveAction = 'Resolve';
+  static const accountLocalShort = 'Local workspace';
+  static const themeLabel = 'Theme';
+  static const themeSystem = 'System';
+  static const themeLight = 'Light';
+  static const themeDark = 'Dark';
+  static const shortcutsAction = 'Keyboard shortcuts';
+  static const shortcutsTitle = 'Keyboard shortcuts';
+  static const closeAction = 'Close';
+  static const accountMenuTooltip = 'Account and settings';
+  static const savedIndicator = 'Saved';
+  static const taskGroupCaption = 'Task · saved with Save';
+  static const subtasksHeader = 'Subtasks';
+  static const needsAttention = 'Needs attention';
+  static const nothingDue = 'Nothing is overdue or due today.';
+  static const showAll = 'Show all';
+  static const selectTaskHint =
+      'Use the arrow keys in the list, then Enter to edit.';
+  static const dueToday = 'Today';
+  static const dueTomorrow = 'Tomorrow';
+  static const overduePrefix = 'Overdue';
+  static const synchronizationHeader = 'Synchronization';
+  static const moreActions = 'More';
+  static const noTasksMatchFilter = 'No tasks have this status here';
+  static const taskListEmptyNoProject = 'Create a project to add tasks';
+  static String quickAddHint(String project) =>
+      'Add a task to $project, then press Enter';
+  static const quickAddTooltip = 'Add task';
+  static const sortPrefix = 'Sort';
+  static String sortButton(TaskSort sort) => '$sortPrefix: ${sortLabel(sort)}';
+  static String breadcrumbProject(String name) => 'Projects / $name';
+  static String breadcrumbView(String name) => 'Views / $name';
+  static String summaryLineDone(int done) => '$done done';
+  static String summaryLineOverdue(int overdue) => '$overdue overdue';
+  static String projectProgress(int done, int total) => '$done/$total done';
+  static const contextSeparator = ' › ';
+  static const summarySeparator = ' · ';
+
+  /// The keyboard map shown in the "Keyboard shortcuts" dialog: keys, action.
+  static const shortcutList = <(String, String)>[
+    ('Up / Down', 'Move through tasks'),
+    ('Right / Left', 'Expand or collapse a task'),
+    ('Enter', 'Edit the selected task title'),
+    ('Ctrl F', 'Search'),
+    ('Ctrl N', 'New task'),
+    ('Ctrl Shift N', 'New subtask'),
+    ('Ctrl S', 'Save'),
+    ('Esc', 'Clear search, return to the list, then clear the selection'),
+  ];
+  static const statusFilterAll = 'All';
+  static String statusFilterChip(String label, int count) => '$label $count';
+  static const stateLabelPrefix = 'Status';
+  static const dateLine = 'Today';
+
+  static const monthAbbreviations = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  static const weekdayAbbreviations = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
+  ];
+
+  /// Weekday, day and month: "Mon 16 Nov". One place to change for later
+  /// localization. The ISO form ([dueLabel]) stays for the conflict dialog.
+  static String friendlyDate(CalendarDate date) {
+    final weekday = DateTime.utc(date.year, date.month, date.day).weekday;
+    return '${weekdayAbbreviations[weekday - 1]} ${date.day} '
+        '${monthAbbreviations[date.month - 1]}';
+  }
+
+  /// How a due date reads in a list: "Today", "Tomorrow", "Mon 16 Nov", or
+  /// "Overdue · Thu 12 Nov". A task that is done or archived is never overdue.
+  static String friendlyDue(
+    CalendarDate due,
+    CalendarDate today, {
+    required bool closed,
+  }) {
+    if (due == today) {
+      return dueToday;
+    }
+    if (due == today.addDays(1)) {
+      return dueTomorrow;
+    }
+    if (!closed && due.compareTo(today) < 0) {
+      return '$overduePrefix · ${friendlyDate(due)}';
+    }
+    return friendlyDate(due);
+  }
+
   static String errorMessage(WorkspaceError error) {
     return switch (error) {
       WorkspaceError.titleRequired => titleRequired,
@@ -279,6 +425,8 @@ abstract final class AppStrings {
       WorkspaceError.loadFailed => errorLoadFailed,
       WorkspaceError.unsavedChangesPending => errorGatePending,
       WorkspaceError.operationInProgress => errorOperationInProgress,
+      WorkspaceError.deleteFailed => errorDeleteFailed,
+      WorkspaceError.lastProject => errorLastProject,
     };
   }
 

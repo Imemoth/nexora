@@ -8,6 +8,7 @@ import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_creation_rules.dart';
+import 'package:nexora/features/tasks/domain/task_deletion.dart';
 import 'package:nexora/features/tasks/domain/task_ordering.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
 import 'package:nexora/features/tasks/domain/task_search.dart';
@@ -167,6 +168,10 @@ final class TaskWorkspace {
     _request(TransitionSelectProject(projectId));
   }
 
+  void requestSelectDashboard() {
+    _request(const TransitionSelectDashboard());
+  }
+
   /// Selects [taskId], or clears the selection when it is null. An unknown id
   /// is ignored.
   void requestSelectTask(String? taskId) {
@@ -183,6 +188,15 @@ final class TaskWorkspace {
   /// Sorting never hides a task, so it is never gated.
   void requestSort(TaskSort sort) {
     _publish(_state.copyWith(sort: sort));
+  }
+
+  /// Filters the list by status (null shows all). Like sort it is never gated
+  /// and never touches the draft. A selected task the filter hides stays
+  /// selected; the existing "hidden in this view" notice shows.
+  void requestStatusFilter(TaskStatus? status) {
+    _publish(
+      _state.copyWith(statusFilter: status, clearStatusFilter: status == null),
+    );
   }
 
   /// Collapsing a parent may hide the selected row. The selection is kept.
@@ -398,6 +412,143 @@ final class TaskWorkspace {
     return false;
   }
 
+  // ----------------------------------------------------------------- delete
+
+  /// Ids of [taskId] and all its descendants (empty for an unknown task).
+  List<String> subtreeOf(String taskId) =>
+      leafFirstDeletionOrder(_state.tasks, [taskId]);
+
+  /// Deletes [taskId] with its subtree in one repository transaction.
+  ///
+  /// Refused while a save, create or gate decision runs, or while the gate is
+  /// open. A failure changes nothing. Deleting the selected task (or an
+  /// ancestor of it) drops the selection and its draft: the confirm dialog has
+  /// already told the user it cannot be undone.
+  Future<Result<List<String>, WorkspaceError>> deleteTask(String taskId) async {
+    final busy = _deleteBlocked();
+    if (busy != null) {
+      return Err(busy);
+    }
+    final store = repository;
+    if (store is! TreeDeleter || !_state.tasks.containsKey(taskId)) {
+      return const Err(WorkspaceError.deleteFailed);
+    }
+    final doomed = subtreeOf(taskId);
+    _transitioning = true;
+    try {
+      await (store as TreeDeleter).softDeleteTaskTree(taskId);
+    } on RepositoryException {
+      return const Err(WorkspaceError.deleteFailed);
+    } finally {
+      _transitioning = false;
+    }
+    final gone = doomed.toSet();
+    final tasks = {..._state.tasks}..removeWhere((id, _) => gone.contains(id));
+    final selected = _state.selectedTaskId;
+    final dropSelection = selected != null && gone.contains(selected);
+    _publish(
+      _state.copyWith(
+        tasks: tasks,
+        expandedTaskIds: {..._state.expandedTaskIds}..removeAll(gone),
+        clearSelectedTask: dropSelection,
+        clearDraft: dropSelection,
+        clearError: true,
+      ),
+    );
+    return Ok(doomed);
+  }
+
+  /// Deletes [projectId] with all its tasks. The last project cannot be
+  /// deleted. Unsaved edits of a task in the project are not discarded
+  /// silently: the delete is refused until they are saved or reverted.
+  Future<Result<List<String>, WorkspaceError>> deleteProject(
+    String projectId,
+  ) async {
+    final busy = _deleteBlocked();
+    if (busy != null) {
+      return Err(busy);
+    }
+    if (_state.projects.length <= 1) {
+      return const Err(WorkspaceError.lastProject);
+    }
+    final store = repository;
+    if (store is! TreeDeleter ||
+        !_state.projects.any((p) => p.id == projectId)) {
+      return const Err(WorkspaceError.deleteFailed);
+    }
+    final doomed = projectDeletionOrder(_state.tasks, projectId);
+    final draft = _state.draft;
+    if (draft != null && draft.isDirty && doomed.contains(draft.taskId)) {
+      return const Err(WorkspaceError.unsavedChangesPending);
+    }
+    _transitioning = true;
+    try {
+      await (store as TreeDeleter).softDeleteProjectTree(projectId);
+    } on RepositoryException {
+      return const Err(WorkspaceError.deleteFailed);
+    } finally {
+      _transitioning = false;
+    }
+    final gone = doomed.toSet();
+    final tasks = {..._state.tasks}..removeWhere((id, _) => gone.contains(id));
+    final projects = [
+      for (final p in _state.projects)
+        if (p.id != projectId) p,
+    ];
+    final selected = _state.selectedTaskId;
+    final dropSelection = selected != null && gone.contains(selected);
+    final selection = _state.selection;
+    _publish(
+      _state.copyWith(
+        projects: projects,
+        tasks: tasks,
+        expandedTaskIds: {..._state.expandedTaskIds}..removeAll(gone),
+        selection:
+            selection is ProjectSelection && selection.projectId == projectId
+            ? ProjectSelection(projects.first.id)
+            : selection,
+        clearSelectedTask: dropSelection,
+        clearDraft: dropSelection,
+        clearError: true,
+      ),
+    );
+    return Ok(doomed);
+  }
+
+  WorkspaceError? _deleteBlocked() {
+    if (_state.pending != null) {
+      return WorkspaceError.unsavedChangesPending;
+    }
+    if (_saving || _transitioning) {
+      return WorkspaceError.operationInProgress;
+    }
+    return null;
+  }
+
+  /// Returns true when the account may be left now (sign-out). Returns false
+  /// and opens the gate when there is a dirty draft; [WorkspaceState.signOutReady]
+  /// is set once the user has saved or discarded.
+  Future<bool> requestSignOut() async {
+    if (_transitioning || _state.pending != null) {
+      return false;
+    }
+    if (!_isDirty) {
+      return true;
+    }
+    _publish(
+      _state.copyWith(
+        pending: const PendingTransition(TransitionSignOut()),
+        clearError: true,
+      ),
+    );
+    return false;
+  }
+
+  /// Clears [WorkspaceState.signOutReady] after the sign-out was carried out.
+  void clearSignOutReady() {
+    _publish(_state.copyWith(signOutReady: false));
+  }
+
   // ------------------------------------------------------- internal: gate
 
   bool get _isDirty => _state.draft?.isDirty ?? false;
@@ -437,12 +588,13 @@ final class TaskWorkspace {
         ProjectSelection(projectId),
         _state.searchQuery,
       ),
+      TransitionSelectDashboard() => true,
       TransitionSearch(:final query) => !_stillVisible(
         draft.taskId,
         _state.selection,
         query,
       ),
-      TransitionCreate() || TransitionExit() => true,
+      TransitionCreate() || TransitionExit() || TransitionSignOut() => true,
     };
   }
 
@@ -458,6 +610,8 @@ final class TaskWorkspace {
         _publish(_withFilter(selection: SmartViewSelection(view)));
       case TransitionSelectProject(:final projectId):
         _publish(_withFilter(selection: ProjectSelection(projectId)));
+      case TransitionSelectDashboard():
+        _publish(_withFilter(selection: const DashboardSelection()));
       case TransitionSelectTask(:final taskId):
         _publish(_selectingTask(taskId));
       case TransitionSearch(:final query):
@@ -468,6 +622,15 @@ final class TaskWorkspace {
             clearPending: true,
             clearDraft: true,
             exitReady: true,
+          ),
+        );
+      case TransitionSignOut():
+        _publish(
+          _state.copyWith(
+            clearPending: true,
+            clearDraft: true,
+            clearSelectedTask: true,
+            signOutReady: true,
           ),
         );
       case TransitionCreate():
@@ -613,7 +776,14 @@ final class TaskWorkspace {
     final query = matchesSearch(candidate, next.searchQuery)
         ? next.searchQuery
         : '';
-    return next.copyWith(selection: selection, searchQuery: query);
+    // A filter that would hide the new task is cleared as well.
+    final filter = next.statusFilter;
+    final clearFilter = filter != null && candidate.status != filter;
+    return next.copyWith(
+      selection: selection,
+      searchQuery: query,
+      clearStatusFilter: clearFilter,
+    );
   }
 
   Future<Result<void, WorkspaceError>> _persistDraft(

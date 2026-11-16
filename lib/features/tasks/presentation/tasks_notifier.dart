@@ -33,6 +33,8 @@ final class TasksNotifier extends ChangeNotifier {
   void selectProject(String projectId) =>
       _workspace.requestSelectProject(projectId);
 
+  void selectDashboard() => _workspace.requestSelectDashboard();
+
   Future<Result<Project, WorkspaceError>> createProject(String name) =>
       _workspace.createProject(name);
 
@@ -66,6 +68,9 @@ final class TasksNotifier extends ChangeNotifier {
   void search(String query) => _workspace.requestSearch(query);
 
   void sort(TaskSort sort) => _workspace.requestSort(sort);
+
+  void filterStatus(TaskStatus? status) =>
+      _workspace.requestStatusFilter(status);
 
   void toggleExpanded(String taskId) => _workspace.toggleExpanded(taskId);
 
@@ -105,6 +110,43 @@ final class TasksNotifier extends ChangeNotifier {
       _workspace.resolvePending(resolution);
 
   Future<bool> requestExit() => _workspace.requestExit();
+
+  /// Number of subtasks under [taskId], for the confirm dialog.
+  int subtaskCountOf(String taskId) => _workspace.subtreeOf(taskId).length - 1;
+
+  int taskCountInProject(String projectId) => _workspace.state.tasks.values
+      .where((task) => task.projectId == projectId)
+      .length;
+
+  Future<Result<List<String>, WorkspaceError>> deleteTask(String taskId) =>
+      _workspace.deleteTask(taskId);
+
+  Future<Result<List<String>, WorkspaceError>> deleteProject(
+    String projectId,
+  ) => _workspace.deleteProject(projectId);
+
+  Future<void> Function()? _signOutAction;
+
+  /// Signs out through the unsaved-change gate: at once when nothing is
+  /// unsaved, otherwise after the user has saved or discarded.
+  Future<void> requestSignOut(Future<void> Function() action) async {
+    final allowed = await _workspace.requestSignOut();
+    if (allowed) {
+      await action();
+    } else {
+      _signOutAction = action;
+    }
+  }
+
+  /// Runs the sign-out the gate was holding, once the user allowed it.
+  Future<void> completeSignOut() async {
+    final action = _signOutAction;
+    _signOutAction = null;
+    _workspace.clearSignOutReady();
+    if (action != null) {
+      await action();
+    }
+  }
 
   @override
   void dispose() {
