@@ -37,7 +37,7 @@ The 15-row acceptance above is **not** complete and is not marked so. These chec
 | F6 | Search on its own row; wrap at narrow widths; **Ctrl+F with the real keyboard** from the list, sidebar, a filter chip and the Dashboard; focus ring visible on every control in both themes; panels resize by mouse and keyboard; overlay at 1024 unchanged | not run |
 | F7 | First launch opens maximized with the normal title bar; resize, close, reopen restores; unplug a monitor or change resolution: the window opens reachable (this is the first check of the native code, which CI only compiles) | not run |
 | F8 | About shows the version, short commit and build type, and they equal `BUILD-INFO.json` in the ZIP; the DEVELOPMENT TEST build is marked | not run |
-| F9 | The 18 regenerated goldens look right | regenerated on the Windows runner (`regenerate-goldens` run 43843747533, head `0bd2bff`) and committed; still needs the owner's look |
+| F9 | The 18 regenerated goldens look right | regenerated on the Windows runner (`regenerate-goldens` run 43864098418, head `011da25`) and committed; still needs the owner's look |
 
 ## Next-build checks (1.1.0+2; all **not run**; the 15 rows above and F1 to F9 stay as stated)
 Run on the CI-built portable ZIPs: the local-only release build and the sign-in **DEVELOPMENT TEST** build. Dark and Light; 100 % and 150 %; 1920x1080, 1366x768, 1024x768 and one width below 900. Rows F10 to F14 need the hosted due-time migration (`docs/operations/due-time-hosted-migration.md`, not applied, owner approval) and the existing TEST account.
