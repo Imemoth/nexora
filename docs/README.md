@@ -23,6 +23,7 @@
 | `architecture/phase-2a-data-contract-alignment.md` | alignment record | historical (written on the Phase 2A branch) | hosted status line corrected |
 | `architecture/decisions/0001-flutter-offline-first.md` | ADR | current | |
 | `architecture/decisions/0002-sync-protocol.md` | ADR | current | implementation-status table corrected |
+| `architecture/decisions/0003-phase-5-ui-ux.md` | ADR | current | Phase 5: Midnight theme, per-device theme preference, dashboard, status filter, quick add, delete, sign-out gate, sync severity |
 | `operations/phase-1-acceptance.md` | acceptance | historical record | |
 | `operations/phase-2a-windows-acceptance.md` | acceptance | historical record (owner pass) | |
 | `operations/phase-2b-apply-record.md` | apply record | historical record | |
@@ -48,6 +49,8 @@
 | `operations/release-acceptance-checklist.md` | checklist | current | V1 release acceptance with evidence lines |
 | `operations/conflict-resolution-ui-record-2026-11-13.md` | feature record | current | the V1 conflict resolution screens: indicator, list, comparison, decisions, failure handling, tests |
 | `operations/windows-signin-hang-fix-record-2026-11-13.md` | fix record | current | first sign-in hang: evidence, defects, native DPAPI, diagnostics, regression tests |
+| `operations/phase-5-implementation-record-2026-11-16.md` | implementation record | current evidence for Phase 5 | packages, presentation versus functional changes, changed tests, new tests, review points |
+| `operations/phase-5-acceptance.md` | checklist | current | Windows visual acceptance checklist for the owner (open) |
 | `operations/phase-4-implementation-record-2026-11-14.md` | implementation record | current evidence for Phase 4 | device-local reminders, tray, notifications, decisions, tests, limitations |
 | `operations/phase-3-integration-review-2026-11-14.md` | review | current | diff review against `main`, hosted/repository consistency, integration risks |
 | `operations/v1-rc-evidence-record.md` | evidence record | current | CI run ids for the release candidate code head |

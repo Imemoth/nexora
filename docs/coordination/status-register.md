@@ -1,6 +1,6 @@
 # Nexora status register (single source of truth)
 
-Last updated: 2026-11-14 (Phase 4 final acceptance and integration preparation), branch `claude/affectionate-turing-unzmd2`. **This file is the only place that states current phase and slice status, migration history, owner decisions with their approval status, gates and blockers.** Other documents describe design or evidence and link here; where another document disagrees with this register, this register is correct unless it cites that document as the exception. The documentation map is `docs/README.md`.
+Last updated: 2026-11-16 (Phase 5 implementation on `feature/phase-5-ui-ux`; Phase 4 merged as PR #18). **This file is the only place that states current phase and slice status, migration history, owner decisions with their approval status, gates and blockers.** Other documents describe design or evidence and link here; where another document disagrees with this register, this register is correct unless it cites that document as the exception. The documentation map is `docs/README.md`.
 
 Rules: (1) a recommendation is not an approval; only entries marked **approved** are decisions; (2) "implemented" requires an evidence path (section 7); (3) hosted changes happen only with explicit owner authorization.
 
@@ -29,7 +29,7 @@ Rules: (1) a recommendation is not an approval; only entries marked **approved**
 | **Phase 4 (Windows reminders, system tray, notifications)** | **Accepted for the current TEST environment** on the owner's manual Windows acceptance (owner statement 2026-11-14; all six checks passed: reminder creation and notification delivery; minimize to system tray; notification click opens the correct task; snooze, acknowledge and reschedule; reminder persistence without duplicate notifications; single-instance behaviour). Implemented on the development branch; **integration PR to `main` awaiting owner approval** | `docs/operations/phase-4-implementation-record-2026-11-14.md` |
 | Task reminders | **Implemented, device-local** (D-RM): SQLite schema v4 table `task_reminders`, local wall-clock times with DST rules, restart-safe claim, missed handling, snooze, acknowledge, in-app reminder list; never synchronized; no hosted change | implementation record |
 | Windows tray and notifications | **Implemented**: native runner code (tray icon, shell notifications, minimize to tray, single instance, tray Exit), Dart bridge `nexora/desktop` | implementation record |
-| Phase 5 UI/UX modernization | **Not started**; next development target | section 9 |
+| **Phase 5 UI/UX modernization (Midnight)** | **Implemented on `feature/phase-5-ui-ux` (from `main` at `bc12b30`); Draft pull request open; owner Windows acceptance pending; no merge.** Seven work packages: theme and fonts, workspace restyle, status/account/reminder surfaces, dashboard, status filter and quick add, delete task and project, tests and docs. No hosted change, no schema change. | `docs/operations/phase-5-implementation-record-2026-11-16.md`, `docs/architecture/decisions/0003-phase-5-ui-ux.md`, `docs/operations/phase-5-acceptance.md` |
 
 ## 2. Migration history
 | Repo file | Hosted version | State |
@@ -193,6 +193,7 @@ S2/S5 wire contract: `docs/architecture/s2-wire-contract.md` (authoritative for 
 | Phase 4 reminders, tray, notifications | `docs/operations/phase-4-implementation-record-2026-11-14.md`; tests `test/features/reminders/`, `test/platform/`, `test/app/reminder_ui_test.dart`, `test/runtime/reminder_runtime_test.dart`; native `windows/runner/desktop_integration.{h,cpp}`; `tool/windows_shell_smoke.ps1` |
 | Phase 4 CI (development head `914435c`, code head; later commits are documentation only) | Windows `CI` 43620789345; sync-enabled DEVELOPMENT TEST build 43621629032 (artifact `nexora-windows-sync-DEVELOPMENT-TEST`); PostgreSQL 17 `supabase-tests` 43621631547; `http-integration` 43621634472; `e2e-sync` 43621637048; `docs-check` 43621640442. The run ids for the final documentation head are in the integration report. |
 | Manual Windows acceptance, Phase 4 | owner statement 2026-11-14 (six checks listed in section 1); no screenshots or logs are stored in the repository |
+| Phase 5 | `docs/operations/phase-5-implementation-record-2026-11-16.md`; tests `test/app/phase5_ui_test.dart`, `test/app/sync_presentation_test.dart`, `test/features/tasks/application/{task_workspace_phase5,visibility_regression}_test.dart`, `test/features/tasks/data/workspace_delete_sqlite_test.dart`, goldens `test/golden/phase5_golden_test.dart`; CI run ids are in the pull request |
 
 ## 8. Contradictions that cannot be resolved from approved decisions
 1. ~~The corrected S5 specification text was missing~~ (B-3, B-16): supplied and incorporated 2026-11-12.
@@ -207,9 +208,10 @@ S2/S5 wire contract: `docs/architecture/s2-wire-contract.md` (authoritative for 
 ## 9. Remaining V1 work
 | Item | State |
 |---|---|
-| Phase 5: UI/UX modernization | **Next development target**; not started; scope to be set with the owner |
+| Phase 5: UI/UX modernization | implemented on `feature/phase-5-ui-ux`; waiting for the owner's Windows acceptance (`docs/operations/phase-5-acceptance.md`) and the merge decision |
 | Installer, signing, release packaging decision | not started; scope to be set by the owner |
 | Production hardening (Auth review, JWT expiry, log retention/purge, sign-up policy) | explicitly out of scope for now |
 | Synchronized reminders | not planned for V1 (D-RM); would need a hosted schema change, prepared locally and deployed only with separate authorization |
 | Test environment data (test@test.com, nx-accept-a/b@example.test, about 1,022 test tasks) | kept; must not be deleted without owner instruction |
-| Merge of Phase 4 into `main` | awaiting owner approval of the consolidated PR |
+| Merge of Phase 4 into `main` | done (PR #18) |
+| Merge of Phase 5 into `main` | awaiting the owner's acceptance and approval of the Draft PR |

@@ -23,7 +23,7 @@ The default RC never shows account controls. A synchronization build is made wit
 Account setup, when authorized: the owner creates the account in the Supabase dashboard (public sign-up is to be off), confirms the email address, and sets a password of at least 12 characters. In the app choose **Sign in**, enter email and password. A signed-out app shows "local only". An account starts **empty**: nothing is created or imported automatically. The window then offers **New project** and **Import local data**.
 
 ## 5. Importing your local projects into the account (manual, preview first)
-1. Choose **Import local data** (empty-account card or the bar at the top).
+1. Choose **Import local data** (empty-account card, or the account menu at the bottom of the sidebar).
 2. The preview lists the local projects that can be imported with their task counts and warnings: "Already imported into this account" (blocked unless you tick *Import again anyway*) and "A project with this name already exists". It also states how many records are **not offered** (local-only demo records, records of unknown origin, deleted records).
 3. Tick the projects, choose for each a destination (**New project** or an existing project to merge into; tasks that duplicate an existing task under the same parent are skipped) and press **Import selected**.
 4. Before anything is written the app makes a verified copy of the account database (`nexora.db.pre-import-<timestamp>.bak`, compared by content digest). The import is one all-or-nothing transaction. If anything fails, nothing is changed and the backup stays. The local workspace file is only read, never modified.
@@ -38,3 +38,13 @@ Account setup, when authorized: the owner creates the account in the Supabase da
 
 ## 7. Turning synchronization off
 Run the default build (no `NEXORA_SYNC`). The account databases stay on disk with their pending work; nothing is sent. Server-side kill switches are in `combined-hosted-acceptance-operation.md`, section 6.
+
+## 9. The Phase 5 window (Midnight)
+Phase 5 changes how Nexora looks and adds a few controls; your data and the sync behaviour are unchanged.
+- **Layout:** sidebar (Views: Dashboard, Today, Next 7 Days, Overdue, All; Projects with **+** for a new project), the task list in the centre, the task editor on the right (an overlay between 900 and 1099 px wide; below 900 px the list stays usable and a notice explains the minimum width).
+- **Account menu:** the row at the bottom of the sidebar ("Local workspace" or "Signed in as ...") opens a menu: **Theme** (System, Light, Dark; saved on this device, not in your account), **Import local data** and **Sign out** (signed-in builds only), **Keyboard shortcuts**. Signing out with unsaved edits asks first (Save, Discard, Cancel).
+- **Sync card:** the card above the account row tells the state in words (Up to date, Synchronizing, N changes waiting, Offline, N changes refused, N conflicts, Sign in needed, Device removed, Sync stopped, Local only) with its one action. Only conflicts, sign-in needed, device removed and sync stopped also show a bar across the top of the window; it goes away by itself when the problem is gone. The default build only ever shows "Local only".
+- **Task list:** status chips (All, Open, In progress, Review, Done) with counts, search, sort, and **quick add** (type a title and press Enter) at the top of the list. Dates read Today, Tomorrow, Mon 16 Nov, Overdue - Thu 12 Nov.
+- **Editor:** Save and Revert stay pinned at the top and show "Saved" or "Edited, not saved". The reminder block below the task is saved immediately, on this device only, and is not part of Save or Revert. **Delete task** (and **Delete project** from the selected project's menu) asks first, says how many subtasks or tasks go too, and cannot be undone; the last project cannot be deleted.
+- **Dashboard:** counts for Today, Overdue, Next 7 Days and All, the reminders on this device (with Dismiss all), what needs attention, the current sync state and project progress.
+

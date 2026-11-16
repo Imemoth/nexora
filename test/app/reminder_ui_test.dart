@@ -18,14 +18,22 @@ final class _Memory implements ReminderPersistence {
 
   final Map<String, ReminderTaskInfo> tasks;
   final Map<String, Reminder> rows = {};
+  int scheduleCalls = 0;
 
   @override
   Reminder? get(String id) => rows[id];
   @override
   List<Reminder> all() => rows.values.toList();
   @override
-  void schedule(String id, LocalWallTime wall, DateTime now) => rows[id] =
-      Reminder(taskId: id, remindAt: wall, state: ReminderState.scheduled);
+  void schedule(String id, LocalWallTime wall, DateTime now) {
+    scheduleCalls++;
+    rows[id] = Reminder(
+      taskId: id,
+      remindAt: wall,
+      state: ReminderState.scheduled,
+    );
+  }
+
   @override
   bool cancel(String id) => rows.remove(id) != null;
   @override
@@ -108,7 +116,12 @@ final class _FakeDesktop implements DesktopIntegration {
 final _noon = DateTime.utc(2026, 11, 14, 17);
 
 Future<
-  ({TasksNotifier notifier, ReminderService service, _FakeDesktop desktop})
+  ({
+    TasksNotifier notifier,
+    ReminderService service,
+    _FakeDesktop desktop,
+    _Memory memory,
+  })
 >
 _pump(
   WidgetTester tester, {
@@ -141,7 +154,12 @@ _pump(
     ),
   );
   await tester.pumpAndSettle();
-  return (notifier: notifier, service: service, desktop: desktop);
+  return (
+    notifier: notifier,
+    service: service,
+    desktop: desktop,
+    memory: memory,
+  );
 }
 
 void main() {
@@ -351,5 +369,159 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('reminder-ack')));
     await tester.pumpAndSettle();
     expect(h.service.due, isEmpty);
+  });
+
+  testWidgets(
+    'reminder actions never touch the draft; Revert leaves the reminder',
+    (tester) async {
+      final h = await _pump(tester);
+      h.notifier.selectTask('a');
+      h.notifier.editDraft(title: 'Alpha edited');
+      await tester.pumpAndSettle();
+      expect(h.notifier.state.draft!.isDirty, isTrue);
+
+      // set
+      await tester.tap(find.byKey(const ValueKey('reminder-button')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('reminder-date')),
+        '2026-11-20',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('reminder-time')),
+        '08:30',
+      );
+      await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+      await tester.pumpAndSettle();
+      expect(h.service.reminderFor('a'), isNotNull);
+      expect(h.notifier.state.draft!.title, 'Alpha edited');
+      expect(h.notifier.state.draft!.isDirty, isTrue);
+
+      // change
+      h.service.setReminder('a', const LocalWallTime(2026, 11, 21, 9, 0));
+      await tester.pumpAndSettle();
+      expect(h.notifier.state.draft!.isDirty, isTrue);
+
+      // snooze
+      h.service.snooze('a', const Duration(minutes: 10));
+      await tester.pumpAndSettle();
+      expect(h.notifier.state.draft!.isDirty, isTrue);
+
+      // Revert undoes the title, not the reminder.
+      h.notifier.revertDraft();
+      await tester.pumpAndSettle();
+      expect(h.notifier.state.draft!.isDirty, isFalse);
+      expect(h.service.reminderFor('a'), isNotNull);
+
+      // remove: still no effect on a (new) dirty draft
+      h.notifier.editDraft(title: 'again');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reminder-clear')));
+      await tester.pumpAndSettle();
+      expect(h.service.reminderFor('a'), isNull);
+      expect(h.notifier.state.draft!.isDirty, isTrue);
+    },
+  );
+
+  testWidgets('the inline editor makes one setReminder call with both values', (
+    tester,
+  ) async {
+    final h = await _pump(tester);
+    h.notifier.selectTask('a');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('reminder-button')));
+    await tester.pumpAndSettle();
+    // Defaults: tomorrow at 09:00 (the fake clock is 2026-11-14 12:00 local).
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('reminder-date')))
+          .controller!
+          .text,
+      '2026-11-15',
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('reminder-time')))
+          .controller!
+          .text,
+      '09:00',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-date')),
+      '2026-11-18',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-time')),
+      '07:45',
+    );
+    await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+    await tester.pumpAndSettle();
+    expect(h.memory.scheduleCalls, 1);
+    expect(
+      h.service.reminderFor('a')!.remindAt,
+      const LocalWallTime(2026, 11, 18, 7, 45),
+    );
+    // The editor closed and a snackbar confirmed.
+    expect(find.byKey(const ValueKey('reminder-date')), findsNothing);
+    expect(find.text(ReminderStrings.saved), findsOneWidget);
+  });
+
+  testWidgets('a past time shows the error, keeps the editor open, no call', (
+    tester,
+  ) async {
+    final h = await _pump(tester);
+    h.notifier.selectTask('a');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('reminder-button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-date')),
+      '2026-11-14',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('reminder-time')),
+      '09:00',
+    );
+    await tester.tap(find.byKey(const ValueKey('reminder-submit')));
+    await tester.pumpAndSettle();
+    expect(find.text(ReminderStrings.errorInPast), findsOneWidget);
+    expect(find.byKey(const ValueKey('reminder-date')), findsOneWidget);
+    expect(h.memory.scheduleCalls, 0);
+  });
+
+  testWidgets('Cancel closes the editor without a call', (tester) async {
+    final h = await _pump(tester);
+    h.notifier.selectTask('a');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('reminder-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('reminder-cancel')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('reminder-date')), findsNothing);
+    expect(h.memory.scheduleCalls, 0);
+  });
+
+  testWidgets('deleting a task cancels its reminder, subtasks included', (
+    tester,
+  ) async {
+    final h = await _pump(tester);
+    h.service.setReminder('a', const LocalWallTime(2026, 11, 20, 8, 30));
+    h.notifier.selectTask('a');
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('delete-task')),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('details-pane')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(find.byKey(const ValueKey('delete-task')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('delete-confirm')));
+    await tester.pumpAndSettle();
+    expect(h.service.reminderFor('a'), isNull);
   });
 }
