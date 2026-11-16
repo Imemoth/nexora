@@ -22,6 +22,9 @@ build_control() {
     case "$f" in
       *_nexora_sync_protocol_schema.sql) sed 's/perform nexora_private.lock_user(new.owner_id);/null;/; s/perform nexora_private.lock_user(old.owner_id);/null;/' "$f" | $PS -d "$CTRL" >/dev/null;;
       *_nexora_sync_push.sql|*_nexora_sync_throttle.sql|*_nexora_sync_response_bound.sql) sed 's/perform nexora_private.lock_user(v_user);/null;/' "$f" | $PS -d "$CTRL" >/dev/null;;
+      # The due-time migration re-installs guard_row and register_device (with their locks): the control must lose them
+      # there too, or the later definition would restore the lock and the control would stop being a control.
+      *_nexora_due_time.sql) sed 's/perform nexora_private.lock_user(new.owner_id);/null;/; s/perform nexora_private.lock_user(old.owner_id);/null;/; s/perform nexora_private.lock_user(v_user);/null;/' "$f" | $PS -d "$CTRL" >/dev/null;;
       *) $PS -d "$CTRL" -f "$f" >/dev/null;;
     esac
   done
