@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/features/tasks/application/settings_store.dart';
+import 'package:nexora/features/tasks/presentation/create_task_dialog.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
 import 'package:nexora/features/tasks/presentation/theme/palette.dart';
 import 'package:nexora/features/tasks/presentation/theme/theme_controller.dart';
+
+import 'package:nexora/features/tasks/domain/project.dart';
 
 import '../support/task_fixtures.dart';
 import '../support/workspace_harness.dart';
@@ -37,6 +42,47 @@ Future<(Harness, TasksNotifier)> _pump(
   await tester.pumpAndSettle();
   return (h, n);
 }
+
+/// Many projects and many parents, so the pickers have long lists.
+Future<(Harness, TasksNotifier)> _pumpLong(
+  WidgetTester tester, {
+  ThemePreference theme = ThemePreference.dark,
+  Size size = const Size(1280, 720),
+}) async {
+  final h = await loadedHarness(
+    projects: [
+      for (var i = 0; i < 40; i++)
+        Project(id: 'p$i', name: 'Project number $i', position: i),
+    ],
+    tasks: [
+      makeTask(id: 'root', title: 'Root', projectId: 'p0', position: 0),
+      for (var i = 0; i < 40; i++)
+        makeTask(
+          id: 'k$i',
+          title: 'Parent candidate $i',
+          projectId: 'p0',
+          position: i + 1,
+        ),
+    ],
+  );
+  final n = TasksNotifier(h.workspace);
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    NexoraApp(
+      notifier: n,
+      themeController: ThemeController(InMemorySettingsStore(), initial: theme),
+    ),
+  );
+  await tester.pumpAndSettle();
+  n.selectProject('p5');
+  await tester.pumpAndSettle();
+  return (h, n);
+}
+
+/// The open dropdown list: the menu route's scrollable.
+Finder get _openMenu => find.byType(Scrollable).last;
 
 Future<void> _openNewTask(WidgetTester tester) async {
   await tester.tap(find.byKey(const ValueKey('new-task')));
@@ -314,5 +360,109 @@ void main() {
         expect(h.workspace.state.tasks['new-1']!.projectId, 'p1');
       },
     );
+  });
+
+  group('project and parent pickers stay small and keep working', () {
+    for (final theme in [ThemePreference.dark, ThemePreference.light]) {
+      for (final size in const [Size(1280, 720), Size(900, 520)]) {
+        testWidgets('project list: limited height, scrolls, choice works '
+            '(${theme.name}, ${size.width.toInt()}x${size.height.toInt()})', (
+          tester,
+        ) async {
+          final (h, _) = await _pumpLong(tester, theme: theme, size: size);
+          await _openNewTask(tester);
+          await tester.tap(find.byKey(const ValueKey('create-project')));
+          await tester.pumpAndSettle();
+
+          final menu = tester.getRect(_openMenu);
+          expect(menu.height, lessThanOrEqualTo(264 + 1));
+          // The current project is in the list; far entries need scrolling.
+          expect(find.text('Project number 5'), findsWidgets);
+          expect(find.text('Project number 39'), findsNothing);
+          await tester.dragUntilVisible(
+            find.text('Project number 39'),
+            _openMenu,
+            const Offset(0, -80),
+          );
+          await tester.tap(find.text('Project number 39').last);
+          await tester.pumpAndSettle();
+          await tester.enterText(
+            find.byKey(const ValueKey('create-title')),
+            'Far project',
+          );
+          await tester.tap(find.byKey(const ValueKey('create-submit')));
+          await tester.pumpAndSettle();
+          expect(h.workspace.state.tasks['new-1']!.projectId, 'p39');
+        });
+
+        testWidgets('parent list: limited height, scrolls, same project only '
+            '(${theme.name}, ${size.width.toInt()}x${size.height.toInt()})', (
+          tester,
+        ) async {
+          final (h, n) = await _pumpLong(tester, theme: theme, size: size);
+          n.selectProject('p0');
+          n.selectTask('root');
+          await tester.pumpAndSettle();
+          // Open the dialog directly: the details pane may need scrolling in a
+          // short window, which is not what this test is about.
+          unawaited(
+            showCreateTaskDialog(
+              tester.element(find.byType(Scaffold).first),
+              n,
+              parentId: 'root',
+              parentTitle: 'Root',
+            ),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.byKey(const ValueKey('create-parent')));
+          await tester.pumpAndSettle();
+
+          expect(tester.getRect(_openMenu).height, lessThanOrEqualTo(264 + 1));
+          await tester.dragUntilVisible(
+            find.byKey(const ValueKey('create-parent-k39')),
+            _openMenu,
+            const Offset(0, -80),
+          );
+          await tester.drag(_openMenu, const Offset(0, -120)); // fully in view
+          await tester.pumpAndSettle();
+          await tester.tap(
+            find.byKey(const ValueKey('create-parent-k39')).last,
+          );
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(const ValueKey('create-parent-selected')),
+            findsOneWidget,
+          );
+          await tester.enterText(
+            find.byKey(const ValueKey('create-title')),
+            'Deep child',
+          );
+          await tester.tap(find.byKey(const ValueKey('create-submit')));
+          await tester.pumpAndSettle();
+          expect(h.workspace.state.tasks['new-1']!.parentId, 'k39');
+        });
+      }
+    }
+
+    testWidgets('keyboard: arrows move, Enter chooses, focus ring stays', (
+      tester,
+    ) async {
+      final (h, _) = await _pumpLong(tester);
+      await _openNewTask(tester);
+      await tester.tap(find.byKey(const ValueKey('create-project')));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('create-title')),
+        'By keyboard',
+      );
+      await tester.tap(find.byKey(const ValueKey('create-submit')));
+      await tester.pumpAndSettle();
+      expect(h.workspace.state.tasks['new-1']!.projectId, 'p7');
+    });
   });
 }

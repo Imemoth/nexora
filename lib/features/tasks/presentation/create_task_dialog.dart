@@ -28,6 +28,13 @@ Future<bool?> showCreateTaskDialog(
   );
 }
 
+/// The open list of the project and parent pickers: it never grows past about
+/// five rows (a long list scrolls) so it cannot cover the dialog, also at 150 %
+/// scaling and in a short window. It takes the dialog family's colour and
+/// corner radius instead of the plain canvas colour.
+const double _pickerMenuMaxHeight = 264;
+const double _pickerMenuRadius = 12;
+
 /// Creates a root task or a subtask. A validation or save error keeps the
 /// dialog open with the typed title. A creation that opens the unsaved-change
 /// gate closes this dialog, and the gate takes over.
@@ -171,6 +178,9 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
                     child: DropdownButton<String>(
                       key: const ValueKey('create-project'),
                       isExpanded: true,
+                      menuMaxHeight: _pickerMenuMaxHeight,
+                      borderRadius: BorderRadius.circular(_pickerMenuRadius),
+                      dropdownColor: NexoraColors.of(context).surface2,
                       value: _projectId,
                       items: [
                         for (final project in projects)
@@ -301,6 +311,9 @@ class _ParentPicker extends StatelessWidget {
               DropdownButton<String>(
                 key: const ValueKey('create-parent'),
                 isExpanded: true,
+                menuMaxHeight: _pickerMenuMaxHeight,
+                borderRadius: BorderRadius.circular(_pickerMenuRadius),
+                dropdownColor: c.surface2,
                 value: selected,
                 itemHeight: null,
                 underline: const SizedBox.shrink(),
