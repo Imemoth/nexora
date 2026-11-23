@@ -18,7 +18,9 @@ Future<Harness> _demo() async {
 }
 
 Future<void> _pump(WidgetTester tester, Harness harness) async {
-  tester.view.physicalSize = const Size(1280, 800);
+  // Was 1280x800. Search has its own row, and parents now show their children,
+  // so the demo list is longer than the viewport plus the list's cache extent.
+  tester.view.physicalSize = const Size(1280, 1300);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -68,6 +70,8 @@ void main() {
     testWidgets('collapsed children are not built', (tester) async {
       final harness = await _demo();
       await _pump(tester, harness);
+      await tester.tap(find.byKey(const ValueKey('chevron-home-trip')));
+      await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('row-home-trip-train')), findsNothing);
       expect(find.byKey(const ValueKey('row-home-trip-bags')), findsNothing);
@@ -79,17 +83,22 @@ void main() {
         final harness = await _demo();
         await _pump(tester, harness);
 
+        // Expanded by default: the children are already there.
+        expect(
+          find.byKey(const ValueKey('row-home-trip-bags')),
+          findsOneWidget,
+        );
+        await tester.tap(find.byKey(const ValueKey('chevron-home-trip')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('row-home-trip-bags')), findsNothing);
+        expect(harness.workspace.state.selectedTaskId, isNull);
+
         await tester.tap(find.byKey(const ValueKey('chevron-home-trip')));
         await tester.pumpAndSettle();
         expect(
           find.byKey(const ValueKey('row-home-trip-bags')),
           findsOneWidget,
         );
-        expect(harness.workspace.state.selectedTaskId, isNull);
-
-        await tester.tap(find.byKey(const ValueKey('chevron-home-trip')));
-        await tester.pumpAndSettle();
-        expect(find.byKey(const ValueKey('row-home-trip-bags')), findsNothing);
       },
     );
 
@@ -109,7 +118,13 @@ void main() {
       expect(
         _inRow(
           'home-utility',
-          find.text(AppStrings.dueLabel(const CalendarDate(2026, 11, 10))),
+          find.text(
+            AppStrings.friendlyDue(
+              const CalendarDate(2026, 11, 10),
+              testToday,
+              closed: false,
+            ),
+          ),
         ),
         findsOneWidget,
       );
@@ -148,8 +163,7 @@ void main() {
     ) async {
       final harness = await _demo();
       await _pump(tester, harness);
-      await tester.tap(find.byKey(const ValueKey('chevron-home-trip')));
-      await tester.pumpAndSettle();
+      // Expanded by default: select the child directly.
       await tester.tap(find.byKey(const ValueKey('row-home-trip-bags')));
       await tester.pumpAndSettle();
 

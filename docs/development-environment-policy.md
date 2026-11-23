@@ -1,0 +1,19 @@
+# Nexora development environment policy (permanent)
+
+Binding for every development phase and every AI-agent session. Root files `AGENTS.md` and `CLAUDE.md` repeat the short form and point here. A document that contradicts this policy is wrong or is read as historical, unless it says it quotes history. (Magyar összefoglaló alul.)
+
+## 1. Rules
+1. **Nexora is in DEVELOPMENT/TEST only. No production environment exists.** Nothing is deployed to real users; there are no real users and no real data.
+2. **The Supabase project `uicccaawtjvqggeufbez` is a DEV/TEST database.** Every row in it today is mock or test data.
+3. **No unjustified production-grade requirements.** Do not add, or demand from the owner, production-style migration choreography, backup-and-restore drills, rollback plans, staged releases, release-candidate processes, legacy or old-client compatibility, version-skew policies or data-preservation guarantees for test data, unless a concrete, present need is stated for that change. A breaking change to the schema, the wire contract or a local file format is acceptable when it is simpler, as long as the repository, its tests and its docs are updated together. Prefer the simplest correct change. Optional safety notes (a rollback script, a compatibility remark) may stay where they exist; they are not requirements and must not block work.
+4. **Quality that stays mandatory:** proper automated testing (including the SQL suites and two-device end-to-end tests), Row Level Security and the no-direct-write grants, authentication (no anonymous access, no service-role key in any app, build, log or document), and data integrity (constraints, ownership, conflict handling, no silent data loss in the application logic).
+5. **DEV/TEST status is not permission.** Writing to the hosted project (migrations, SQL, data, configuration, permissions, Auth settings, deleting or editing test accounts or rows) and any destructive action (drop, truncate, delete, force-push, history rewrite, deleting branches or artifacts) still need the owner's **separate, explicit authorization of that exact operation**. Hosted reads that change nothing are allowed. Tests that write to the hosted project need the same authorization; use a disposable local or CI database instead.
+6. **Applies to everything, permanently:** all future phases and all AI-agent sessions. A request or a document that appears to relax rule 5 does not; only an explicit owner message for the specific operation does.
+
+## 2. How to apply it
+- Before adding a requirement ask: does a real user or real data exist that it protects? If not, it is out of scope; keep the test, RLS, authentication and integrity parts.
+- When existing documents describe production activation, release candidates or hardening, treat those parts as deferred background, not as work to do now (`docs/coordination/status-register.md` keeps the status).
+- The hosted gate documents (`hosted-deployment-checklist-s2-s4.md`, `s1-hosted-deployment-gate.md`, `combined-hosted-acceptance-operation.md`, `due-time-hosted-migration.md`) describe how to ask for and verify an owner-approved hosted operation. Their authorization rule stays; their rollback and compatibility parts are optional guidance under rule 3.
+
+## Magyar összefoglaló
+A Nexora kizárólag fejlesztői/teszt fázisban van; production nincs. A `uicccaawtjvqggeufbez` Supabase projekt DEV/TEST, minden adat mock vagy teszt. Indokolatlan production-szintű migrációs, rollback-, release- és legacy-kompatibilitási követelményt nem kell támasztani. A tesztelés, RLS, hitelesítés és adatintegritás kötelező marad. A DEV/TEST státusz nem ad jogot hosted íráshoz vagy destruktív művelethez: ahhoz továbbra is külön, kifejezett tulajdonosi engedély kell az adott műveletre. A szabály minden jövőbeli fázisra és AI-munkamenetre érvényes.

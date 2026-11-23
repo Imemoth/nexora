@@ -4,6 +4,7 @@ import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_completion_tree.dart';
 import 'package:nexora/features/tasks/domain/task_ordering.dart';
 import 'package:nexora/features/tasks/domain/task_search.dart';
+import 'package:nexora/features/tasks/domain/task_status.dart';
 
 import 'nav_selection.dart';
 import 'visible_task_row.dart';
@@ -13,6 +14,8 @@ bool inSelection(Task task, NavSelection selection, CalendarDate today) {
   return switch (selection) {
     SmartViewSelection(:final view) => matchesSmartView(task, view, today),
     ProjectSelection(:final projectId) => task.projectId == projectId,
+    // The dashboard lists no tasks of its own.
+    DashboardSelection() => false,
   };
 }
 
@@ -37,10 +40,13 @@ List<VisibleTaskRow> buildVisibleRows({
   required TaskSort sort,
   required Set<String> expandedIds,
   required CalendarDate today,
+  TaskStatus? statusFilter,
 }) {
   final matching = [
     for (final task in tasks.values)
-      if (matchesFilter(task, selection, query, today)) task,
+      if (matchesFilter(task, selection, query, today) &&
+          (statusFilter == null || task.status == statusFilter))
+        task,
   ];
   final entries = flattenTasks(
     tasks: matching,

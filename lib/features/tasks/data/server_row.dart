@@ -2,6 +2,8 @@
 /// representation, shared by the pull applier and the recovery actions.
 library;
 
+import 'entity_patch.dart' show normalizeDueTime;
+
 /// A server timestamp such as `2026-11-12T19:57:16.87415+00:00` as local ISO UTC.
 String? normalizeServerTimestamp(Object? value) {
   if (value is! String) {
@@ -18,6 +20,8 @@ Object? serverColumnValue(String field, Map<String, Object?> row) {
       return value ?? '';
     case 'sort_order':
       return value is num ? value.toInt() : 0;
+    case 'due_time':
+      return normalizeDueTime(value);
     case 'completed_at':
     case 'deleted_at':
       return normalizeServerTimestamp(value);

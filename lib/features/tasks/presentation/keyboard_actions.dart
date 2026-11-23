@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:nexora/features/tasks/application/nav_selection.dart';
 import 'package:nexora/features/tasks/application/visible_task_row.dart';
+import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
 
 import 'create_task_dialog.dart';
@@ -51,6 +53,9 @@ final class TaskKeyboardFocus {
   /// The search field.
   final FocusNode search = FocusNode(debugLabel: 'task-search');
 
+  /// The quick-add field above the list.
+  final FocusNode quickAdd = FocusNode(debugLabel: 'quick-add');
+
   /// The details title field.
   final FocusNode title = FocusNode(debugLabel: 'details-title');
 
@@ -81,6 +86,17 @@ final class TaskCommands {
   /// consumed, so the key reaches the focused text field or widget.
   bool isEnabled(TaskCommand command) {
     final typingInSearch = focus.search.hasPrimaryFocus;
+    // Typing a new title: Enter and the arrows belong to the text field.
+    if (focus.quickAdd.hasPrimaryFocus) {
+      return switch (command) {
+        TaskCommand.moveUp ||
+        TaskCommand.moveDown ||
+        TaskCommand.expand ||
+        TaskCommand.collapse ||
+        TaskCommand.focusTitle => false,
+        _ => true,
+      };
+    }
     return switch (command) {
       TaskCommand.moveUp ||
       TaskCommand.moveDown ||
@@ -110,7 +126,7 @@ final class TaskCommands {
       case TaskCommand.escape:
         _escape();
       case TaskCommand.focusSearch:
-        focus.search.requestFocus();
+        _focusSearch();
       case TaskCommand.newTask:
         unawaited(_openCreate(context));
       case TaskCommand.newSubtask:
@@ -129,6 +145,24 @@ final class TaskCommands {
           unawaited(notifier.saveDraft());
         }
     }
+  }
+
+  /// Focuses the search field. The Dashboard has none, so Ctrl+F leaves it for
+  /// the All view (through the unsaved-change gate like any navigation) and
+  /// focuses search once that list is built. If the gate opens instead, focus
+  /// stays with the decision.
+  void _focusSearch() {
+    if (notifier.state.selection is! DashboardSelection) {
+      focus.search.requestFocus();
+      return;
+    }
+    notifier.selectView(SmartView.all);
+    if (notifier.state.selection is DashboardSelection) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => TaskKeyboardFocus.restore(focus.search),
+    );
   }
 
   VisibleTaskRow? _selectedRow() {
@@ -221,6 +255,10 @@ final class TaskCommands {
   /// the list keymap does not receive keys, and the dialog cannot be dismissed
   /// with Esc.
   void _escape() {
+    if (focus.quickAdd.hasPrimaryFocus) {
+      focus.list.requestFocus();
+      return;
+    }
     if (focus.search.hasPrimaryFocus) {
       if (notifier.state.searchQuery.isNotEmpty) {
         notifier.search('');

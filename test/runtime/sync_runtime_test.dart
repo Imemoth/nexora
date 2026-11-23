@@ -104,6 +104,71 @@ void main() {
     expect(runtime.syncPanel().initial.phase, isNot(SyncPhase.idle));
   });
 
+  group('due time capability (ADR 0004)', () {
+    test('the local workspace always allows a time', () async {
+      final runtime = build();
+      await runtime.start();
+      addTearDown(runtime.dispose);
+      expect(runtime.active.workspace.dueTimeSupported, isTrue);
+    });
+
+    test('a signed-in workspace follows what the server reported', () async {
+      final runtime = build();
+      await runtime.start();
+      addTearDown(runtime.dispose);
+      await runtime.signIn('a@example.test', 'pw');
+      // Unknown until the server was asked: conservative, no time.
+      expect(runtime.active.workspace.dueTimeSupported, isFalse);
+
+      servers.putIfAbsent(userA, FakeSyncServer.new).features = ['due_time'];
+      await runtime.syncNow();
+      expect(runtime.active.workspace.dueTimeSupported, isTrue);
+    });
+
+    test('an older server leaves it off, and a later answer without the feature turns it off again', () async {
+      final runtime = build();
+      await runtime.start();
+      addTearDown(runtime.dispose);
+      await runtime.signIn('a@example.test', 'pw');
+      await runtime.syncNow();
+      expect(runtime.active.workspace.dueTimeSupported, isFalse);
+
+      final server = servers[userA]!..features = ['due_time'];
+      await runtime.dispose();
+      final again = build();
+      await again.start();
+      addTearDown(again.dispose);
+      await again.syncNow();
+      expect(again.active.workspace.dueTimeSupported, isTrue);
+
+      server.features = null; // the migration was rolled back
+      await again.dispose();
+      final third = build();
+      await third.start();
+      addTearDown(third.dispose);
+      await third.syncNow();
+      expect(third.active.workspace.dueTimeSupported, isFalse);
+    });
+
+    test(
+      'the last answer is remembered offline (restart without a network)',
+      () async {
+        final runtime = build();
+        await runtime.start();
+        await runtime.signIn('a@example.test', 'pw');
+        servers.putIfAbsent(userA, FakeSyncServer.new).features = ['due_time'];
+        await runtime.syncNow();
+        await runtime.dispose();
+
+        final restarted = build();
+        final active = await restarted.start();
+        addTearDown(restarted.dispose);
+        expect(active.userId, userA);
+        expect(active.workspace.dueTimeSupported, isTrue); // no sync ran yet
+      },
+    );
+  });
+
   test(
     'sign-in opens the account database, builds the engine and synchronizes',
     () async {

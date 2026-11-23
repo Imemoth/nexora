@@ -4,10 +4,12 @@ import 'package:nexora/core/ids/id_generator.dart';
 import 'package:nexora/core/result.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
 import 'package:nexora/features/tasks/domain/clock.dart';
+import 'package:nexora/features/tasks/domain/due_time.dart';
 import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/smart_view.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_creation_rules.dart';
+import 'package:nexora/features/tasks/domain/task_deletion.dart';
 import 'package:nexora/features/tasks/domain/task_ordering.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
 import 'package:nexora/features/tasks/domain/task_search.dart';
@@ -34,11 +36,23 @@ final class TaskWorkspace {
     required this.repository,
     required this.clock,
     required this.ids,
-  }) : _state = WorkspaceState.initial(clock.today());
+    bool dueTimeSupported = true,
+    bool Function()? dueTimeSupportOf,
+  }) : _dueTimeFixed = dueTimeSupported,
+       _dueTimeOf = dueTimeSupportOf,
+       _state = WorkspaceState.initial(clock.today());
 
   final TaskRepository repository;
   final Clock clock;
   final IdGenerator ids;
+
+  /// Whether a due date may carry a time of day. A signed-in workspace follows
+  /// what its server reported (ADR 0004): off until the server lists `due_time`,
+  /// then on; [dueTimeSupportOf] is asked every time, so a server that is migrated
+  /// (or rolled back) takes effect at the next refresh without a restart.
+  bool get dueTimeSupported => _dueTimeOf?.call() ?? _dueTimeFixed;
+  final bool _dueTimeFixed;
+  final bool Function()? _dueTimeOf;
   final StreamController<WorkspaceState> _controller =
       StreamController<WorkspaceState>.broadcast();
   WorkspaceState _state;
@@ -50,6 +64,10 @@ final class TaskWorkspace {
   /// saves, creates and a second resolution are refused meanwhile, so a
   /// transition is never executed twice or interleaved.
   bool _transitioning = false;
+
+  /// An incoming refresh arrived while a save or transition ran. It runs when
+  /// that operation ends, so incoming data is never dropped or applied midway.
+  bool _refreshQueued = false;
 
   /// Emits the new state after every change.
   Stream<WorkspaceState> get states => _controller.stream;
@@ -71,6 +89,10 @@ final class TaskWorkspace {
         _state.copyWith(
           projects: projects,
           tasks: {for (final task in tasks) task.id: task},
+          // A fresh load presents the tree anew: the default expansion applies
+          // again (see `_withDefaultExpansion`).
+          expandedTaskIds: const {},
+          expansionDefaulted: const {},
           loading: false,
           clearSelectedTask: true,
           clearDraft: true,
@@ -122,40 +144,111 @@ final class TaskWorkspace {
     return Ok(project);
   }
 
-  /// Re-reads projects and tasks after a synchronization changed storage.
-  /// While a draft or a pending decision exists nothing is replaced and false is
-  /// returned: a stale draft must never overwrite what was pulled. The selection
-  /// stays unless the selected task no longer exists.
+  /// Re-reads projects and tasks after a synchronization changed storage and
+  /// publishes them, so lists, counts, the Dashboard and the selected task
+  /// follow without any navigation.
+  ///
+  /// Returns true when the incoming data was applied now. It returns false when
+  /// a save or decision is running (the refresh is queued and runs afterwards)
+  /// or when storage could not be read (nothing changes).
+  ///
+  /// The selection is kept unless its task no longer exists. The draft is
+  /// never replaced by incoming data while it holds unsaved edits:
+  /// * a clean draft simply follows the stored task;
+  /// * a dirty draft keeps every edited field and takes incoming values only
+  ///   for fields the user did not touch; [WorkspaceState.incoming] tells the
+  ///   user, and Revert loads the incoming version;
+  /// * if the task was deleted incoming, a clean draft is closed, and a dirty
+  ///   one is kept (Save refused) until the user discards it.
   Future<bool> refresh() async {
-    if (_busyForRefresh) {
+    if (_saving || _transitioning) {
+      _refreshQueued = true;
       return false;
     }
+    final List<Project> projects;
+    final List<Task> tasks;
     try {
-      final projects = await repository.loadProjects();
-      final tasks = await repository.loadTasks();
-      if (_busyForRefresh) {
-        return false;
-      }
-      final map = {for (final task in tasks) task.id: task};
-      final selected = _state.selectedTaskId;
-      _publish(
-        _state.copyWith(
-          projects: projects,
-          tasks: map,
-          clearSelectedTask: selected != null && !map.containsKey(selected),
-        ),
-      );
-      return true;
+      projects = await repository.loadProjects();
+      tasks = await repository.loadTasks();
     } on RepositoryException {
       return false;
     }
+    if (_saving || _transitioning) {
+      _refreshQueued = true;
+      return false;
+    }
+    _publish(_applyIncoming(projects, {for (final t in tasks) t.id: t}));
+    return true;
   }
 
-  bool get _busyForRefresh =>
-      _state.draft != null ||
-      _state.pending != null ||
-      _saving ||
-      _transitioning;
+  WorkspaceState _applyIncoming(
+    List<Project> projects,
+    Map<String, Task> tasks,
+  ) {
+    final selectedId = _state.selectedTaskId;
+    final draft = _state.draft;
+    final selection = _state.selection;
+    final next = _state.copyWith(
+      projects: projects,
+      tasks: tasks,
+      expandedTaskIds: {
+        for (final id in _state.expandedTaskIds)
+          if (tasks.containsKey(id)) id,
+      },
+      selection:
+          selection is ProjectSelection &&
+              !projects.any((p) => p.id == selection.projectId)
+          ? const SmartViewSelection(SmartView.all)
+          : selection,
+    );
+    if (selectedId == null || draft == null) {
+      return next;
+    }
+    final stored = tasks[selectedId];
+    if (stored == null) {
+      return draft.isDirty
+          ? next.copyWith(incoming: const IncomingNotice(IncomingKind.deleted))
+          : next.copyWith(
+              clearSelectedTask: true,
+              clearDraft: true,
+              clearIncoming: true,
+            );
+    }
+    if (_sameContent(draft.base, stored)) {
+      return next;
+    }
+    if (!draft.isDirty) {
+      return next.copyWith(
+        draft: EditDraft.fromTask(stored),
+        clearIncoming: true,
+      );
+    }
+    final merge = draft.mergeIncoming(stored);
+    return next.copyWith(
+      draft: merge.draft,
+      incoming: IncomingNotice(IncomingKind.updated, merge.overlap),
+    );
+  }
+
+  bool _sameContent(Task a, Task b) {
+    return a.projectId == b.projectId &&
+        a.parentId == b.parentId &&
+        a.title == b.title &&
+        a.status == b.status &&
+        a.priority == b.priority &&
+        a.dueDate == b.dueDate &&
+        a.dueTime == b.dueTime &&
+        a.notes == b.notes &&
+        a.position == b.position;
+  }
+
+  /// Runs a refresh that arrived while a save or transition was running.
+  void _drainQueuedRefresh() {
+    if (_refreshQueued && !_saving && !_transitioning) {
+      _refreshQueued = false;
+      unawaited(refresh());
+    }
+  }
 
   // ------------------------------------------------- navigation and visibility
 
@@ -165,6 +258,10 @@ final class TaskWorkspace {
 
   void requestSelectProject(String projectId) {
     _request(TransitionSelectProject(projectId));
+  }
+
+  void requestSelectDashboard() {
+    _request(const TransitionSelectDashboard());
   }
 
   /// Selects [taskId], or clears the selection when it is null. An unknown id
@@ -183,6 +280,15 @@ final class TaskWorkspace {
   /// Sorting never hides a task, so it is never gated.
   void requestSort(TaskSort sort) {
     _publish(_state.copyWith(sort: sort));
+  }
+
+  /// Filters the list by status (null shows all). Like sort it is never gated
+  /// and never touches the draft. A selected task the filter hides stays
+  /// selected; the existing "hidden in this view" notice shows.
+  void requestStatusFilter(TaskStatus? status) {
+    _publish(
+      _state.copyWith(statusFilter: status, clearStatusFilter: status == null),
+    );
   }
 
   /// Collapsing a parent may hide the selected row. The selection is kept.
@@ -270,6 +376,8 @@ final class TaskWorkspace {
     TaskPriority? priority,
     CalendarDate? dueDate,
     bool clearDueDate = false,
+    DueTime? dueTime,
+    bool clearDueTime = false,
     String? notes,
   }) {
     if (_transitioning) {
@@ -279,6 +387,8 @@ final class TaskWorkspace {
     if (draft == null) {
       return;
     }
+    // A synchronized workspace cannot store a time yet: never accept one.
+    final acceptedTime = dueTimeSupported ? dueTime : null;
     _publish(
       _state.copyWith(
         draft: draft.copyWith(
@@ -287,6 +397,8 @@ final class TaskWorkspace {
           priority: priority,
           dueDate: dueDate,
           clearDueDate: clearDueDate,
+          dueTime: acceptedTime,
+          clearDueTime: clearDueTime,
           notes: notes,
         ),
         clearError: true,
@@ -306,8 +418,23 @@ final class TaskWorkspace {
     if (draft == null) {
       return;
     }
+    if (_state.incoming?.kind == IncomingKind.deleted) {
+      // The saved version no longer exists: reverting means leaving the task.
+      _publish(
+        _state.copyWith(
+          clearSelectedTask: true,
+          clearDraft: true,
+          clearError: true,
+        ),
+      );
+      return;
+    }
     _publish(
-      _state.copyWith(draft: EditDraft.fromTask(draft.base), clearError: true),
+      _state.copyWith(
+        draft: EditDraft.fromTask(draft.base),
+        clearIncoming: true,
+        clearError: true,
+      ),
     );
   }
 
@@ -323,6 +450,7 @@ final class TaskWorkspace {
       return await _saveDraftUnsafe();
     } finally {
       _saving = false;
+      _drainQueuedRefresh();
     }
   }
 
@@ -332,6 +460,13 @@ final class TaskWorkspace {
     final draft = _state.draft;
     if (draft == null || !draft.isDirty) {
       return const Ok<void, WorkspaceError>(null);
+    }
+    if (_state.incoming?.kind == IncomingKind.deleted) {
+      // Saving would resurrect a record another device deleted.
+      _publish(_state.copyWith(error: WorkspaceError.taskDeletedElsewhere));
+      return const Err<void, WorkspaceError>(
+        WorkspaceError.taskDeletedElsewhere,
+      );
     }
     switch (validateTitle(draft.title)) {
       case Err(:final error):
@@ -377,6 +512,7 @@ final class TaskWorkspace {
       await _completeTransition(pending.transition);
     } finally {
       _transitioning = false;
+      _drainQueuedRefresh();
     }
   }
 
@@ -396,6 +532,145 @@ final class TaskWorkspace {
       ),
     );
     return false;
+  }
+
+  // ----------------------------------------------------------------- delete
+
+  /// Ids of [taskId] and all its descendants (empty for an unknown task).
+  List<String> subtreeOf(String taskId) =>
+      leafFirstDeletionOrder(_state.tasks, [taskId]);
+
+  /// Deletes [taskId] with its subtree in one repository transaction.
+  ///
+  /// Refused while a save, create or gate decision runs, or while the gate is
+  /// open. A failure changes nothing. Deleting the selected task (or an
+  /// ancestor of it) drops the selection and its draft: the confirm dialog has
+  /// already told the user it cannot be undone.
+  Future<Result<List<String>, WorkspaceError>> deleteTask(String taskId) async {
+    final busy = _deleteBlocked();
+    if (busy != null) {
+      return Err(busy);
+    }
+    final store = repository;
+    if (store is! TreeDeleter || !_state.tasks.containsKey(taskId)) {
+      return const Err(WorkspaceError.deleteFailed);
+    }
+    final doomed = subtreeOf(taskId);
+    _transitioning = true;
+    try {
+      await (store as TreeDeleter).softDeleteTaskTree(taskId);
+    } on RepositoryException {
+      return const Err(WorkspaceError.deleteFailed);
+    } finally {
+      _transitioning = false;
+      _drainQueuedRefresh();
+    }
+    final gone = doomed.toSet();
+    final tasks = {..._state.tasks}..removeWhere((id, _) => gone.contains(id));
+    final selected = _state.selectedTaskId;
+    final dropSelection = selected != null && gone.contains(selected);
+    _publish(
+      _state.copyWith(
+        tasks: tasks,
+        expandedTaskIds: {..._state.expandedTaskIds}..removeAll(gone),
+        clearSelectedTask: dropSelection,
+        clearDraft: dropSelection,
+        clearError: true,
+      ),
+    );
+    return Ok(doomed);
+  }
+
+  /// Deletes [projectId] with all its tasks. The last project cannot be
+  /// deleted. Unsaved edits of a task in the project are not discarded
+  /// silently: the delete is refused until they are saved or reverted.
+  Future<Result<List<String>, WorkspaceError>> deleteProject(
+    String projectId,
+  ) async {
+    final busy = _deleteBlocked();
+    if (busy != null) {
+      return Err(busy);
+    }
+    if (_state.projects.length <= 1) {
+      return const Err(WorkspaceError.lastProject);
+    }
+    final store = repository;
+    if (store is! TreeDeleter ||
+        !_state.projects.any((p) => p.id == projectId)) {
+      return const Err(WorkspaceError.deleteFailed);
+    }
+    final doomed = projectDeletionOrder(_state.tasks, projectId);
+    final draft = _state.draft;
+    if (draft != null && draft.isDirty && doomed.contains(draft.taskId)) {
+      return const Err(WorkspaceError.unsavedChangesPending);
+    }
+    _transitioning = true;
+    try {
+      await (store as TreeDeleter).softDeleteProjectTree(projectId);
+    } on RepositoryException {
+      return const Err(WorkspaceError.deleteFailed);
+    } finally {
+      _transitioning = false;
+      _drainQueuedRefresh();
+    }
+    final gone = doomed.toSet();
+    final tasks = {..._state.tasks}..removeWhere((id, _) => gone.contains(id));
+    final projects = [
+      for (final p in _state.projects)
+        if (p.id != projectId) p,
+    ];
+    final selected = _state.selectedTaskId;
+    final dropSelection = selected != null && gone.contains(selected);
+    final selection = _state.selection;
+    _publish(
+      _state.copyWith(
+        projects: projects,
+        tasks: tasks,
+        expandedTaskIds: {..._state.expandedTaskIds}..removeAll(gone),
+        selection:
+            selection is ProjectSelection && selection.projectId == projectId
+            ? ProjectSelection(projects.first.id)
+            : selection,
+        clearSelectedTask: dropSelection,
+        clearDraft: dropSelection,
+        clearError: true,
+      ),
+    );
+    return Ok(doomed);
+  }
+
+  WorkspaceError? _deleteBlocked() {
+    if (_state.pending != null) {
+      return WorkspaceError.unsavedChangesPending;
+    }
+    if (_saving || _transitioning) {
+      return WorkspaceError.operationInProgress;
+    }
+    return null;
+  }
+
+  /// Returns true when the account may be left now (sign-out). Returns false
+  /// and opens the gate when there is a dirty draft; [WorkspaceState.signOutReady]
+  /// is set once the user has saved or discarded.
+  Future<bool> requestSignOut() async {
+    if (_transitioning || _state.pending != null) {
+      return false;
+    }
+    if (!_isDirty) {
+      return true;
+    }
+    _publish(
+      _state.copyWith(
+        pending: const PendingTransition(TransitionSignOut()),
+        clearError: true,
+      ),
+    );
+    return false;
+  }
+
+  /// Clears [WorkspaceState.signOutReady] after the sign-out was carried out.
+  void clearSignOutReady() {
+    _publish(_state.copyWith(signOutReady: false));
   }
 
   // ------------------------------------------------------- internal: gate
@@ -427,23 +702,33 @@ final class TaskWorkspace {
     }
     return switch (transition) {
       TransitionSelectTask(:final taskId) => taskId != draft.taskId,
-      TransitionSelectView(:final view) => !_stillVisible(
+      TransitionSelectView(:final view) => _wouldHide(
         draft.taskId,
         SmartViewSelection(view),
         _state.searchQuery,
       ),
-      TransitionSelectProject(:final projectId) => !_stillVisible(
+      TransitionSelectProject(:final projectId) => _wouldHide(
         draft.taskId,
         ProjectSelection(projectId),
         _state.searchQuery,
       ),
-      TransitionSearch(:final query) => !_stillVisible(
+      TransitionSelectDashboard() => true,
+      TransitionSearch(:final query) => _wouldHide(
         draft.taskId,
         _state.selection,
         query,
       ),
-      TransitionCreate() || TransitionExit() => true,
+      TransitionCreate() || TransitionExit() || TransitionSignOut() => true,
     };
+  }
+
+  /// True when moving to [selection] and [query] would hide a task that the
+  /// current view shows. A task that is already hidden (for example a related
+  /// subtask the search does not match) is not hidden *by* this move, so nothing
+  /// is lost by it and it needs no confirmation.
+  bool _wouldHide(String taskId, NavSelection selection, String query) {
+    return _stillVisible(taskId, _state.selection, _state.searchQuery) &&
+        !_stillVisible(taskId, selection, query);
   }
 
   bool _stillVisible(String taskId, NavSelection selection, String query) {
@@ -458,6 +743,8 @@ final class TaskWorkspace {
         _publish(_withFilter(selection: SmartViewSelection(view)));
       case TransitionSelectProject(:final projectId):
         _publish(_withFilter(selection: ProjectSelection(projectId)));
+      case TransitionSelectDashboard():
+        _publish(_withFilter(selection: const DashboardSelection()));
       case TransitionSelectTask(:final taskId):
         _publish(_selectingTask(taskId));
       case TransitionSearch(:final query):
@@ -468,6 +755,15 @@ final class TaskWorkspace {
             clearPending: true,
             clearDraft: true,
             exitReady: true,
+          ),
+        );
+      case TransitionSignOut():
+        _publish(
+          _state.copyWith(
+            clearPending: true,
+            clearDraft: true,
+            clearSelectedTask: true,
+            signOutReady: true,
           ),
         );
       case TransitionCreate():
@@ -497,9 +793,13 @@ final class TaskWorkspace {
     final nextSelection = selection ?? _state.selection;
     final nextQuery = query ?? _state.searchQuery;
     final selectedId = _state.selectedTaskId;
+    // The selection survives when the task is still shown, or when it was
+    // already hidden (revealing a task the current search, filter or view cannot
+    // show, then widening one of them, must not lose it).
     final keep =
         selectedId != null &&
-        _stillVisible(selectedId, nextSelection, nextQuery);
+        (_stillVisible(selectedId, nextSelection, nextQuery) ||
+            !_stillVisible(selectedId, _state.selection, _state.searchQuery));
     return _state.copyWith(
       selection: nextSelection,
       searchQuery: nextQuery,
@@ -556,6 +856,7 @@ final class TaskWorkspace {
       return await _commitCreate(candidate, expandParentId: expandParentId);
     } finally {
       _transitioning = false;
+      _drainQueuedRefresh();
     }
   }
 
@@ -613,7 +914,14 @@ final class TaskWorkspace {
     final query = matchesSearch(candidate, next.searchQuery)
         ? next.searchQuery
         : '';
-    return next.copyWith(selection: selection, searchQuery: query);
+    // A filter that would hide the new task is cleared as well.
+    final filter = next.statusFilter;
+    final clearFilter = filter != null && candidate.status != filter;
+    return next.copyWith(
+      selection: selection,
+      searchQuery: query,
+      clearStatusFilter: clearFilter,
+    );
   }
 
   Future<Result<void, WorkspaceError>> _persistDraft(
@@ -633,14 +941,56 @@ final class TaskWorkspace {
         ? current.rebaseAfterSave(snapshot: snapshot, savedTask: task)
         : current;
     _publish(
-      _state.copyWith(tasks: tasks, draft: draftAfter, clearError: true),
+      _state.copyWith(
+        tasks: tasks,
+        draft: draftAfter,
+        clearIncoming: true,
+        clearError: true,
+      ),
     );
     return const Ok<void, WorkspaceError>(null);
   }
 
   void _publish(WorkspaceState next) {
-    _state = next.copyWith(today: clock.today());
+    // The incoming notice belongs to one task's draft: it ends with it.
+    final stale =
+        next.incoming != null &&
+        (next.draft == null || next.selectedTaskId != _state.selectedTaskId);
+    _state = _withDefaultExpansion(
+      stale ? next.copyWith(clearIncoming: true) : next,
+    ).copyWith(today: clock.today());
     _controller.add(_state);
+  }
+
+  /// The default expansion: a parent task that stands at the top of the current
+  /// list (depth 0) and has children shows its **direct** children, once.
+  ///
+  /// * Only top-of-list parents qualify, so the default never cascades: a child
+  ///   that is itself a parent stays collapsed until the user opens it (mouse,
+  ///   arrow keys, or revealing a task inside it).
+  /// * "Once" is recorded in [WorkspaceState.expansionDefaulted]. After that the
+  ///   user owns the state of that parent: a collapse is not undone by a
+  ///   refresh, a sort, a search or a filter.
+  /// * A parent that gains its first child later (a pulled or a new subtask) has
+  ///   not been defaulted yet, so it opens to show it.
+  WorkspaceState _withDefaultExpansion(WorkspaceState next) {
+    if (next.selection is DashboardSelection) {
+      return next;
+    }
+    final fresh = <String>{
+      for (final row in next.visibleRows)
+        if (row.depth == 0 &&
+            row.hasChildren &&
+            !next.expansionDefaulted.contains(row.task.id))
+          row.task.id,
+    };
+    if (fresh.isEmpty) {
+      return next;
+    }
+    return next.copyWith(
+      expandedTaskIds: {...next.expandedTaskIds, ...fresh},
+      expansionDefaulted: {...next.expansionDefaulted, ...fresh},
+    );
   }
 
   WorkspaceError _titleCode(TitleError error) {

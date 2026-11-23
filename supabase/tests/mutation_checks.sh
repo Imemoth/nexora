@@ -10,7 +10,7 @@ python3 - <<'PY'
 import re,json
 import glob
 def read(key): return open(glob.glob(f'migrations/*_nexora_{key}.sql')[0]).read()
-srcs={k: read(k) for k in ('sync_push','sync_resolve_revoke','sync_pull','sync_throttle','sync_response_bound','s9_revoke_direct_writes')}
+srcs={k: read(k) for k in ('sync_push','sync_resolve_revoke','sync_pull','sync_throttle','sync_response_bound','s9_revoke_direct_writes','due_time')}
 muts=[
  ("anonymous identities accepted", "'is_anonymous', 'false')) = 'true'", "'is_anonymous', 'false')) = 'never'"),
  ("update ignores the owner filter", "where t.id = $1 and t.owner_id = $2 for update", "where t.id = $1 and $2 is not null for update"),
@@ -71,7 +71,7 @@ out=[]
 files=[]
 for i,m in enumerate(muts):
     name,old,new=m[0],m[1],m[2]
-    # a mutation applies to every migration that contains the text exactly once (apply_core lives in S2 and, replaced, in S3)
+    # a mutation applies to every migration that contains the text (apply_core lives in S2 and, replaced, in S3 and in due_time: the last definition wins, so it must be mutated too)
     keys=[k for k in srcs if srcs[k].count(old)>=1]
     assert keys and (len(m)<=3 or m[3] in keys),(name,[(k,srcs[k].count(old)) for k in srcs])
     assert all(srcs[k].count(old)>=1 for k in keys),(name,)

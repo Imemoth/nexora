@@ -195,8 +195,14 @@ final class SyncEngine {
     }
   }
 
+  /// True once this engine has asked the server what it understands. The answer
+  /// is remembered in the local file (offline use keeps the last answer) and is
+  /// refreshed once per engine, so a server that was migrated (or rolled back)
+  /// is noticed on the next start or sign-in.
+  bool _featuresRead = false;
+
   Future<void> _ensureRegistered() async {
-    if (state.deviceRegistered) {
+    if (state.deviceRegistered && _featuresRead) {
       return;
     }
     await _register();
@@ -204,8 +210,18 @@ final class SyncEngine {
 
   Future<void> _register() async {
     try {
-      await transport.registerDevice(outbox.deviceId());
+      final answer = await transport.registerDevice(outbox.deviceId());
       state.deviceRegistered = true;
+      // `features` is absent on a server older than the due-time migration: the
+      // optional fields are then off, never assumed.
+      final features = answer['features'];
+      state.serverFeatures = features is List
+          ? {
+              for (final feature in features)
+                if (feature is String) feature,
+            }
+          : <String>{};
+      _featuresRead = true;
     } on SyncServerError catch (error) {
       if (error.code == 'device_invalid') {
         throw const _DeviceRevoked();

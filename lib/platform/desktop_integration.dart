@@ -5,6 +5,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:nexora/features/tasks/application/reminder_service.dart';
 
+import 'window_placement.dart';
+import 'window_state.dart';
+
 /// Something the Windows shell asked the app to do.
 sealed class DesktopEvent {
   const DesktopEvent();
@@ -19,7 +22,8 @@ final class NotificationClicked extends DesktopEvent {
 }
 
 /// The user chose Exit in the tray menu (or the shell asked the app to quit).
-/// The app should save what it must and then call [DesktopIntegration.quit].
+/// The app should first pass the unsaved-changes gate, then close what it must
+/// and call [DesktopIntegration.quit].
 final class ExitRequested extends DesktopEvent {
   const ExitRequested();
 }
@@ -48,6 +52,11 @@ abstract interface class DesktopIntegration implements ReminderNotifier {
   /// Ends the process (tray icon removed, window destroyed).
   Future<void> quit();
 
+  /// The app answered an exit request by staying open (unsaved edits): the
+  /// native side stops its forced-quit timer and brings the window forward so
+  /// the unsaved-changes dialog is seen, also when the window sits in the tray.
+  Future<void> holdExit();
+
   Future<void> dispose();
 }
 
@@ -70,6 +79,9 @@ final class NoDesktopIntegration implements DesktopIntegration {
   Future<void> quit() async {}
 
   @override
+  Future<void> holdExit() async {}
+
+  @override
   Future<void> dispose() async {}
 
   @override
@@ -81,7 +93,8 @@ final class NoDesktopIntegration implements DesktopIntegration {
 }
 
 /// The real implementation over the `nexora/desktop` method channel.
-final class WindowsDesktopIntegration implements DesktopIntegration {
+final class WindowsDesktopIntegration
+    implements DesktopIntegration, WindowBridge {
   WindowsDesktopIntegration({MethodChannel? channel})
     : _channel = channel ?? const MethodChannel(channelName) {
     // `main()` builds this before `runApp`, when the services binding does not
@@ -101,6 +114,8 @@ final class WindowsDesktopIntegration implements DesktopIntegration {
   final MethodChannel _channel;
   final StreamController<DesktopEvent> _events =
       StreamController<DesktopEvent>.broadcast();
+  final StreamController<WindowPlacement> _placements =
+      StreamController<WindowPlacement>.broadcast();
   bool _available = true;
 
   @override
@@ -121,6 +136,11 @@ final class WindowsDesktopIntegration implements DesktopIntegration {
         _events.add(const ExitRequested());
       case 'windowActivated':
         _events.add(const WindowActivated());
+      case 'windowPlacementChanged':
+        final placement = WindowPlacement.tryFromJson(call.arguments);
+        if (placement != null) {
+          _placements.add(placement);
+        }
     }
     return null;
   }
@@ -169,8 +189,62 @@ final class WindowsDesktopIntegration implements DesktopIntegration {
   }
 
   @override
+  Future<void> holdExit() async {
+    try {
+      await _channel.invokeMethod<void>('holdExit');
+    } on MissingPluginException {
+      // An older runner: its forced-quit timer cannot be stopped from here.
+    } on PlatformException {
+      // Same.
+    }
+  }
+
+  @override
+  Stream<WindowPlacement> get placementChanges => _placements.stream;
+
+  @override
+  Future<List<DisplayArea>> displays() async {
+    try {
+      final list = await _channel.invokeMethod<List<Object?>>('getDisplays');
+      return [
+        for (final item in list ?? const <Object?>[])
+          if (item is Map &&
+              item['left'] is int &&
+              item['top'] is int &&
+              item['right'] is int &&
+              item['bottom'] is int)
+            DisplayArea(
+              item['left'] as int,
+              item['top'] as int,
+              item['right'] as int,
+              item['bottom'] as int,
+            ),
+      ];
+    } on MissingPluginException {
+      return const [];
+    } on PlatformException {
+      return const [];
+    }
+  }
+
+  @override
+  Future<void> applyPlacement(WindowPlacement placement) async {
+    try {
+      await _channel.invokeMethod<void>(
+        'setWindowPlacement',
+        placement.toJson(),
+      );
+    } on MissingPluginException {
+      // An older runner without window placement: the default stays.
+    } on PlatformException {
+      // Same.
+    }
+  }
+
+  @override
   Future<void> dispose() async {
     _channel.setMethodCallHandler(null);
     await _events.close();
+    await _placements.close();
   }
 }

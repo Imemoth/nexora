@@ -11,6 +11,7 @@ const List<String> taskUpdatableFields = [
   'status',
   'priority',
   'due_date',
+  'due_time',
   'completed_at',
   'sort_order',
 ];
@@ -41,6 +42,11 @@ Map<String, Object?> createPatchFromRow(
   if (row['due_date'] != null) {
     patch['due_date'] = row['due_date'];
   }
+  // A time is sent only with its date (it cannot exist without one) and only
+  // when there is one: a date-only task never sends a time.
+  if (row['due_date'] != null && row['due_time'] != null) {
+    patch['due_time'] = row['due_time'];
+  }
   if (row['completed_at'] != null) {
     patch['completed_at'] = row['completed_at'];
   }
@@ -65,11 +71,45 @@ Map<String, Object?> changedFields(
       mine = mine ?? '';
       theirs = theirs ?? '';
     }
+    if (field == 'due_time') {
+      // The server answers `17:30:00`; the wire and the local value are `17:30`.
+      mine = normalizeDueTime(mine);
+      theirs = normalizeDueTime(theirs);
+    }
     if (mine != theirs) {
       changes[field] = mine;
     }
   }
-  return changes;
+  return pairDueTime(entityType, local, changes);
+}
+
+/// `HH:MM` for a time given as `HH:MM` or `HH:MM:SS` (what PostgreSQL returns),
+/// null for anything else.
+String? normalizeDueTime(Object? value) {
+  if (value is! String) {
+    return null;
+  }
+  final match = RegExp(r'^(\d{2}:\d{2})(?::00(?:\.0+)?)?$').firstMatch(value);
+  return match?.group(1);
+}
+
+/// The date and the time of a task travel together: when a patch changes the
+/// date and the task has a time, the time is sent too (even when unchanged), so
+/// the server knows it is to be kept. Without it the server clears the time, which
+/// is what it does for an older client that has never heard of times.
+Map<String, Object?> pairDueTime(
+  String entityType,
+  Map<String, Object?> local,
+  Map<String, Object?> changes,
+) {
+  if (entityType != 'task' ||
+      !changes.containsKey('due_date') ||
+      changes.containsKey('due_time') ||
+      local['due_time'] == null ||
+      local['due_date'] == null) {
+    return changes;
+  }
+  return {...changes, 'due_time': local['due_time']};
 }
 
 /// Conflict kinds the local mirror accepts (the server's `sync_conflicts.kind`).

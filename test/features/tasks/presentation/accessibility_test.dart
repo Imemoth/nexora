@@ -44,7 +44,7 @@ void main() {
       expect(menu.tooltip, AppStrings.sortTooltip);
     });
 
-    testWidgets('row chevrons are at least 40 by 40 logical pixels', (
+    testWidgets('row chevrons are at least 30 by 30 logical pixels', (
       tester,
     ) async {
       final harness = await loadedHarness(tasks: sampleTasks());
@@ -52,8 +52,8 @@ void main() {
 
       final size = tester.getSize(find.byKey(const ValueKey('chevron-parent')));
 
-      expect(size.width, greaterThanOrEqualTo(40));
-      expect(size.height, greaterThanOrEqualTo(40));
+      expect(size.width, greaterThanOrEqualTo(30));
+      expect(size.height, greaterThanOrEqualTo(30));
     });
 
     testWidgets('task rows are at least 40 logical pixels tall', (

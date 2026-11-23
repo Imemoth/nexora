@@ -24,6 +24,11 @@ flutter build windows --release
 ## Portable ZIP
 `tool/package_windows.ps1` packages the full Release bundle (`nexora.exe`, Flutter engine DLLs, and `data/`). Extract the ZIP anywhere and run `nexora.exe`. No installer is needed.
 
+**Which build is this?** Account menu, *About Nexora*: version, source commit and build type (a DEVELOPMENT TEST build is marked). The same identity is in `BUILD-INFO.json` inside the ZIP. The version has one source, the `version:` line of `pubspec.yaml`; how to raise it and how to trace an artifact to its source: [`docs/operations/versioning-and-build-identity.md`](docs/operations/versioning-and-build-identity.md).
+
+## Development environment policy
+Nexora is DEVELOPMENT/TEST only (no production; the Supabase project is DEV/TEST with mock data). Rules for people and AI agents: [`AGENTS.md`](AGENTS.md), [`docs/development-environment-policy.md`](docs/development-environment-policy.md).
+
 ## Current status
 Project status, migrations, decisions, gates and blockers live in one place: [`docs/coordination/status-register.md`](docs/coordination/status-register.md) (documentation map: [`docs/README.md`](docs/README.md)). In short: the Windows app saves tasks and projects in local SQLite (schema v3) and works fully offline. **Phase 3 (account sign-in, import of local data, automatic bidirectional synchronization, offline recovery, conflict detection and interactive conflict resolution) is implemented and accepted for the current TEST environment** (hosted Supabase TEST project, test accounts only). The default build keeps synchronization **off** (`NEXORA_SYNC` build flag); a separate sync-enabled DEVELOPMENT TEST build (workflow `windows-sync-dev-build.yml`) connects to the TEST project. There are no production users and no production hardening yet. **Phase 4 (device-local task reminders, Windows notifications, system tray, single instance) is implemented and accepted for the TEST environment** and awaits merge approval. Next development target: Phase 5 (UI/UX modernization). User guide: [`docs/operations/release-candidate-guide.md`](docs/operations/release-candidate-guide.md).
 

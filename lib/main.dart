@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:nexora/app/build_info_loader.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/app/startup_error_app.dart';
 import 'package:nexora/app/system_clock.dart';
@@ -17,10 +18,12 @@ import 'package:nexora/features/tasks/application/repository_exception.dart';
 import 'package:nexora/features/tasks/application/task_workspace.dart';
 import 'package:nexora/features/tasks/data/local_database.dart';
 import 'package:nexora/features/tasks/data/local_storage.dart';
+import 'package:nexora/features/tasks/data/file_settings_store.dart';
 import 'package:nexora/features/tasks/data/outbox_store.dart';
 import 'package:nexora/features/tasks/data/sqlite_task_repository.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
+import 'package:nexora/features/tasks/presentation/theme/theme_controller.dart';
 import 'package:nexora/runtime/app_host.dart';
 import 'package:nexora/runtime/auth_selftest.dart';
 import 'package:nexora/runtime/runtime_config.dart';
@@ -30,6 +33,8 @@ import 'package:nexora/features/tasks/data/reminder_store.dart';
 import 'package:nexora/features/tasks/domain/reminder.dart';
 import 'package:nexora/features/tasks/presentation/strings/reminder_strings.dart';
 import 'package:nexora/platform/desktop_integration.dart';
+import 'package:nexora/platform/panel_width_store.dart';
+import 'package:nexora/platform/window_state.dart';
 
 /// Phase 2A wiring: a durable local SQLite workspace.
 ///
@@ -42,6 +47,9 @@ Future<void> main(List<String> args) async {
   const clock = SystemClock();
   final ids = RandomIdGenerator();
   final desktop = WindowsDesktopIntegration.forPlatform();
+  // Before any window is shown: open where the user left the window, or
+  // maximized on the first launch.
+  await _restoreWindow(desktop);
   if (syncFeatureEnabled) {
     // Development self-test of the sign-in lifecycle inside the real executable
     // (no UI, no network); see lib/runtime/auth_selftest.dart.
@@ -94,6 +102,9 @@ Future<void> main(List<String> args) async {
         notifier: TasksNotifier(workspace),
         desktop: desktop,
         reminders: reminders,
+        themeController: await _loadTheme(path),
+        panelWidths: _panelWidthStore(path),
+        buildInfo: await loadBuildInfo(),
       ),
     );
   } on RepositoryException {
@@ -150,10 +161,70 @@ Future<bool> _startWithSync(
       );
     }
     await active.workspace.load();
-    runApp(AppHost(runtime: runtime, desktop: desktop));
+    runApp(
+      AppHost(
+        runtime: runtime,
+        desktop: desktop,
+        themeController: await _loadTheme(path),
+        panelWidths: _panelWidthStore(path),
+        buildInfo: await loadBuildInfo(),
+      ),
+    );
     return true;
   } on RepositoryException {
     runApp(const StartupErrorApp(message: AppStrings.errorDatabaseOpen));
     return true;
+  }
+}
+
+/// Panel widths are remembered in the same per-device `settings.json`, never in
+/// an account database, so they are the same whichever account is open.
+PanelWidthStore _panelWidthStore(String databasePath) => FilePanelWidthStore(
+  File(
+    '${File(databasePath).parent.path}${Platform.pathSeparator}settings.json',
+  ),
+);
+
+/// The saved theme choice, read before the first frame so there is no flash of
+/// the wrong theme. It lives in `settings.json` beside the local database, so it
+/// is the same whichever account is open. A failed read falls back to System.
+Future<ThemeController> _loadTheme(String databasePath) async {
+  final controller = ThemeController(
+    FileSettingsStore(
+      File(
+        '${File(databasePath).parent.path}${Platform.pathSeparator}settings.json',
+      ),
+    ),
+  );
+  await controller.load();
+  return controller;
+}
+
+/// Restores the window placement saved in the per-device `settings.json` (the
+/// same file as the theme) and keeps it up to date. The native window is still
+/// hidden here, so there is no flash. Any failure leaves the default: maximized.
+Future<void> _restoreWindow(DesktopIntegration desktop) async {
+  if (desktop is! WindowBridge) {
+    return;
+  }
+  try {
+    final settings = File(
+      '${File(localDatabasePath(Platform.environment)).parent.path}'
+      '${Platform.pathSeparator}settings.json',
+    );
+    final controller = WindowStateController(
+      bridge: desktop as WindowBridge,
+      store: FileWindowPlacementStore(settings),
+    );
+    await controller.restore();
+    controller.start();
+    // An explicit Exit saves the latest placement before the process ends.
+    desktop.events.listen((event) {
+      if (event is ExitRequested) {
+        controller.flush();
+      }
+    });
+  } on Object {
+    // The window opens at its default.
   }
 }

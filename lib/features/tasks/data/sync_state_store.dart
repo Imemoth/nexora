@@ -95,6 +95,24 @@ final class SyncStateStore {
   set deviceRegistered(bool value) =>
       _setMeta('device_registered', value ? '1' : '0');
 
+  /// What the server said it understands beyond the base contract (its
+  /// `features` answer to device registration), as last seen. Empty when it said
+  /// nothing or was never asked: an optional field is used only when listed.
+  Set<String> get serverFeatures {
+    final text = _meta('server_features');
+    return text == null || text.isEmpty
+        ? const <String>{}
+        : text.split(',').toSet();
+  }
+
+  set serverFeatures(Set<String> value) {
+    final sorted = value.toList()..sort();
+    _setMeta('server_features', sorted.join(','));
+  }
+
+  /// Whether the server stores and synchronizes a due time (ADR 0004).
+  bool get serverSupportsDueTime => serverFeatures.contains('due_time');
+
   DateTime? get lastSyncedAt {
     final value = _meta('last_synced_at');
     return value == null ? null : DateTime.parse(value);

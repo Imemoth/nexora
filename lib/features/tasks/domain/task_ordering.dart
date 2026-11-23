@@ -77,6 +77,8 @@ int _byPositionThenId(Task a, Task b) {
 }
 
 /// Tasks with a due date come first, earliest first. Undated tasks come last.
+/// On the same date, tasks with a time come first by time, then date-only
+/// tasks (a date-only deadline is due any time that day, so it is the latest).
 int _byDueDateThenPosition(Task a, Task b) {
   final dueA = a.dueDate;
   final dueB = b.dueDate;
@@ -92,6 +94,18 @@ int _byDueDateThenPosition(Task a, Task b) {
   final byDate = dueA.compareTo(dueB);
   if (byDate != 0) {
     return byDate;
+  }
+  final timeA = a.dueTime;
+  final timeB = b.dueTime;
+  if (timeA != null && timeB != null) {
+    final byTime = timeA.compareTo(timeB);
+    if (byTime != 0) {
+      return byTime;
+    }
+  } else if (timeA != null) {
+    return -1;
+  } else if (timeB != null) {
+    return 1;
   }
   return _byPositionThenId(a, b);
 }

@@ -20,7 +20,7 @@ $PS -d postgres -c "drop database if exists $DB" -c "create database $DB"
 sed '/^create role/d' tests/00_bootstrap_local.sql > /tmp/_boot_rb.sql
 roles=$($PS -d postgres -tAc "select 1 from pg_roles where rolname='anon'" || true); [[ "$roles" == "1" ]] || cp tests/00_bootstrap_local.sql /tmp/_boot_rb.sql
 $PS -d "$DB" -f /tmp/_boot_rb.sql >/dev/null
-for f in migrations/*.sql; do case "$f" in *_nexora_sync_resolve_revoke.sql|*_nexora_sync_pull.sql|*_nexora_sync_throttle.sql|*_nexora_sync_response_bound.sql|*_nexora_s9_revoke_direct_writes.sql) ;; *) $PS -d "$DB" -f "$f" >/dev/null;; esac; done
+for f in migrations/*.sql; do case "$f" in *_nexora_sync_resolve_revoke.sql|*_nexora_sync_pull.sql|*_nexora_sync_throttle.sql|*_nexora_sync_response_bound.sql|*_nexora_s9_revoke_direct_writes.sql|*_nexora_due_time.sql) ;; *) $PS -d "$DB" -f "$f" >/dev/null;; esac; done
 snap > /tmp/_rb_s2.txt
 $PS -d "$DB" -f migrations/20261112170000_nexora_sync_resolve_revoke.sql >/dev/null
 snap > /tmp/_rb_s3.txt
@@ -44,7 +44,7 @@ B=migrations/20261112186000_nexora_sync_response_bound.sql; BR=rollback/20261112
 N=migrations/20261112190000_nexora_s9_revoke_direct_writes.sql; NR=rollback/20261112190000_rollback_s9_direct_writes.sql
 $PS -d postgres -c "drop database if exists $DB" -c "create database $DB"
 $PS -d "$DB" -f /tmp/_boot_rb.sql >/dev/null
-for f in migrations/*.sql; do case "$f" in "$T"|"$B"|"$N") ;; *) $PS -d "$DB" -f "$f" >/dev/null;; esac; done
+for f in migrations/*.sql; do case "$f" in "$T"|"$B"|"$N"|*_nexora_due_time.sql) ;; *) $PS -d "$DB" -f "$f" >/dev/null;; esac; done
 snap > /tmp/_rb_p4.txt
 $PS -d "$DB" -f "$T" >/dev/null; snap > /tmp/_rb_p_t.txt
 $PS -d "$DB" -f "$B" >/dev/null; snap > /tmp/_rb_p_b.txt

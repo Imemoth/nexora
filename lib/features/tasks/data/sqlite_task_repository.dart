@@ -3,6 +3,7 @@ import 'package:nexora/core/ids/random_id_generator.dart';
 import 'package:nexora/features/tasks/application/repository_exception.dart';
 import 'package:nexora/features/tasks/application/task_repository.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
+import 'package:nexora/features/tasks/domain/due_time.dart';
 import 'package:nexora/features/tasks/domain/project.dart';
 import 'package:nexora/features/tasks/domain/task.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
@@ -26,13 +27,16 @@ import 'outbox_store.dart';
 /// operation; demo data and everything created under it is `local_only`;
 /// unclassified entities (migrated legacy rows) never produce operations; a
 /// task with live children cannot be deleted until the S3 atomicity protocol.
-final class SqliteTaskRepository implements TaskRepository, ProjectStore {
+final class SqliteTaskRepository
+    implements TaskRepository, ProjectStore, TreeDeleter {
   SqliteTaskRepository(
     this._db, {
     required this.ownerId,
     DateTime Function()? now,
     IdGenerator? ids,
-  }) : _now = now ?? (() => DateTime.now().toUtc()),
+    bool Function()? dueTimeSyncs,
+  }) : _dueTimeSyncs = dueTimeSyncs ?? (() => true),
+       _now = now ?? (() => DateTime.now().toUtc()),
        _ids = ids ?? RandomIdGenerator() {
     _outbox = OutboxStore(_db, ids: _ids, now: _now);
   }
@@ -44,6 +48,11 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
   final String ownerId;
   final DateTime Function() _now;
   final IdGenerator _ids;
+
+  /// Whether the server of this account stores a due time. A task that
+  /// synchronizes refuses a new or changed time while it does not (the time would
+  /// exist on this device only). Always true for a repository that never syncs.
+  final bool Function() _dueTimeSyncs;
 
   // ---------------------------------------------------------------- reads
 
@@ -70,7 +79,7 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
     return _run(() {
       final rows = _db.raw.select(
         'SELECT id, project_id, parent_id, title, notes, status, priority, '
-        'due_date, sort_order FROM tasks WHERE deleted_at IS NULL '
+        'due_date, due_time, sort_order FROM tasks WHERE deleted_at IS NULL '
         'ORDER BY project_id, parent_id, sort_order, id',
       );
       return [
@@ -84,6 +93,10 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
             status: _statusFromColumn(row['status'] as String),
             priority: _priorityFromColumn(row['priority'] as String),
             dueDate: _dateFromColumn(row['due_date'] as String?),
+            // A time without a date cannot exist (check constraint); be strict anyway.
+            dueTime: row['due_date'] == null
+                ? null
+                : DueTime.tryParse(row['due_time'] as String?),
             position: row['sort_order'] as int,
           ),
       ];
@@ -179,11 +192,13 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
   /// (S3 atomic tree delete). Each entity is tombstoned locally; for a
   /// synchronized task one delete operation lists the whole subtree, which the
   /// server applies completely or not at all. At most 1,000 descendants.
+  @override
   Future<void> softDeleteTaskTree(String id) async {
     _run(() => _transaction(() => _deleteTree('task', id)));
   }
 
   /// Deletes a project together with all its live tasks, like [softDeleteTaskTree].
+  @override
   Future<void> softDeleteProjectTree(String id) async {
     _run(() => _transaction(() => _deleteTree('project', id)));
   }
@@ -318,6 +333,15 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
     if (_sameTask(row, task)) {
       return; // Repeated save of identical content writes nothing.
     }
+    if (row['sync_scope'] == 'synced' &&
+        task.dueTime != null &&
+        task.dueTime!.toHm() != row['due_time'] &&
+        !_dueTimeSyncs()) {
+      // The time would never leave this device: refuse instead of pretending.
+      throw const RepositoryException(
+        'the server does not store a due time yet',
+      );
+    }
     if (row['project_id'] != task.projectId) {
       throw RepositoryException(
         'task ${task.id} cannot move to another project',
@@ -346,6 +370,25 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
     if (row['due_date'] != task.dueDate?.toIsoString()) {
       changes['due_date'] = task.dueDate?.toIsoString();
     }
+    if (row['due_time'] != task.dueTime?.toHm()) {
+      changes['due_time'] = task.dueTime?.toHm();
+    }
+    // The date and the time travel together (see `pairDueTime`): moving the date
+    // of a task that has a time sends the time as well, so the server keeps it.
+    final paired = Map<String, Object?>.of(
+      pairDueTime('task', {
+        'due_date': task.dueDate?.toIsoString(),
+        'due_time': task.dueTime?.toHm(),
+      }, changes),
+    );
+    changes
+      ..clear()
+      ..addAll(paired);
+    if (!_dueTimeSyncs()) {
+      // An older server has no such field: never send it (the time stays local
+      // and is cleared with its date).
+      changes.remove('due_time');
+    }
     if (row['completed_at'] != completedAt) {
       changes['completed_at'] = completedAt;
     }
@@ -354,7 +397,7 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
     }
     _db.raw.execute(
       'UPDATE tasks SET parent_id = ?, title = ?, notes = ?, '
-      'status = ?, priority = ?, due_date = ?, completed_at = ?, sort_order = ?, '
+      'status = ?, priority = ?, due_date = ?, due_time = ?, completed_at = ?, sort_order = ?, '
       'updated_at = ? WHERE id = ?',
       [
         task.parentId,
@@ -363,13 +406,14 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
         _statusColumn(task.status),
         _priorityColumn(task.priority),
         task.dueDate?.toIsoString(),
+        task.dueDate == null ? null : task.dueTime?.toHm(),
         completedAt,
         task.position,
         now,
         task.id,
       ],
     );
-    if (row['sync_scope'] == 'synced') {
+    if (row['sync_scope'] == 'synced' && changes.isNotEmpty) {
       _outbox.recordEdit(
         entityType: 'task',
         entityId: task.id,
@@ -407,8 +451,8 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
   void _insertTaskRow(Task task, String now, String scope) {
     _db.raw.execute(
       'INSERT INTO tasks (id, project_id, owner_id, parent_id, title, notes, '
-      'status, priority, due_date, completed_at, sort_order, version, sync_scope, '
-      'created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)',
+      'status, priority, due_date, due_time, completed_at, sort_order, version, sync_scope, '
+      'created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)',
       [
         task.id,
         task.projectId,
@@ -419,6 +463,7 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
         _statusColumn(task.status),
         _priorityColumn(task.priority),
         task.dueDate?.toIsoString(),
+        task.dueDate == null ? null : task.dueTime?.toHm(),
         task.status == TaskStatus.done ? now : null,
         task.position,
         scope,
@@ -491,6 +536,7 @@ final class SqliteTaskRepository implements TaskRepository, ProjectStore {
         row['status'] == _statusColumn(task.status) &&
         row['priority'] == _priorityColumn(task.priority) &&
         row['due_date'] == task.dueDate?.toIsoString() &&
+        row['due_time'] == task.dueTime?.toHm() &&
         row['sort_order'] == task.position;
   }
 

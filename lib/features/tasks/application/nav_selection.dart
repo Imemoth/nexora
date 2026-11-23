@@ -11,6 +11,11 @@ final class SmartViewSelection extends NavSelection {
   final SmartView view;
 }
 
+/// The dashboard: a read-only overview with no task rows of its own.
+final class DashboardSelection extends NavSelection {
+  const DashboardSelection();
+}
+
 final class ProjectSelection extends NavSelection {
   const ProjectSelection(this.projectId);
 

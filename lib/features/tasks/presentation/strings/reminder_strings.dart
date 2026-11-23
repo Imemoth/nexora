@@ -1,5 +1,8 @@
 import 'package:nexora/features/tasks/application/reminder_service.dart';
+import 'package:nexora/features/tasks/domain/calendar_date.dart';
 import 'package:nexora/features/tasks/domain/reminder.dart';
+
+import 'app_strings.dart';
 
 /// Every user-visible string of the reminder feature (English, centralized like
 /// [AppStrings]).
@@ -39,6 +42,40 @@ abstract final class ReminderStrings {
 
   static String more(int count) => '+$count more';
 
+  // Phase 5 (Midnight) strings.
+  static const caption = 'Reminder · saved immediately';
+  static const deviceTag = 'This device only';
+  static const notInSave = 'Not part of Save or Revert.';
+  static const notSynchronized =
+      'Reminders are not synchronized and do not appear on your other devices.';
+  static const saved = 'Reminder saved on this device';
+  static const removed = 'Reminder removed';
+  static const snoozed = 'Snoozed';
+  static const noRemindersDue = 'No reminders are due.';
+  static const cancel = 'Cancel';
+  static const errorFormat =
+      'Enter the date as YYYY-MM-DD and the time as HH:MM.';
+  static const dateHint = 'YYYY-MM-DD';
+  static const timeHint = 'HH:MM';
+  static const dialogTitle = 'Set a reminder';
+  static const dialogTitleChange = 'Change the reminder';
+  static const presetInOneHour = 'In 1 hour';
+  static const presetInTwoHours = 'In 2 hours';
+  static const presetInFiveHours = 'In 5 hours';
+  static const presetIn24Hours = 'In 24 hours';
+  static const presetCustom = 'Custom date and hour';
+  static const customDateLabel = 'Date';
+  static const customTimeLabel = 'Hour (24-hour)';
+  static const willRemindAt = 'You will be reminded';
+  static const dialogDeviceNote =
+      'This reminder is saved on this device only, immediately, and '
+      'independently of the task\'s Save and Revert.';
+  static const errorCustomIncomplete = 'Enter a date and an hour.';
+  static const pickDateTooltip = 'Choose date';
+  static const pickTimeTooltip = 'Choose time';
+  static String summary(int due, int scheduled) =>
+      '$due due · $scheduled scheduled';
+
   static String errorMessage(ReminderError error) => switch (error) {
     ReminderError.inPast => errorInPast,
     ReminderError.unknownTask => errorUnknownTask,
@@ -50,6 +87,15 @@ abstract final class ReminderStrings {
     ReminderState.notified => reminder.missed ? 'Due (missed)' : 'Due',
     ReminderState.acknowledged => 'Done',
   };
+
+  /// "Mon 16 Nov, 09:00": the friendly form used in the details block.
+  static String friendlyWhen(LocalWallTime wall) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    final date = AppStrings.friendlyDate(
+      CalendarDate(wall.year, wall.month, wall.day),
+    );
+    return '$date, ${two(wall.hour)}:${two(wall.minute)}';
+  }
 
   static String when(LocalWallTime wall) {
     String two(int v) => v.toString().padLeft(2, '0');

@@ -16,6 +16,18 @@ abstract interface class TaskRepository {
   Future<void> saveTask(Task task);
 }
 
+/// Optional capability: a repository that can delete a subtree or a whole
+/// project in one transaction (soft delete; one operation for the whole
+/// subtree, applied by the server completely or not at all).
+abstract interface class TreeDeleter {
+  /// Deletes [id] and every live descendant. Throws `RepositoryException`
+  /// (and changes nothing) when it cannot.
+  Future<void> softDeleteTaskTree(String id);
+
+  /// Deletes the project and all its live tasks, like [softDeleteTaskTree].
+  Future<void> softDeleteProjectTree(String id);
+}
+
 /// Optional capability: a repository that can store a new project. The workspace
 /// offers "New project" only when its repository has it.
 abstract interface class ProjectStore {

@@ -3,9 +3,11 @@
 #include <flutter/standard_method_codec.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include "resource.h"
 
@@ -33,6 +35,54 @@ std::string StringArg(const flutter::EncodableMap& map, const char* key) {
     return std::get<std::string>(*value);
   }
   return std::string();
+}
+
+bool IntValue(const flutter::EncodableValue* value, int* out) {
+  if (value == nullptr) {
+    return false;
+  }
+  if (std::holds_alternative<int32_t>(*value)) {
+    *out = std::get<int32_t>(*value);
+    return true;
+  }
+  if (std::holds_alternative<int64_t>(*value)) {
+    const int64_t wide = std::get<int64_t>(*value);
+    if (wide < INT32_MIN || wide > INT32_MAX) {
+      return false;
+    }
+    *out = static_cast<int>(wide);
+    return true;
+  }
+  return false;
+}
+
+struct DisplayEntry {
+  RECT work;
+  bool primary;
+};
+
+BOOL CALLBACK CollectMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM data) {
+  MONITORINFO info = {};
+  info.cbSize = sizeof(info);
+  if (::GetMonitorInfoW(monitor, &info)) {
+    auto* list = reinterpret_cast<std::vector<DisplayEntry>*>(data);
+    list->push_back({info.rcWork, (info.dwFlags & MONITORINFOF_PRIMARY) != 0});
+  }
+  return TRUE;
+}
+
+// GetWindowPlacement and SetWindowPlacement use "workspace" coordinates: screen
+// coordinates relative to the work area of the primary display. Dart works in
+// screen coordinates, so convert with this origin.
+RECT PrimaryWorkArea() {
+  const POINT origin = {0, 0};
+  MONITORINFO info = {};
+  info.cbSize = sizeof(info);
+  HMONITOR primary = ::MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY);
+  if (primary == nullptr || !::GetMonitorInfoW(primary, &info)) {
+    return RECT{0, 0, 0, 0};
+  }
+  return info.rcWork;
 }
 
 }  // namespace
@@ -72,6 +122,19 @@ DesktopIntegration::DesktopIntegration(HWND window,
         } else if (call.method_name() == "quit") {
           result->Success();
           Quit();
+        } else if (call.method_name() == "holdExit") {
+          // Dart answered the exit request by staying open (unsaved edits):
+          // no forced quit, and the window must be visible for the dialog.
+          ::KillTimer(window_, kExitGraceTimer);
+          ShowMainWindow();
+          result->Success();
+        } else if (call.method_name() == "getDisplays") {
+          result->Success(DisplaysValue());
+        } else if (call.method_name() == "setWindowPlacement") {
+          const auto* args =
+              std::get_if<flutter::EncodableMap>(call.arguments());
+          result->Success(flutter::EncodableValue(
+              args != nullptr && ApplyPlacement(*args)));
         } else {
           result->NotImplemented();
         }
@@ -229,6 +292,98 @@ void DesktopIntegration::NotifyDart(const char* method,
   }
 }
 
+flutter::EncodableValue DesktopIntegration::DisplaysValue() const {
+  std::vector<DisplayEntry> displays;
+  ::EnumDisplayMonitors(nullptr, nullptr, CollectMonitor,
+                        reinterpret_cast<LPARAM>(&displays));
+  // The primary display first: Dart falls back to it.
+  std::stable_sort(displays.begin(), displays.end(),
+                   [](const DisplayEntry& a, const DisplayEntry& b) {
+                     return a.primary && !b.primary;
+                   });
+  flutter::EncodableList list;
+  for (const DisplayEntry& display : displays) {
+    flutter::EncodableMap item;
+    item[flutter::EncodableValue("left")] =
+        flutter::EncodableValue(static_cast<int32_t>(display.work.left));
+    item[flutter::EncodableValue("top")] =
+        flutter::EncodableValue(static_cast<int32_t>(display.work.top));
+    item[flutter::EncodableValue("right")] =
+        flutter::EncodableValue(static_cast<int32_t>(display.work.right));
+    item[flutter::EncodableValue("bottom")] =
+        flutter::EncodableValue(static_cast<int32_t>(display.work.bottom));
+    list.push_back(flutter::EncodableValue(std::move(item)));
+  }
+  return flutter::EncodableValue(std::move(list));
+}
+
+bool DesktopIntegration::ApplyPlacement(const flutter::EncodableMap& args) {
+  int left = 0, top = 0, width = 0, height = 0;
+  const auto* maximized = Find(args, "maximized");
+  if (!IntValue(Find(args, "left"), &left) ||
+      !IntValue(Find(args, "top"), &top) ||
+      !IntValue(Find(args, "width"), &width) ||
+      !IntValue(Find(args, "height"), &height) || maximized == nullptr ||
+      !std::holds_alternative<bool>(*maximized) || width < 200 ||
+      height < 150) {
+    return false;
+  }
+  show_maximized_ = std::get<bool>(*maximized);
+  if (!::IsWindowVisible(window_)) {
+    // Not shown yet: set the restored bounds without showing the window. The
+    // first-frame callback then shows it maximized or normal.
+    return ::SetWindowPos(window_, nullptr, left, top, width, height,
+                          SWP_NOZORDER | SWP_NOACTIVATE) == TRUE;
+  }
+  const RECT work = PrimaryWorkArea();
+  WINDOWPLACEMENT placement = {};
+  placement.length = sizeof(placement);
+  placement.showCmd = show_maximized_ ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL;
+  placement.rcNormalPosition = {left - work.left, top - work.top,
+                                left + width - work.left,
+                                top + height - work.top};
+  return ::SetWindowPlacement(window_, &placement) == TRUE;
+}
+
+bool DesktopIntegration::CurrentPlacement(flutter::EncodableMap* out) const {
+  WINDOWPLACEMENT placement = {};
+  placement.length = sizeof(placement);
+  if (!::GetWindowPlacement(window_, &placement)) {
+    return false;
+  }
+  const bool minimized = placement.showCmd == SW_SHOWMINIMIZED;
+  const bool maximized =
+      placement.showCmd == SW_SHOWMAXIMIZED ||
+      (minimized && (placement.flags & WPF_RESTORETOMAXIMIZED) != 0);
+  const RECT work = PrimaryWorkArea();
+  const RECT normal = placement.rcNormalPosition;
+  (*out)[flutter::EncodableValue("left")] =
+      flutter::EncodableValue(static_cast<int32_t>(normal.left + work.left));
+  (*out)[flutter::EncodableValue("top")] =
+      flutter::EncodableValue(static_cast<int32_t>(normal.top + work.top));
+  (*out)[flutter::EncodableValue("width")] = flutter::EncodableValue(
+      static_cast<int32_t>(normal.right - normal.left));
+  (*out)[flutter::EncodableValue("height")] = flutter::EncodableValue(
+      static_cast<int32_t>(normal.bottom - normal.top));
+  (*out)[flutter::EncodableValue("maximized")] =
+      flutter::EncodableValue(maximized);
+  return true;
+}
+
+void DesktopIntegration::NotifyPlacement() {
+  // Only a visible, not minimized window has a placement worth remembering, and
+  // only once Dart listens.
+  if (!dart_ready_ || !::IsWindowVisible(window_) || ::IsIconic(window_)) {
+    return;
+  }
+  flutter::EncodableMap placement;
+  if (CurrentPlacement(&placement)) {
+    channel_->InvokeMethod("windowPlacementChanged",
+                           std::make_unique<flutter::EncodableValue>(
+                               std::move(placement)));
+  }
+}
+
 void DesktopIntegration::RequestExit() {
   if (!dart_ready_) {
     Quit();
@@ -241,6 +396,7 @@ void DesktopIntegration::RequestExit() {
 }
 
 void DesktopIntegration::Quit() {
+  quitting_ = true;
   ::KillTimer(window_, kExitGraceTimer);
   RemoveTrayIcon();
   // Asynchronous: this may run inside the channel handler, which must not be
@@ -261,6 +417,15 @@ bool DesktopIntegration::HandleMessage(HWND hwnd, UINT message, WPARAM wparam,
     tray_added_ = false;
     AddTrayIcon();
     *result = 0;
+    return true;
+  }
+  if (message == WM_CLOSE && quitting_) {
+    // The exit already passed the unsaved-changes gate and the runtime is
+    // closed: destroy the window directly instead of asking Dart again. The
+    // result is written first because destroying the window destroys this
+    // object.
+    *result = 0;
+    ::DestroyWindow(hwnd);
     return true;
   }
   switch (message) {
@@ -324,7 +489,19 @@ bool DesktopIntegration::HandleMessage(HWND hwnd, UINT message, WPARAM wparam,
       if (wparam == SIZE_MINIMIZED) {
         // Minimize goes to the tray: hide after this message has finished.
         ::PostMessageW(hwnd, kHideMessage, 0, 0);
+      } else if (!in_size_move_ &&
+                 (wparam == SIZE_MAXIMIZED || wparam == SIZE_RESTORED)) {
+        // Maximize, restore or a layout change outside a drag.
+        NotifyPlacement();
       }
+      return false;
+    case WM_ENTERSIZEMOVE:
+      in_size_move_ = true;
+      return false;
+    case WM_EXITSIZEMOVE:
+      // The user finished dragging or resizing.
+      in_size_move_ = false;
+      NotifyPlacement();
       return false;
     case kHideMessage:
       if (::IsIconic(hwnd)) {

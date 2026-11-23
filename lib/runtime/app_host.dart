@@ -1,9 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:nexora/core/build_info.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
+import 'package:nexora/features/tasks/presentation/theme/theme_controller.dart';
 import 'package:nexora/platform/desktop_integration.dart';
+import 'package:nexora/platform/panel_width_store.dart';
 
 import 'sync_runtime.dart';
 
@@ -16,6 +19,9 @@ class AppHost extends StatefulWidget {
     required this.runtime,
     this.onExitApp,
     this.desktop,
+    this.themeController,
+    this.buildInfo,
+    this.panelWidths,
   });
 
   final SyncRuntime runtime;
@@ -23,6 +29,15 @@ class AppHost extends StatefulWidget {
 
   /// Tray and native notifications; null disables them.
   final DesktopIntegration? desktop;
+
+  /// The device-level theme choice; survives an account switch.
+  final ThemeController? themeController;
+
+  /// Which build is running (About).
+  final BuildInfo? buildInfo;
+
+  /// Panel widths remembered on this device; survive an account switch.
+  final PanelWidthStore? panelWidths;
 
   @override
   State<AppHost> createState() => _AppHostState();
@@ -65,6 +80,9 @@ class _AppHostState extends State<AppHost> {
       notifier: _notifier,
       onExitApp: widget.onExitApp,
       desktop: widget.desktop,
+      themeController: widget.themeController,
+      buildInfo: widget.buildInfo,
+      panelWidths: widget.panelWidths,
       reminders: _active.reminders,
       beforeExit: widget.runtime.dispose,
       syncPanel: widget.runtime.syncPanel(),

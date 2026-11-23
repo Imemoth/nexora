@@ -265,7 +265,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // 1. The status bar offers the conflict as a control.
-      expect(find.text('1 conflict needs your decision'), findsOneWidget);
+      // The sentence shows on the sync card and on the alert bar (Phase 5).
+      expect(find.text('1 conflict needs your decision'), findsWidgets);
       await tester.tap(find.byKey(const ValueKey('sync-conflicts')));
       await tester.pumpAndSettle();
 
