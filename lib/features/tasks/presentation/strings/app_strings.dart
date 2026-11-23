@@ -18,6 +18,12 @@ abstract final class AppStrings {
   static const clearSearch = 'Clear';
   static const searchHint = 'Search title and notes';
   static const selectedTaskHidden = 'Selected task is hidden in this view';
+  static const hiddenBySearch =
+      'The current search does not match it. The search stays until you clear it.';
+  static const hiddenByStatus =
+      'The status filter hides it. The filter stays until you change it.';
+  static const hiddenByCollapse = 'A collapsed parent contains it.';
+  static const hiddenByView = 'It belongs to another project or view.';
   static String revealShowInProject(String project) =>
       project.isEmpty ? 'Show its project' : 'Show in $project';
   static const revealClearSearch = 'Clear search';

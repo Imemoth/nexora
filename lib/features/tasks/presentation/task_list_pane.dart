@@ -5,7 +5,6 @@ import 'package:nexora/features/tasks/application/visible_task_row.dart';
 import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/application/workspace_state.dart';
 
-import 'dashed_border.dart';
 import 'keyboard_actions.dart';
 import 'keycap.dart';
 import 'keymap.dart';
@@ -170,6 +169,15 @@ class _HiddenNotice extends StatelessWidget {
     final project = task == null
         ? null
         : state.projects.where((p) => p.id == task.projectId).firstOrNull;
+    final cause = reasons.contains(HiddenReason.searchMismatch)
+        ? AppStrings.hiddenBySearch
+        : reasons.contains(HiddenReason.statusFiltered)
+        ? AppStrings.hiddenByStatus
+        : reasons.contains(HiddenReason.collapsedAncestor)
+        ? AppStrings.hiddenByCollapse
+        : reasons.contains(HiddenReason.notInView)
+        ? AppStrings.hiddenByView
+        : null;
     final actions = <Widget>[
       if (reasons.contains(HiddenReason.notInView) && task != null)
         _NoticeAction(
@@ -196,22 +204,92 @@ class _HiddenNotice extends StatelessWidget {
           onPressed: () => notifier.expandAncestorsOf(task.id),
         ),
     ];
-    return DashedBorder(
-      color: c.borderStrong,
-      radius: 8,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 4,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text(
-            AppStrings.selectedTaskHidden,
-            key: const ValueKey('hidden-notice'),
-            style: NexoraText.caption.copyWith(color: c.text2),
+    // A solid banner with an accent edge and an icon: the earlier dashed caption
+    // went unnoticed. It sits in the flow above the list, so it never covers
+    // the task, and its actions wrap under the text at narrow widths.
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: c.surface2,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: c.borderStrong),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(7),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ColoredBox(
+                  color: c.accentBlue,
+                  child: const SizedBox(width: 4),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 20,
+                              color: c.accentBlue,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    AppStrings.selectedTaskHidden,
+                                    key: const ValueKey('hidden-notice'),
+                                    style: NexoraText.body.copyWith(
+                                      color: c.text1,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  if (cause != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Text(
+                                        cause,
+                                        key: const ValueKey(
+                                          'hidden-notice-cause',
+                                        ),
+                                        style: NexoraText.caption.copyWith(
+                                          color: c.text2,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (actions.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 30),
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              children: actions,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          ...actions,
-        ],
+        ),
       ),
     );
   }
@@ -229,11 +307,11 @@ class _NoticeAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
+    return FilledButton(
       onPressed: onPressed,
-      style: TextButton.styleFrom(
-        minimumSize: const Size(0, 30),
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 34),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
       ),
       child: Text(label),
     );

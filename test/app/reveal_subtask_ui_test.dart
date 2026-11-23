@@ -180,6 +180,8 @@ void main() {
         expect(n.state.searchQuery, 'Top'); // untouched
         expect(find.byKey(const ValueKey('hidden-notice')), findsOneWidget);
         expect(find.text(AppStrings.selectedTaskHidden), findsOneWidget);
+        // The notice names the cause and says the search is kept.
+        expect(find.text(AppStrings.hiddenBySearch), findsOneWidget);
         expect(
           find.byKey(const ValueKey('reveal-clear-search')),
           findsOneWidget,
@@ -192,6 +194,39 @@ void main() {
         expect(n.state.selectedTaskId, 'b');
         expect(find.byKey(const ValueKey('row-b')), findsOneWidget);
         expect(find.byKey(const ValueKey('hidden-notice')), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'the notice is a visible banner above the list and fits narrow widths',
+      (tester) async {
+        // 920 px: the overlay layout, the narrowest one that still shows the list.
+        final (_, n) = await _pump(tester, w: 920);
+        n.selectProject('p1');
+        n.selectTask('a');
+        n.search('Top');
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('subtask-b')));
+        await tester.pumpAndSettle();
+
+        final notice = find.byKey(const ValueKey('hidden-notice'));
+        final action = find.byKey(const ValueKey('reveal-clear-search'));
+        final list = find.byKey(const ValueKey('row-b')).evaluate().isEmpty
+            ? null
+            : find.byKey(const ValueKey('row-b'));
+        expect(notice, findsOneWidget);
+        expect(action, findsOneWidget);
+        // Not hidden behind anything: both are hit-testable on screen.
+        final screen = tester.view.physicalSize;
+        for (final f in [notice, action]) {
+          final r = tester.getRect(f);
+          expect(r.left, greaterThanOrEqualTo(0));
+          expect(r.right, lessThanOrEqualTo(screen.width));
+        }
+        expect(list, isNull, reason: 'the row is hidden by the search');
+        expect(tester.takeException(), isNull);
+        // The button is large enough to hit.
+        expect(tester.getSize(action).height, greaterThanOrEqualTo(32));
       },
     );
 
