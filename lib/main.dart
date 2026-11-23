@@ -33,6 +33,7 @@ import 'package:nexora/features/tasks/data/reminder_store.dart';
 import 'package:nexora/features/tasks/domain/reminder.dart';
 import 'package:nexora/features/tasks/presentation/strings/reminder_strings.dart';
 import 'package:nexora/platform/desktop_integration.dart';
+import 'package:nexora/platform/panel_width_store.dart';
 import 'package:nexora/platform/window_state.dart';
 
 /// Phase 2A wiring: a durable local SQLite workspace.
@@ -102,6 +103,7 @@ Future<void> main(List<String> args) async {
         desktop: desktop,
         reminders: reminders,
         themeController: await _loadTheme(path),
+        panelWidths: _panelWidthStore(path),
         buildInfo: await loadBuildInfo(),
       ),
     );
@@ -164,6 +166,7 @@ Future<bool> _startWithSync(
         runtime: runtime,
         desktop: desktop,
         themeController: await _loadTheme(path),
+        panelWidths: _panelWidthStore(path),
         buildInfo: await loadBuildInfo(),
       ),
     );
@@ -173,6 +176,14 @@ Future<bool> _startWithSync(
     return true;
   }
 }
+
+/// Panel widths are remembered in the same per-device `settings.json`, never in
+/// an account database, so they are the same whichever account is open.
+PanelWidthStore _panelWidthStore(String databasePath) => FilePanelWidthStore(
+  File(
+    '${File(databasePath).parent.path}${Platform.pathSeparator}settings.json',
+  ),
+);
 
 /// The saved theme choice, read before the first frame so there is no flash of
 /// the wrong theme. It lives in `settings.json` beside the local database, so it

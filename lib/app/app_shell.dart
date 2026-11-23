@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nexora/app/theme.dart';
@@ -12,6 +14,7 @@ import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
 import 'package:nexora/features/tasks/presentation/tasks_scope.dart';
 import 'package:nexora/features/tasks/presentation/theme/nexora_colors.dart';
 import 'package:nexora/features/tasks/presentation/unsaved_changes_host.dart';
+import 'package:nexora/platform/panel_width_store.dart';
 
 import 'account_actions.dart';
 import 'account_panel.dart';
@@ -42,6 +45,7 @@ class AppShell extends StatefulWidget {
     this.accountPanel,
     this.importPanel,
     this.conflictPanel,
+    this.panelWidths,
   });
 
   static const double sidebarWidth = 248;
@@ -64,6 +68,9 @@ class AppShell extends StatefulWidget {
   /// Non-null only for a signed-in account workspace.
   final ConflictPanel? conflictPanel;
 
+  /// Remembers the panel widths on this device. Null: not remembered.
+  final PanelWidthStore? panelWidths;
+
   @override
   State<AppShell> createState() => _AppShellState();
 }
@@ -73,6 +80,50 @@ class _AppShellState extends State<AppShell> {
   // the window each build, so a smaller window never leaves a panel too wide.
   double _sidebarWidth = PanelLayout.sidebarDefault;
   double _detailsWidth = PanelLayout.detailsDefault;
+  Timer? _saveTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // The saved widths are the user's wish; the build fits them to the window.
+    // Out-of-range values (an edited file) come back to the limits.
+    final saved = widget.panelWidths?.load();
+    if (saved != null) {
+      _sidebarWidth = saved.sidebar.clamp(
+        PanelLayout.sidebarMin,
+        PanelLayout.sidebarMax,
+      );
+      _detailsWidth = saved.details.clamp(
+        PanelLayout.detailsMin,
+        PanelLayout.detailsMax,
+      );
+    }
+  }
+
+  /// Saves shortly after the last change, so a drag writes once, not per pixel.
+  void _rememberWidths() {
+    if (widget.panelWidths == null) {
+      return;
+    }
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 400), _saveWidths);
+  }
+
+  void _saveWidths() {
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    widget.panelWidths?.save(
+      PanelWidths(sidebar: _sidebarWidth, details: _detailsWidth),
+    );
+  }
+
+  @override
+  void dispose() {
+    if (_saveTimer?.isActive ?? false) {
+      _saveWidths();
+    }
+    super.dispose();
+  }
 
   void _closeOverlay(TasksNotifier notifier) {
     notifier.selectTask(null);
@@ -213,16 +264,22 @@ class _AppShellState extends State<AppShell> {
                       key: const ValueKey('resize-sidebar'),
                       label: AppStrings.resizeSidebar,
                       value: widths.sidebar,
-                      onChanged: (v) => setState(
-                        () => _sidebarWidth = PanelLayout.sidebar(
-                          v,
-                          total: width,
-                          details: widths.details,
-                        ),
-                      ),
-                      onReset: () => setState(
-                        () => _sidebarWidth = PanelLayout.sidebarDefault,
-                      ),
+                      onChanged: (v) {
+                        setState(
+                          () => _sidebarWidth = PanelLayout.sidebar(
+                            v,
+                            total: width,
+                            details: widths.details,
+                          ),
+                        );
+                        _rememberWidths();
+                      },
+                      onReset: () {
+                        setState(
+                          () => _sidebarWidth = PanelLayout.sidebarDefault,
+                        );
+                        _rememberWidths();
+                      },
                     ),
                   ),
                 if (showDetails)
@@ -236,16 +293,22 @@ class _AppShellState extends State<AppShell> {
                       label: AppStrings.resizeDetails,
                       value: widths.details,
                       growsLeft: true,
-                      onChanged: (v) => setState(
-                        () => _detailsWidth = PanelLayout.details(
-                          v,
-                          total: width,
-                          sidebar: widths.sidebar,
-                        ),
-                      ),
-                      onReset: () => setState(
-                        () => _detailsWidth = PanelLayout.detailsDefault,
-                      ),
+                      onChanged: (v) {
+                        setState(
+                          () => _detailsWidth = PanelLayout.details(
+                            v,
+                            total: width,
+                            sidebar: widths.sidebar,
+                          ),
+                        );
+                        _rememberWidths();
+                      },
+                      onReset: () {
+                        setState(
+                          () => _detailsWidth = PanelLayout.detailsDefault,
+                        );
+                        _rememberWidths();
+                      },
                     ),
                   ),
               ],

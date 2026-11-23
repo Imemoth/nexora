@@ -5,6 +5,7 @@ import 'package:nexora/core/build_info.dart';
 import 'package:nexora/features/tasks/application/reminder_service.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/platform/desktop_integration.dart';
+import 'package:nexora/platform/panel_width_store.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
 import 'package:nexora/features/tasks/presentation/tasks_scope.dart';
 import 'package:nexora/features/tasks/presentation/theme/theme_controller.dart';
@@ -36,6 +37,7 @@ class NexoraApp extends StatelessWidget {
     this.beforeExit,
     this.themeController,
     this.buildInfo,
+    this.panelWidths,
   });
 
   final TasksNotifier notifier;
@@ -73,6 +75,9 @@ class NexoraApp extends StatelessWidget {
 
   /// Which build is running (About). Null shows an unknown build.
   final BuildInfo? buildInfo;
+
+  /// Where the panel widths are remembered on this device; null: not saved.
+  final PanelWidthStore? panelWidths;
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +139,7 @@ class NexoraApp extends StatelessWidget {
       },
       home: AppShell(
         onExitApp: _exitAction(),
+        panelWidths: panelWidths,
         syncPanel: syncPanel,
         accountPanel: accountPanel,
         importPanel: importPanel,

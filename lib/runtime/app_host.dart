@@ -6,6 +6,7 @@ import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
 import 'package:nexora/features/tasks/presentation/theme/theme_controller.dart';
 import 'package:nexora/platform/desktop_integration.dart';
+import 'package:nexora/platform/panel_width_store.dart';
 
 import 'sync_runtime.dart';
 
@@ -20,6 +21,7 @@ class AppHost extends StatefulWidget {
     this.desktop,
     this.themeController,
     this.buildInfo,
+    this.panelWidths,
   });
 
   final SyncRuntime runtime;
@@ -33,6 +35,9 @@ class AppHost extends StatefulWidget {
 
   /// Which build is running (About).
   final BuildInfo? buildInfo;
+
+  /// Panel widths remembered on this device; survive an account switch.
+  final PanelWidthStore? panelWidths;
 
   @override
   State<AppHost> createState() => _AppHostState();
@@ -77,6 +82,7 @@ class _AppHostState extends State<AppHost> {
       desktop: widget.desktop,
       themeController: widget.themeController,
       buildInfo: widget.buildInfo,
+      panelWidths: widget.panelWidths,
       reminders: _active.reminders,
       beforeExit: widget.runtime.dispose,
       syncPanel: widget.runtime.syncPanel(),

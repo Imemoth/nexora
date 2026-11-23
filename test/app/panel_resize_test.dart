@@ -5,16 +5,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/app/nexora_app.dart';
 import 'package:nexora/app/panel_resize.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
+import 'package:nexora/platform/panel_width_store.dart';
 
 import '../support/workspace_harness.dart';
 
-Future<TasksNotifier> _pump(WidgetTester tester, double w) async {
+Future<TasksNotifier> _pump(
+  WidgetTester tester,
+  double w, {
+  PanelWidthStore? store,
+}) async {
   final harness = await loadedHarness(tasks: sampleTasks());
   final notifier = TasksNotifier(harness.workspace);
   tester.view.physicalSize = Size(w, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(NexoraApp(notifier: notifier));
+  await tester.pumpWidget(NexoraApp(notifier: notifier, panelWidths: store));
   await tester.pumpAndSettle();
   notifier.selectTask('a');
   await tester.pumpAndSettle();
@@ -162,6 +167,107 @@ void main() {
     await tester.tap(handle);
     await tester.pumpAndSettle();
     expect(_width(tester, 'details-pane'), 380);
+  });
+
+  group('remembered widths', () {
+    testWidgets('saved widths are restored on start', (tester) async {
+      final store = InMemoryPanelWidthStore(
+        const PanelWidths(sidebar: 300, details: 470),
+      );
+      await _pump(tester, 1600, store: store);
+      expect(_width(tester, 'sidebar'), 300);
+      expect(_width(tester, 'details-pane'), 470);
+    });
+
+    testWidgets('out-of-range or too wide values are kept within the limits', (
+      tester,
+    ) async {
+      final store = InMemoryPanelWidthStore(
+        const PanelWidths(sidebar: 5000, details: 20),
+      );
+      await _pump(tester, 1100, store: store);
+      // At 1100 px nothing may grow past what leaves the list its minimum.
+      expect(_width(tester, 'sidebar'), lessThanOrEqualTo(360));
+      expect(_width(tester, 'details-pane'), greaterThanOrEqualTo(340));
+      expect(
+        1100 - _width(tester, 'sidebar') - _width(tester, 'details-pane'),
+        greaterThanOrEqualTo(PanelLayout.centreMin),
+      );
+    });
+
+    testWidgets('a smaller window shrinks the panels but keeps the choice', (
+      tester,
+    ) async {
+      final store = InMemoryPanelWidthStore(
+        const PanelWidths(sidebar: 300, details: 470),
+      );
+      await _pump(tester, 1600, store: store);
+      tester.view.physicalSize = const Size(1100, 800);
+      await tester.pumpAndSettle();
+      expect(_width(tester, 'details-pane'), lessThan(470));
+      tester.view.physicalSize = const Size(1600, 800);
+      await tester.pumpAndSettle();
+      expect(_width(tester, 'details-pane'), 470);
+      expect(store.saves, 0, reason: 'resizing the window is not a choice');
+    });
+
+    testWidgets('a keyboard resize is saved once, after a short pause', (
+      tester,
+    ) async {
+      final store = InMemoryPanelWidthStore();
+      await _pump(tester, 1600, store: store);
+      await _tabTo(tester, 'Resize details panel');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(store.saves, 0);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(store.saves, 1);
+      expect(store.widths?.details, 412);
+      expect(store.widths?.sidebar, 248);
+    });
+
+    testWidgets('a mouse drag is saved', (tester) async {
+      final store = InMemoryPanelWidthStore();
+      await _pump(tester, 1600, store: store);
+      await tester.drag(
+        find.byKey(const ValueKey('resize-sidebar')),
+        const Offset(60, 0),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(store.widths?.sidebar, _near(308));
+    });
+
+    testWidgets('a reset is saved and survives a restart', (tester) async {
+      final store = InMemoryPanelWidthStore(
+        const PanelWidths(sidebar: 300, details: 470),
+      );
+      await _pump(tester, 1600, store: store);
+      await _tabTo(tester, 'Resize details panel');
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(store.widths?.details, PanelLayout.detailsDefault);
+      expect(store.widths?.sidebar, 300);
+
+      // "Restart": a fresh app over the same store.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _pump(tester, 1600, store: store);
+      expect(_width(tester, 'details-pane'), 380);
+      expect(_width(tester, 'sidebar'), 300);
+    });
+
+    testWidgets('a change made just before the app closes is not lost', (
+      tester,
+    ) async {
+      final store = InMemoryPanelWidthStore();
+      await _pump(tester, 1600, store: store);
+      await _tabTo(tester, 'Resize details panel');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(store.widths?.details, 396);
+    });
   });
 
   testWidgets('the handle is discoverable: label, value and hint', (
