@@ -16,6 +16,7 @@ abstract final class AppStrings {
   static const emptyProject = 'No tasks in this project yet';
   static const noSearchMatches = 'No tasks match your search';
   static const clearSearch = 'Clear';
+  static const notesMatchLabel = 'In notes';
   static const searchHint = 'Search title and notes';
   static const selectedTaskHidden = 'Selected task is hidden in this view';
   static const hiddenBySearch =

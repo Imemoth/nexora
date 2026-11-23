@@ -3,6 +3,7 @@ import 'package:nexora/app/theme.dart';
 import 'package:nexora/features/tasks/application/visible_task_row.dart';
 import 'package:nexora/features/tasks/domain/calendar_date.dart';
 import 'package:nexora/features/tasks/domain/reminder.dart';
+import 'package:nexora/features/tasks/domain/task_search.dart';
 import 'package:nexora/features/tasks/domain/task_priority.dart';
 import 'package:nexora/features/tasks/domain/task_status.dart';
 
@@ -26,6 +27,7 @@ class TaskRow extends StatelessWidget {
     required this.onToggle,
     this.listFocused = false,
     this.contextLabel,
+    this.notesMatch,
   });
 
   final VisibleTaskRow row;
@@ -41,6 +43,10 @@ class TaskRow extends StatelessWidget {
   /// Project and parent shown before the metadata when the row stands outside
   /// its own place in the tree (smart views, a search that hides the parent).
   final String? contextLabel;
+
+  /// Why a task that matched the search only through its Notes is in the list:
+  /// a short excerpt around the match, shown under the metadata.
+  final NotesExcerpt? notesMatch;
 
   static const double indentStep = 28;
   static const double _padding = 10;
@@ -87,6 +93,8 @@ class TaskRow extends StatelessWidget {
         AppStrings.progress(completion.done, completion.total),
       if (ready) AppStrings.readyForReview,
       ?contextLabel,
+      if (notesMatch != null)
+        '${AppStrings.notesMatchLabel}: ${notesMatch!.text}',
     ].join(', ');
 
     final card = Container(
@@ -143,7 +151,7 @@ class TaskRow extends StatelessWidget {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      return Wrap(
+                      final meta = Wrap(
                         spacing: 12,
                         runSpacing: 2,
                         crossAxisAlignment: WrapCrossAlignment.center,
@@ -221,6 +229,22 @@ class TaskRow extends StatelessWidget {
                             ),
                         ],
                       );
+                      final excerpt = notesMatch;
+                      if (excerpt == null) {
+                        return meta;
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          meta,
+                          const SizedBox(height: 2),
+                          _NotesMatchLine(
+                            key: ValueKey('notes-match-${task.id}'),
+                            excerpt: excerpt,
+                          ),
+                        ],
+                      );
                     },
                   ),
                 ),
@@ -252,6 +276,52 @@ class TaskRow extends StatelessWidget {
             child: card,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One line "In notes: …before MATCH after…" under a row that matched the
+/// search only through its Notes. It ellipsizes at narrow widths; the tooltip
+/// carries the whole excerpt.
+class _NotesMatchLine extends StatelessWidget {
+  const _NotesMatchLine({super.key, required this.excerpt});
+
+  final NotesExcerpt excerpt;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = NexoraColors.of(context);
+    final base = NexoraText.caption.copyWith(color: c.text2);
+    return Tooltip(
+      message: excerpt.text,
+      child: ExcludeSemantics(
+        child: Text.rich(
+          TextSpan(
+            style: base,
+            children: [
+              TextSpan(
+                text: '${AppStrings.notesMatchLabel}: ',
+                style: base.copyWith(
+                  color: c.textMuted,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              TextSpan(text: '${excerpt.leading ? '…' : ''}${excerpt.before}'),
+              TextSpan(
+                text: excerpt.match,
+                style: base.copyWith(
+                  color: c.text1,
+                  fontWeight: FontWeight.w800,
+                  backgroundColor: c.accentCyan.withValues(alpha: 0.22),
+                ),
+              ),
+              TextSpan(text: '${excerpt.after}${excerpt.trailing ? '…' : ''}'),
+            ],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:nexora/features/tasks/application/nav_selection.dart';
 import 'package:nexora/features/tasks/application/visible_task_row.dart';
 import 'package:nexora/features/tasks/application/workspace_error.dart';
 import 'package:nexora/features/tasks/application/workspace_state.dart';
+import 'package:nexora/features/tasks/domain/task_search.dart';
 
 import 'keyboard_actions.dart';
 import 'keycap.dart';
@@ -437,6 +438,7 @@ class _TaskRowsState extends State<_TaskRows> {
           selected: row.task.id == state.selectedTaskId,
           listFocused: widget.focused,
           contextLabel: widget.labels[row.task.id],
+          notesMatch: notesMatchExcerpt(row.task, state.searchQuery),
           onSelect: () {
             widget.keyboard.list.requestFocus();
             widget.notifier.selectTask(row.task.id);
