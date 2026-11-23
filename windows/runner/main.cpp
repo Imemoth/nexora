@@ -20,6 +20,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (!self_test) {
     instance_mutex = ::CreateMutexW(nullptr, TRUE, L"Local\\Nexora.SingleInstance");
     if (instance_mutex != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
+      // This process was just started by the user, so Windows lets it hand the
+      // right to take the foreground to the running instance
+      // (AllowSetForegroundWindow). Without the grant, SetForegroundWindow in
+      // the running instance only flashes its taskbar button when another
+      // application is in front. The grant is a request: Windows may still
+      // refuse (for example when the launch did not come from user input), and
+      // then the window is restored and the taskbar button flashes, as before.
+      HWND running = ::FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"nexora");
+      if (running != nullptr) {
+        DWORD running_pid = 0;
+        ::GetWindowThreadProcessId(running, &running_pid);
+        if (running_pid != 0) {
+          ::AllowSetForegroundWindow(running_pid);
+        }
+      }
       ::PostMessageW(HWND_BROADCAST, DesktopIntegration::ActivateMessage(), 0,
                      0);
       ::CloseHandle(instance_mutex);

@@ -127,3 +127,28 @@ Baseline at the start (head `c726b48`, Linux, the two-device e2e enabled against
 ### 9.4 Blocked or waiting
 The hosted due-time migration (owner approval of the exact operation); Windows acceptance rows F10 to F20; regenerated goldens; a real sync-enabled run against the TEST project (needs the migration for the time, and the account for everything else).
 
+## 10. Unsaved edits on exit, and the live-acceptance UI refinements (same branch, same Draft PR)
+
+### 10.1 The confirmed finding: unsaved edits lost on exit (build 1.1.0+2, commit `8fe2d59`)
+Two separate causes, one per way of leaving the application.
+- **Title-bar X.** The window's WM_CLOSE goes to the Flutter engine, which asks the framework (`AppLifecycleListener.onExitRequested`). `UnsavedChangesHost` owned that listener, but declared it as `late final AppLifecycleListener _lifecycle = AppLifecycleListener(...)`. A `late final` initializer runs on first use, and the first use was `dispose()`: the listener was **never registered**, so the engine got the default answer ("exit") with a dirty draft. The earlier tests called `handleExitRequest()` directly and never proved the registration. Fix: create it in `initState`.
+- **Tray Exit.** The native menu item sends `exitRequested`; `DesktopBridge` ran `beforeExit` and `quit()` without asking the workspace. Fix: it now calls `TasksNotifier.requestExit()` first. A clean workspace exits as before. A dirty one opens the **same** unsaved-changes dialog as the X (Save, Discard, Cancel; a failed save keeps the dialog and the draft), and the process ends only from Save or Discard through the same close sequence (`finishExit`: `beforeExit`, then native `quit`). Cancel keeps the app and the draft.
+- **Native side (needs the Windows build to confirm).** The native 4 s forced-quit timer would have ended the app while the dialog waited, so Dart calls the new `holdExit` method, which stops the timer and shows the window (it may sit in the tray). After the gate, `quit()` marks the runner as quitting and WM_CLOSE then destroys the window directly instead of asking Dart again after the runtime is closed.
+- **Behaviour summary.** The title-bar X is an exit, not a hide-to-tray (only minimize hides to the tray); with unsaved edits it cancels the close and shows the dialog. Minimize to the tray keeps the draft in memory and intact; restoring the window shows it, and a later real exit is gated. A second exit request while the dialog is open adds no second dialog. All draft fields are covered (`EditDraft.isDirty`: title, status, priority, due date, due time, notes).
+
+### 10.2 UI refinements
+| Item | Change |
+|---|---|
+| A. Panel widths | Remembered per device in `settings.json` (key `panel_widths`, same file as the theme and the window placement), written about 0.4 s after the last change and on dispose; restored at start, clamped to the limits and fitted to the window each build (the stored choice is kept when the window is small). A reset is saved. Code: `lib/platform/panel_width_store.dart`, `app_shell.dart`. |
+| B. Hidden-task notice | A solid banner with an accent edge, an icon, the cause in words, and filled action buttons (same keys and actions); nothing is cleared by itself. |
+| C. Pickers | Project and parent pickers: menu height limited to 264 px (longer lists scroll), dialog-family colour and radius. Same widgets and keys, so keyboard use, the same-project restriction and focus are unchanged. A true bordered popup would need a different widget; not done. |
+| D. Notes matches | A task found only through its Notes shows "In notes: ...excerpt..." with the match emphasised, one line, tooltip with the excerpt, part of the row's semantics label. `notesMatchExcerpt` uses the same test as `matchesSearch`; which tasks match is unchanged. |
+| E. Narrow widths | Reminder strip: below 760 px it stacks (name on its own two lines, state and actions wrap below); wide layout unchanged; tooltip with the whole name. Sidebar: tooltips with the whole project name and the account text; sync card: title may use two lines and the action drops under it when both do not fit. |
+| F. Second launch | The second process calls `AllowSetForegroundWindow` for the running instance before asking it to show itself. This is the documented way for the process the user just started to pass the foreground right on. Windows may still refuse; then the window is restored and its taskbar button flashes, as before. **Not verified on Windows.** |
+
+### 10.3 Tests
+New: `test/app/exit_unsaved_test.dart` (15; drives `WidgetsBinding.handleRequestAppExit`, the call the engine makes for the X, and the tray `ExitRequested`; Save, Discard, Cancel, failed save and retry, no stacked dialogs, all draft fields), `test/platform/panel_width_store_test.dart` (6), `remembered widths` group in `panel_resize_test.dart` (7), notice tests in `reveal_subtask_ui_test.dart`, picker tests in `create_dialogs_test.dart`, `notesMatchExcerpt` tests in `task_search_test.dart`, `test/app/search_notes_match_test.dart`, strip tests in `reminder_ui_test.dart`, `test/app/narrow_sidebar_test.dart`. With the old `unsaved_changes_host.dart` the two X tests fail; with the fix they pass.
+
+### 10.4 Not checked here
+Windows C++ (compiled by CI only), every Windows GUI behaviour above, goldens (the sync card and the reminder strip render differently in narrow cases; regenerate on the Windows runner), the full acceptance matrix. See `phase-5-acceptance.md` rows F21 to F30.
+

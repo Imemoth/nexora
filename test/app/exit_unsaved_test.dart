@@ -4,6 +4,10 @@ import 'dart:ui' show AppExitResponse;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexora/app/nexora_app.dart';
+import 'package:nexora/features/tasks/domain/calendar_date.dart';
+import 'package:nexora/features/tasks/domain/task_priority.dart';
+import 'package:nexora/features/tasks/domain/task_status.dart';
+import 'package:nexora/features/tasks/domain/due_time.dart';
 import 'package:nexora/features/tasks/presentation/strings/app_strings.dart';
 import 'package:nexora/features/tasks/presentation/tasks_notifier.dart';
 import 'package:nexora/platform/desktop_integration.dart';
@@ -121,6 +125,53 @@ void main() {
       );
       expect(p.harness.workspace.state.draft?.title, 'Alpha 2');
     });
+  });
+
+  group('every field of the task draft is protected', () {
+    final edits = <String, void Function(TasksNotifier)>{
+      'status': (n) => n.editDraft(status: TaskStatus.inProgress),
+      'priority': (n) => n.editDraft(priority: TaskPriority.high),
+      'due date': (n) => n.editDraft(dueDate: const CalendarDate(2027, 1, 5)),
+      'due time': (n) => n.editDraft(
+        dueDate: const CalendarDate(2027, 1, 5),
+        dueTime: const DueTime(9, 30),
+      ),
+    };
+    for (final entry in edits.entries) {
+      testWidgets('${entry.key}: X and tray Exit both stop at the gate', (
+        tester,
+      ) async {
+        final harness = await loadedHarness(tasks: sampleTasks());
+        final desktop = _FakeDesktop();
+        final notifier = TasksNotifier(harness.workspace);
+        tester.view.physicalSize = const Size(1400, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          NexoraApp(notifier: notifier, desktop: desktop),
+        );
+        await tester.pumpAndSettle();
+        notifier.selectTask('c');
+        await tester.pumpAndSettle();
+        entry.value(notifier);
+        await tester.pumpAndSettle();
+        expect(harness.workspace.state.draft?.isDirty, isTrue);
+
+        expect(
+          await tester.binding.handleRequestAppExit(),
+          AppExitResponse.cancel,
+        );
+        await tester.pumpAndSettle();
+        expect(_gateOpen(), isTrue);
+        await tester.tap(find.byKey(const ValueKey('gate-cancel')));
+        await tester.pumpAndSettle();
+
+        desktop.controller.add(const ExitRequested());
+        await tester.pumpAndSettle();
+        expect(_gateOpen(), isTrue);
+        expect(desktop.quitCalls, 0);
+      });
+    }
   });
 
   group('tray Exit', () {

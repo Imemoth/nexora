@@ -57,6 +57,22 @@ Run on the CI-built portable ZIPs: the local-only release build and the sign-in 
 | F20 | Goldens regenerated on Windows for this layout (default expansion changes the demo-data screens) | not run |
 
 
+## Exit and UI refinement checks (all **not run**; nothing above is marked passed by them)
+Run on the CI-built portable ZIPs (default and sync DEVELOPMENT TEST build), Dark and Light, 100 % and 150 %. Details: implementation record section 10.
+
+| # | Check | Status |
+|---|---|---|
+| F21 | **Exit with unsaved edits, title-bar X.** Open a task, change Notes, click X: the dialog Save / Discard / Cancel appears. Cancel keeps the app and the text; Discard closes without saving (reopen: text gone); Save closes and the text is there after reopening. Repeat with title, status, priority, due date | not run |
+| F22 | **Exit with unsaved edits, tray Exit.** Same, with the tray menu Exit (also with the window minimized to the tray: the window comes forward with the dialog; no second dialog on a second Exit; the app stays open while the dialog waits for longer than 4 s). Make Save fail (for example a read-only data folder) and confirm the draft stays and the app does not exit | not run |
+| F23 | Clean app: X and tray Exit close at once; minimize to the tray keeps the draft; restoring shows it; reminders still fire | not run |
+| F24 | Panel widths: drag and keyboard-resize both panels, close and restart: widths restored; double-click a divider, restart: defaults; a smaller window still fits | not run |
+| F25 | Hidden-task notice: with a search active select a hidden related subtask: the banner is easy to see in both themes; Clear search clears only the search and reveals the task | not run |
+| F26 | New task project picker and New subtask parent picker at 150 %: the list is short and scrolls, themed, keyboard and focus work | not run |
+| F27 | Search a word that only occurs in a task's Notes: the row shows "In notes: ..." with the word emphasised; a task with the word in its title shows none | not run |
+| F28 | Narrow widths at 150 %: the reminder strip keeps the task name; long project names have a tooltip; the sync card title is readable, the action sits below when needed | not run |
+| F29 | Second launch while Nexora is behind another application: the window comes to the front. If Windows only flashes the taskbar button, note it (known limitation, behaviour as before) | not run |
+| F30 | The regenerated goldens (sync card and reminder strip in narrow cases changed) | not run |
+
 ## Hosted due-time migration and hosted checks (2026-11-16, DEV/TEST project `uicccaawtjvqggeufbez`)
 Owner-authorized: the exact migration file below, and the hosted HTTP/JWT and two-device checks with the test account the owner supplied (no service-role key; test data only).
 
