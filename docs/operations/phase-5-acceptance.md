@@ -58,6 +58,7 @@ Run on the CI-built portable ZIPs: the local-only release build and the sign-in 
 
 
 ## Exit and UI refinement checks (all **not run**; nothing above is marked passed by them)
+Automated evidence only (CI run 45203271612, head `8a1325e`): the Windows tests, build and shell smoke passed, including tray Exit ending the process when nothing is unsaved. That is not a GUI observation of the rows below.
 Run on the CI-built portable ZIPs (default and sync DEVELOPMENT TEST build), Dark and Light, 100 % and 150 %. Details: implementation record section 10.
 
 | # | Check | Status |
