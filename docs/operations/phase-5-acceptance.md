@@ -71,7 +71,7 @@ Run on the CI-built portable ZIPs (default and sync DEVELOPMENT TEST build), Dar
 | F27 | Search a word that only occurs in a task's Notes: the row shows "In notes: ..." with the word emphasised; a task with the word in its title shows none | not run |
 | F28 | Narrow widths at 150 %: the reminder strip keeps the task name; long project names have a tooltip; the sync card title is readable, the action sits below when needed | not run |
 | F29 | Second launch while Nexora is behind another application: the window comes to the front. If Windows only flashes the taskbar button, note it (known limitation, behaviour as before) | not run |
-| F30 | The regenerated goldens (sync card and reminder strip in narrow cases changed) | not run |
+| F30 | The four regenerated alert-bar goldens (the sync card action now sits under the title when both do not fit); the other 18 are byte-identical to before | regenerated on the Windows runner (`regenerate-goldens` run 45202258519, head `41b33c9`) and committed; still needs the owner's look |
 
 ## Hosted due-time migration and hosted checks (2026-11-16, DEV/TEST project `uicccaawtjvqggeufbez`)
 Owner-authorized: the exact migration file below, and the hosted HTTP/JWT and two-device checks with the test account the owner supplied (no service-role key; test data only).
