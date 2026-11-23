@@ -19,7 +19,12 @@
 // Channel protocol (Dart -> native):
 //   ready()                                   Dart can now receive events.
 //   showNotification({taskId,title,body})     -> bool (false: not shown).
-//   quit()                                    Destroy the window and end.
+//   quit()                                    Destroy the window and end. Only
+//                                              called once the exit passed the
+//                                              unsaved-changes gate.
+//   holdExit()                                Dart stays open after an exit
+//                                              request (unsaved edits): stop the
+//                                              forced-quit timer, show the window.
 //   getDisplays()                             -> [{left,top,right,bottom}] work
 //                                              areas in screen pixels, the
 //                                              primary display first.
@@ -30,7 +35,12 @@
 //                                             prepares it; afterwards it moves it.
 // Native -> Dart:
 //   notificationClicked({taskId})   a Nexora notification was clicked.
-//   exitRequested()                 tray menu Exit; Dart saves, then calls quit().
+//   exitRequested()                 tray menu Exit; Dart passes the unsaved-changes
+//                                   gate and closes, then calls quit() (or
+//                                   holdExit() when the user keeps working).
+//                                   The title-bar X is not sent here: WM_CLOSE
+//                                   goes to the Flutter engine, which asks the
+//                                   framework (AppLifecycleListener.onExitRequested).
 //   windowActivated()               the window was restored from the tray.
 //   windowPlacementChanged({left,top,width,height,maximized})
 //                                   the user moved, resized, maximized or
@@ -96,6 +106,7 @@ class DesktopIntegration {
   UINT taskbar_created_message_;
   bool show_maximized_ = true;
   bool in_size_move_ = false;
+  bool quitting_ = false;
 };
 
 #endif  // RUNNER_DESKTOP_INTEGRATION_H_

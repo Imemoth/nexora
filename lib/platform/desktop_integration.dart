@@ -22,7 +22,8 @@ final class NotificationClicked extends DesktopEvent {
 }
 
 /// The user chose Exit in the tray menu (or the shell asked the app to quit).
-/// The app should save what it must and then call [DesktopIntegration.quit].
+/// The app should first pass the unsaved-changes gate, then close what it must
+/// and call [DesktopIntegration.quit].
 final class ExitRequested extends DesktopEvent {
   const ExitRequested();
 }
@@ -51,6 +52,11 @@ abstract interface class DesktopIntegration implements ReminderNotifier {
   /// Ends the process (tray icon removed, window destroyed).
   Future<void> quit();
 
+  /// The app answered an exit request by staying open (unsaved edits): the
+  /// native side stops its forced-quit timer and brings the window forward so
+  /// the unsaved-changes dialog is seen, also when the window sits in the tray.
+  Future<void> holdExit();
+
   Future<void> dispose();
 }
 
@@ -71,6 +77,9 @@ final class NoDesktopIntegration implements DesktopIntegration {
 
   @override
   Future<void> quit() async {}
+
+  @override
+  Future<void> holdExit() async {}
 
   @override
   Future<void> dispose() async {}
@@ -176,6 +185,17 @@ final class WindowsDesktopIntegration
       exit(0);
     } on PlatformException {
       exit(0);
+    }
+  }
+
+  @override
+  Future<void> holdExit() async {
+    try {
+      await _channel.invokeMethod<void>('holdExit');
+    } on MissingPluginException {
+      // An older runner: its forced-quit timer cannot be stopped from here.
+    } on PlatformException {
+      // Same.
     }
   }
 

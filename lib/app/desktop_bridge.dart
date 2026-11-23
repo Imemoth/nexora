@@ -10,9 +10,27 @@ import 'package:nexora/platform/desktop_integration.dart';
 /// provides the reminders of the active workspace to the widgets below.
 ///
 /// - A notification click selects the task in the current workspace.
-/// - Exit from the tray menu runs [beforeExit] (bounded by [exitGrace]) and then
-///   ends the process.
+/// - Exit from the tray menu first passes the unsaved-changes gate (Save,
+///   Discard or Cancel for a dirty draft), then runs [beforeExit] (bounded by
+///   [exitGrace]) and ends the process. Cancel, or a failed save, keeps the app
+///   and the draft.
 /// - With neither [desktop] nor [reminders] it is a pass-through.
+/// Closes what must be closed ([beforeExit], bounded by [grace]) and then ends
+/// the process through the native shell. A failing or hanging [beforeExit]
+/// never prevents the exit: an exit that already passed the gate must end.
+Future<void> finishExit(
+  DesktopIntegration desktop, {
+  Future<void> Function()? beforeExit,
+  Duration grace = const Duration(seconds: 3),
+}) async {
+  try {
+    await beforeExit?.call().timeout(grace);
+  } on Object {
+    // The process ends anyway.
+  }
+  await desktop.quit();
+}
+
 class DesktopBridge extends StatefulWidget {
   const DesktopBridge({
     super.key,
@@ -77,19 +95,40 @@ class _DesktopBridgeState extends State<DesktopBridge> {
           TasksScope.of(context).revealTask(taskId);
         }
       case ExitRequested():
-        unawaited(_exit());
+        unawaited(_requestExit());
       case WindowActivated():
         break;
     }
   }
 
-  Future<void> _exit() async {
-    try {
-      await widget.beforeExit?.call().timeout(widget.exitGrace);
-    } on Object {
-      // The process ends anyway: an explicit Exit must always terminate.
+  /// Tray Exit. A clean workspace exits at once. Unsaved task edits open the
+  /// existing gate (the same dialog as the title-bar X) and the process ends
+  /// only from its Save or Discard answer, see [NexoraApp].
+  Future<void> _requestExit() async {
+    final desktop = widget.desktop;
+    if (desktop == null) {
+      return;
     }
-    await widget.desktop?.quit();
+    final notifier = TasksScope.of(context);
+    var allowed = await notifier.requestExit();
+    // A save or create that is still running refuses the request without
+    // opening the gate: ask again for a moment.
+    for (var i = 0; !allowed && notifier.state.pending == null && i < 10; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      if (!mounted) {
+        return;
+      }
+      allowed = await notifier.requestExit();
+    }
+    if (allowed) {
+      await finishExit(
+        desktop,
+        beforeExit: widget.beforeExit,
+        grace: widget.exitGrace,
+      );
+    } else {
+      await desktop.holdExit();
+    }
   }
 
   @override

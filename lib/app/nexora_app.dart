@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:nexora/core/build_info.dart';
 import 'package:nexora/features/tasks/application/reminder_service.dart';
@@ -98,6 +100,20 @@ class NexoraApp extends StatelessWidget {
     );
   }
 
+  /// What Save or Discard in the exit gate does. With the native shell it closes
+  /// the runtime and quits through the shell, exactly as tray Exit does; without
+  /// it the host falls back to the platform exit. Tests inject [onExitApp].
+  void Function()? _exitAction() {
+    if (onExitApp != null) {
+      return onExitApp;
+    }
+    final shell = desktop;
+    if (shell == null || !shell.available) {
+      return null;
+    }
+    return () => unawaited(finishExit(shell, beforeExit: beforeExit));
+  }
+
   Widget _buildApp(ThemeMode mode) {
     return MaterialApp(
       title: AppStrings.appName,
@@ -117,7 +133,7 @@ class NexoraApp extends StatelessWidget {
         );
       },
       home: AppShell(
-        onExitApp: onExitApp,
+        onExitApp: _exitAction(),
         syncPanel: syncPanel,
         accountPanel: accountPanel,
         importPanel: importPanel,

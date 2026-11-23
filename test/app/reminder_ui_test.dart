@@ -102,6 +102,8 @@ final class _FakeDesktop implements DesktopIntegration {
   @override
   Future<void> quit() async => quitCalled = true;
   @override
+  Future<void> holdExit() async {}
+  @override
   Future<void> dispose() async {}
   @override
   Future<bool> show({

@@ -122,6 +122,12 @@ DesktopIntegration::DesktopIntegration(HWND window,
         } else if (call.method_name() == "quit") {
           result->Success();
           Quit();
+        } else if (call.method_name() == "holdExit") {
+          // Dart answered the exit request by staying open (unsaved edits):
+          // no forced quit, and the window must be visible for the dialog.
+          ::KillTimer(window_, kExitGraceTimer);
+          ShowMainWindow();
+          result->Success();
         } else if (call.method_name() == "getDisplays") {
           result->Success(DisplaysValue());
         } else if (call.method_name() == "setWindowPlacement") {
@@ -390,6 +396,7 @@ void DesktopIntegration::RequestExit() {
 }
 
 void DesktopIntegration::Quit() {
+  quitting_ = true;
   ::KillTimer(window_, kExitGraceTimer);
   RemoveTrayIcon();
   // Asynchronous: this may run inside the channel handler, which must not be
@@ -410,6 +417,15 @@ bool DesktopIntegration::HandleMessage(HWND hwnd, UINT message, WPARAM wparam,
     tray_added_ = false;
     AddTrayIcon();
     *result = 0;
+    return true;
+  }
+  if (message == WM_CLOSE && quitting_) {
+    // The exit already passed the unsaved-changes gate and the runtime is
+    // closed: destroy the window directly instead of asking Dart again. The
+    // result is written first because destroying the window destroys this
+    // object.
+    *result = 0;
+    ::DestroyWindow(hwnd);
     return true;
   }
   switch (message) {

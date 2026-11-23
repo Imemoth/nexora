@@ -30,9 +30,16 @@ class UnsavedChangesHost extends StatefulWidget {
 class UnsavedChangesHostState extends State<UnsavedChangesHost> {
   TasksNotifier? _notifier;
   bool _dialogOpen = false;
-  late final AppLifecycleListener _lifecycle = AppLifecycleListener(
-    onExitRequested: handleExitRequest,
-  );
+  // Created in initState. A `late final` field with an initializer is
+  // evaluated on first use, which was dispose(): the listener was never
+  // registered and the title-bar X (the platform exit request) skipped the gate.
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onExitRequested: handleExitRequest);
+  }
 
   @override
   void didChangeDependencies() {
