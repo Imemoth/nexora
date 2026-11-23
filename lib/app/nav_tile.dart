@@ -74,12 +74,19 @@ class NavTile extends StatelessWidget {
                       ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        label,
-                        overflow: TextOverflow.ellipsis,
-                        style: NexoraText.bodyStrong.copyWith(
-                          color: labelColor,
-                          fontWeight: FontWeight.w600,
+                      // A narrow sidebar ellipsizes long names; hovering shows
+                      // the whole name.
+                      child: Tooltip(
+                        message: label,
+                        waitDuration: const Duration(milliseconds: 500),
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: NexoraText.bodyStrong.copyWith(
+                            color: labelColor,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),

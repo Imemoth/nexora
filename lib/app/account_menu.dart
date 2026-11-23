@@ -53,7 +53,9 @@ class AccountMenu extends StatelessWidget {
             onTap: () =>
                 controller.isOpen ? controller.close() : controller.open(),
             child: Tooltip(
-              message: AppStrings.accountMenuTooltip,
+              // The full account text (it may be cut in a narrow sidebar), then
+              // what the control does.
+              message: '$label\n${AppStrings.accountMenuTooltip}',
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(

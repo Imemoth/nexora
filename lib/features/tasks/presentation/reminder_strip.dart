@@ -13,6 +13,9 @@ import 'theme/nexora_colors.dart';
 /// task, "+N more", and the fallback note when native notifications are off.
 /// "Dismiss all" lives on the dashboard panel.
 class ReminderStrip extends StatelessWidget {
+  /// Below this width the strip stacks (see [build]).
+  static const double _singleRowWidth = 760;
+
   const ReminderStrip({super.key, this.onShowDashboard});
 
   /// Opens the dashboard (the "+N more" link). Null hides the link target.
@@ -43,21 +46,9 @@ class ReminderStrip extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: c.accentCyan),
             ),
-            child: Row(
-              key: ValueKey('reminder-row-${first.taskId}'),
-              children: [
-                Icon(Icons.notifications_none, size: 18, color: c.accentCyan),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    first.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: NexoraText.bodyStrong.copyWith(color: c.text1),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final stateText = Text(
                   first.missed
                       ? '${ReminderStrings.state(first.reminder)} · '
                             '${ReminderStrings.missedTag}'
@@ -65,24 +56,21 @@ class ReminderStrip extends StatelessWidget {
                   style: NexoraText.label.copyWith(
                     color: first.missed ? c.statusOverdue : c.text2,
                   ),
-                ),
-                if (due.length > 1) ...[
-                  const SizedBox(width: 8),
-                  TextButton(
-                    key: const ValueKey('reminder-more'),
-                    onPressed: onShowDashboard,
-                    child: Text(ReminderStrings.more(due.length - 1)),
-                  ),
-                ],
-                const Spacer(),
-                TextButton(
+                );
+                final more = due.length > 1
+                    ? TextButton(
+                        key: const ValueKey('reminder-more'),
+                        onPressed: onShowDashboard,
+                        child: Text(ReminderStrings.more(due.length - 1)),
+                      )
+                    : null;
+                final open = TextButton(
                   key: ValueKey('reminder-open-${first.taskId}'),
                   onPressed: () =>
                       TasksScope.of(context).revealTask(first.taskId),
                   child: const Text(ReminderStrings.openTask),
-                ),
-                _SnoozeMenu(item: first, notifier: notifier),
-                FilledButton(
+                );
+                final done = FilledButton(
                   key: ValueKey('reminder-done-${first.taskId}'),
                   onPressed: () => notifier.service.acknowledge(first.taskId),
                   style: FilledButton.styleFrom(
@@ -90,8 +78,80 @@ class ReminderStrip extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                   ),
                   child: const Text(ReminderStrings.acknowledge),
-                ),
-              ],
+                );
+                final snooze = _SnoozeMenu(item: first, notifier: notifier);
+                final bell = Icon(
+                  Icons.notifications_none,
+                  size: 18,
+                  color: c.accentCyan,
+                );
+                // The task name is the point of the strip. The whole task name
+                // is the tooltip when it is cut.
+                Widget title(int lines) => Tooltip(
+                  message: first.title,
+                  waitDuration: const Duration(milliseconds: 500),
+                  child: Text(
+                    first.title,
+                    maxLines: lines,
+                    overflow: TextOverflow.ellipsis,
+                    style: NexoraText.bodyStrong.copyWith(color: c.text1),
+                  ),
+                );
+
+                // Wide: everything on one line, as before. Narrow: the name
+                // keeps its own line (up to two) and the state and the actions
+                // wrap below it, so the name never shrinks to nothing.
+                if (constraints.maxWidth >= _singleRowWidth) {
+                  return Row(
+                    key: ValueKey('reminder-row-${first.taskId}'),
+                    children: [
+                      bell,
+                      const SizedBox(width: 10),
+                      Flexible(child: title(1)),
+                      const SizedBox(width: 8),
+                      stateText,
+                      if (more != null) ...[const SizedBox(width: 8), more],
+                      const Spacer(),
+                      open,
+                      snooze,
+                      done,
+                    ],
+                  );
+                }
+                return Column(
+                  key: ValueKey('reminder-row-${first.taskId}'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: bell,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: title(2)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 28, right: 2),
+                          child: stateText,
+                        ),
+                        ?more,
+                        open,
+                        snooze,
+                        done,
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
           if (!notifier.nativeAvailable)

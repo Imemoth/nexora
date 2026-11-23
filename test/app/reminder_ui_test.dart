@@ -233,6 +233,57 @@ void main() {
     expect(find.byKey(const ValueKey('reminder-banner')), findsNothing);
   });
 
+  for (final width in [1100.0, 1366.0, 1920.0]) {
+    testWidgets('the strip keeps the task name and every action at '
+        '${width.toInt()} px', (tester) async {
+      final h = await _pump(tester);
+      const longTitle =
+          'Prepare the quarterly report for the regional finance meeting';
+      h.memory.tasks['a'] = const ReminderTaskInfo(
+        title: longTitle,
+        open: true,
+      );
+      h.service.setReminder('a', const LocalWallTime(2026, 11, 14, 13, 0));
+      (h.service.clock as FakeZoneClock).now = _noon.add(
+        const Duration(hours: 1),
+      );
+      await tester.runAsync(h.service.tick);
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+
+      final banner = tester.getRect(
+        find.byKey(const ValueKey('reminder-banner')),
+      );
+      final title = find.descendant(
+        of: find.byKey(const ValueKey('reminder-banner')),
+        matching: find.text(longTitle),
+      );
+      expect(title, findsOneWidget);
+      // The name is readable: a real width, not a sliver.
+      expect(tester.getSize(title).width, greaterThan(180));
+      // Every control is inside the strip and reachable.
+      for (final key in [
+        'reminder-open-a',
+        'reminder-snooze-a',
+        'reminder-done-a',
+      ]) {
+        final r = tester.getRect(find.byKey(ValueKey(key)));
+        expect(r.left, greaterThanOrEqualTo(banner.left), reason: key);
+        expect(r.right, lessThanOrEqualTo(banner.right + 0.5), reason: key);
+      }
+      expect(tester.takeException(), isNull);
+      // The whole name is the tooltip (it can be cut at the narrowest width).
+      expect(
+        tester
+            .widget<Tooltip>(
+              find.ancestor(of: title, matching: find.byType(Tooltip)),
+            )
+            .message,
+        longTitle,
+      );
+    });
+  }
+
   testWidgets('snooze from the banner hides it until the snooze ends', (
     tester,
   ) async {

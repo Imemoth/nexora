@@ -280,20 +280,35 @@ class _CardBody extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
+          // The action sits beside the title when both fit, and drops under it
+          // in a narrow sidebar, so the title is never squeezed to nothing.
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            runSpacing: 2,
             children: [
-              _LevelIcon(level: presentation.level, color: tint),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    presentation.title,
-                    key: const ValueKey('sync-title'),
-                    overflow: TextOverflow.ellipsis,
-                    style: NexoraText.bodyStrong.copyWith(color: tint),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _LevelIcon(level: presentation.level, color: tint),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Tooltip(
+                        message: presentation.title,
+                        waitDuration: const Duration(milliseconds: 500),
+                        child: Text(
+                          presentation.title,
+                          key: const ValueKey('sync-title'),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: NexoraText.bodyStrong.copyWith(color: tint),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
               if (hasAction)
                 TextButton(
